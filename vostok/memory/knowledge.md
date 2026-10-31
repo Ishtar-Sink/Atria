@@ -2,7 +2,7 @@
 type: knowledge
 title: "Conhecimentos"
 description: "Descobertas e peculiaridades do projeto sem documentação primária. Consulte antes de pesquisar ou investigar um assunto pouco documentado."
-updated_at: 2026-10-31T01:27:52Z
+updated_at: 2026-10-31T03:29:39Z
 ---
 
 # Conhecimentos
@@ -82,3 +82,12 @@ Entradas criadas por `vostok memory add` e consultadas por `vostok memory search
 - **Conhecimento:** O `Dockerfile` monta `/src/target` como cache do BuildKit (`--mount=type=cache`), compartilhado entre builds. O `build.rs` do `atria-server` liga cada contexto (`cfg atria_context`) só se `src/<contexto>/mod.rs` existe; quando um build posterior roda numa árvore em que a pasta do contexto não existe mais, o cargo reaproveita a saída antiga do `build.rs` e falha com `file not found for module` (E0583), mesmo depois de `touch` em `src`. Solução: `docker buildx prune -f --filter type=exec.cachemount` (remove só os caches de `RUN --mount=type=cache`) e buildar de novo.
 - **Como foi descoberto:** Na TASK-36 da SPEC-001, o `docker build` pegou o contexto `search` em edição pela TASK-16; ao validar numa cópia da árvore sem a pasta `search`, o build falhou com E0583 em `main.rs` até limpar o cache de montagem.
 - **Validade:** Enquanto o `build.rs` decidir os contextos pela existência das pastas e o `Dockerfile` usar cache de `target`; só ocorre quando uma pasta de contexto some entre builds.
+
+## KNW-009: Macros do sqlx mapeiam datas para time, não chrono
+
+- **Data:** 2026-10-31
+- **Status:** válido
+- **Tags:** rust, sqlx, chrono, time, macros, query!, apps/server
+- **Conhecimento:** O `tower-sessions-sqlx-store` liga o recurso `time` do `sqlx`; com `time` e `chrono` ligados, as macros (`query!`, `query_as!`, `query_scalar!`) mapeiam `DATE`/`TIMESTAMPTZ` para `time::Date`/`OffsetDateTime`, e o sqlx 0.8 não tem opção para preferir `chrono`. Parâmetros chrono precisam de `valor as _`; colunas de saída precisam de `AS "col: _"` em `query_as!` (usa o tipo do campo da struct) ou `AS "col: DateTime<Utc>"`/`"col: NaiveDate"` em `query!`/`query_scalar!`. Enums próprios (`Visibility`, status) seguem a mesma regra. O `sqlx-cli` precisa ser da mesma versão do `sqlx` (0.8.6).
+- **Como foi descoberto:** Na TASK-18 da SPEC-001, ao trocar as queries de produção pelas macros: todo parâmetro e coluna de data falhou com `expected OffsetDateTime, found DateTime<Utc>`; `cargo tree -i sqlx -e features` mostrou o `time` vindo do store de sessões.
+- **Validade:** Enquanto o store de sessões depender do recurso `time` do sqlx e o projeto usar `chrono` (sqlx 0.8; o 0.9 tem sobreposição de tipos no `sqlx.toml`). Para regenerar a `.sqlx` num banco vazio, aplique as migrações com um binário compilado com `SQLX_OFFLINE=true` (com `DATABASE_URL` apontando para o banco vazio o crate não compila), e só depois rode `cargo sqlx prepare --workspace`: uma falha no `prepare` apaga a `.sqlx`.
