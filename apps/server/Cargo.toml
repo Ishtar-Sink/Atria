@@ -1,0 +1,67 @@
+[package]
+name = "atria-server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+# Justificativa de cada dependência ([project/stack-12]): TASK-04 da SPEC-001.
+[dependencies]
+# Núcleo HTTP ([project/stack-03]) e sessão em cookie ([project/security-02]).
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "fs", "time"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["trace", "set-header", "limit", "request-id", "util"] }
+# tower-sessions 0.14 é a versão compatível com o store em PostgreSQL 0.15 (mesmo tower-sessions-core).
+tower-sessions = "0.14"
+tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"] }
+# Banco ([project/stack-04]); 0.8 porque o store de sessões ainda depende do sqlx 0.8.
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+# Serialização e erros ([project/code-style-03]).
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+# Domínio comum: UUID v7 ([project/api-05]) e recorrência com fuso ([project/code-style-06]).
+uuid = { version = "1.29", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+# OpenAPI gerado do código ([project/api-02]).
+utoipa = { version = "6.0", features = ["axum_extras", "uuid", "chrono"] }
+# Logs estruturados em JSON ([project/self-hosting-05]).
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+# Segurança: cifra de campo ([project/security-18]), chave e cursor, CSRF, hash de arquivos, proxies e cookies.
+chacha20poly1305 = "0.11"
+base64 = "0.23"
+subtle = "2.6"
+rand = "0.10"
+sha2 = "0.11"
+ipnet = "2.12"
+cookie = "0.18"
+# Frontend embutido no binário ([project/self-hosting-02]).
+rust-embed = { version = "8.13", features = ["mime-guess"] }
+# Para os contextos: nenhum contexto altera este arquivo.
+argon2 = "0.6"
+totp-rs = "6.0"
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+web-push = { version = "0.11", default-features = false, features = ["hyper-client"] }
+# O web-push depende do OpenSSL (ece e hyper-tls); vendored compila o OpenSSL junto,
+# sem exigir libssl-dev e pkg-config no sistema nem na imagem Docker (KNW-003).
+openssl = { version = "0.10", features = ["vendored"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+typst = "0.15"
+typst-pdf = "0.15"
+maud = "0.27"
+zip = "9.1"
+
+[dev-dependencies]
+# PostgreSQL real em container nos testes de integração ([project/testing-02]); 0.27 é a versão que o testcontainers-modules 0.15 usa.
+testcontainers = { version = "0.27", features = ["reusable-containers"] }
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
+tempfile = "3.27"
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
