@@ -42,6 +42,8 @@ function Chevron() {
 }
 
 const TYPE_AHEAD_MS = 700;
+/** Rolagens logo após abrir ou mover a opção ativa são da própria lista e não a fecham. */
+const SETTLE_MS = 250;
 
 export function SelectField({
   label,
@@ -69,6 +71,7 @@ export function SelectField({
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
+  const quiet = useRef(0);
   const typed = useRef({ text: '', at: 0 });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -103,7 +106,8 @@ export function SelectField({
     const box = root.current.getBoundingClientRect();
     const room = window.innerHeight - box.bottom;
     setAbove(room < list.current.offsetHeight + 8 && box.top > room);
-    list.current.focus();
+    quiet.current = performance.now() + SETTLE_MS;
+    list.current.focus({ preventScroll: true });
   }, [open]);
 
   useEffect(() => {
@@ -112,21 +116,26 @@ export function SelectField({
       if (!root.current?.contains(event.target as Node)) close(false);
     };
     const onScroll = (event: Event) => {
+      if (performance.now() < quiet.current) return;
       if (!list.current?.contains(event.target as Node)) close(false);
+    };
+    const onResize = () => {
+      close(false);
     };
     document.addEventListener('pointerdown', onPointer, true);
     document.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', onScroll);
+    window.addEventListener('resize', onResize);
     return () => {
       document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', onResize);
     };
   }, [open]);
 
   useEffect(() => {
-    if (open)
-      document.getElementById(`${listId}-${String(active)}`)?.scrollIntoView({ block: 'nearest' });
+    if (!open) return;
+    quiet.current = performance.now() + SETTLE_MS;
+    document.getElementById(`${listId}-${String(active)}`)?.scrollIntoView({ block: 'nearest' });
   }, [open, active, listId]);
 
   function onTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -219,7 +228,7 @@ export function SelectField({
             ref={list}
             id={listId}
             role="listbox"
-            tabIndex={-1}
+            tabIndex={0}
             aria-labelledby={labelId}
             aria-activedescendant={`${listId}-${String(active)}`}
             className={[styles.list, above ? styles.above : ''].join(' ')}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { axe } from 'vitest-axe';
@@ -28,6 +28,46 @@ describe('SelectField', () => {
   it('has no axe violations', async () => {
     const { container } = render(<Controlled />);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('keeps the scrollable listbox reachable by keyboard (tabindex 0) with no axe violations', async () => {
+    const { container } = render(<Controlled />);
+    await userEvent.click(screen.getByLabelText('Tipo'));
+    const list = screen.getByRole('listbox');
+    expect(list).toHaveAttribute('tabindex', '0');
+    expect(list).toHaveFocus();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('ignores the scroll caused by opening, but still closes on a later page scroll', async () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      render(<Controlled />);
+      await userEvent.click(screen.getByLabelText('Tipo'));
+      fireEvent.scroll(document);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      now += 1000;
+      fireEvent.scroll(document);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('does not close on the scroll caused by moving the active option', async () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      render(<Controlled />);
+      await userEvent.click(screen.getByLabelText('Tipo'));
+      now += 1000;
+      await userEvent.keyboard('{ArrowDown}');
+      fireEvent.scroll(document);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('associates the label with the control', () => {
