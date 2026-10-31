@@ -1,0 +1,17 @@
+{
+  "name": "atria",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@11.21.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "e2e": "pnpm --filter @atria/web e2e",
+    "lhci": "lhci autorun"
+  },
+  "devDependencies": {
+    "@lhci/cli": "^0.15.1"
+  }
+}

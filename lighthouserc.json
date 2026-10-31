@@ -1,0 +1,51 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm --filter @atria/web preview --port 4173 --strictPort",
+      "startServerReadyPattern": "Local",
+      "numberOfRuns": 1,
+      "url": [
+        "http://localhost:4173/",
+        "http://localhost:4173/finance",
+        "http://localhost:4173/goals",
+        "http://localhost:4173/tasks",
+        "http://localhost:4173/reminders",
+        "http://localhost:4173/notes",
+        "http://localhost:4173/journal",
+        "http://localhost:4173/library",
+        "http://localhost:4173/projects",
+        "http://localhost:4173/reports",
+        "http://localhost:4173/settings"
+      ],
+      "settings": {
+        "preset": "desktop"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:accessibility": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:best-practices": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": ".lighthouseci"
+    }
+  }
+}
