@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-43, CT-26]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: eef679de68fb1a17cfcceccf4cf205ee313c1b3ca5fc3f9138c0eb6dd77b2f91
-adjustments: 1
-adjusted_at: 2026-10-30T21:38:10Z
+status: done
+content_hash: aa183911cfd3d1c405d1d2ff1514b5bdddea333057d5249aef5a6db044882756
+adjustments: 3
+adjusted_at: 2026-10-31T09:49:25Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: eef679de68fb1a17cfcceccf4cf205ee313c1b3ca5fc3f9138c0eb6dd77b2f91
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:38:10Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:49:25Z
+model: sonnet
 ---
 
 # TASK-26: Telas de Notas
@@ -34,6 +35,7 @@ updated_at: 2026-10-30T21:38:10Z
 - `prototype/atria-prototype.html` (telas de notas validadas no protótipo; pelas decisões do protótipo, o template `#entity-detail` com "Voltar", "Editar" e "Mais ações", a visão geral da nota em `overviewHTML` (`k === 'note'`, cartão "Texto") e o formulário `KINDS.note` com a grade `.screen-form .form`)
 - `docs/decisoes-do-prototipo.md` (linhas PD-11, PD-14, PD-19, PD-59 e PD-62 e a seção "Decisões resolvidas em 30/10 (DEC-002)"; as decisões valem sobre o texto antigo desta tarefa; PD-57 não se aplica: a nota não tem campo de data)
 - `vostok/memory/decisions.md`, por `vostok memory search decision DEC-002 DEC-003 DEC-004`: DEC-002 (as decisões do protótipo valem já, também nas telas); DEC-003 e DEC-004 não mudam o contexto notes
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05: Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha)
 - `vostok/work/tasks/SPEC-001/TASK-05.md` (componentes da base: `PageHeader` com "Voltar" e ações, `MenuButton`, `SelectField`, `SegmentedField`, `FormGrid`, `FormActions` e as ligações `FormSelect` e `FormSegmented` de `apps/web/src/shared/forms/form-fields.tsx`)
 - `apps/web/src/app` (só leitura: layout e roteador raiz)
 - `apps/web/src/shared` (cliente da API, interface otimista, aviso de recusa, `Intl`, estado da listagem na URL, i18n comum e helpers de teste com axe)
@@ -56,6 +58,8 @@ updated_at: 2026-10-30T21:38:10Z
 - `apps/web/src/features/notes/screens/note-form-screen.tsx` (criar): criar e editar nota em rota própria (título, texto e visibilidade).
 - `apps/web/src/features/notes/screens/notes-screens.test.tsx` (criar): testes das três telas, do ciclo criar, editar e excluir, dos estados e do axe (CT-26).
 - `apps/web/src/features/notes/notes.e2e.ts` (criar): fluxo ponta a ponta de CT-26, rodado na TASK-35.
+- `apps/web/src/features/notes/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createNotesRoutes` num roteador em memória do TanStack Router (`createMemoryHistory`), com os providers do app (`AppProviders`: tema, TanStack Query, i18n e preferências) e dentro do layout do app (`AppLayout`); não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema (a Verificação de cor literal continua valendo); passa no typecheck e no lint.
+- `apps/web/scripts/evidence-notes.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-notes.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite, com um plugin que serve uma página HTML virtual carregando o `harness.tsx`, e o encerra no fim (KNW-006); simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (notas pessoais e compartilhadas em `GET /notes`, a busca `GET /search?q=&contexts=notes` sem resultado e a nota da tela de detalhe, respostas lentas para o estado de carregando e `problem+json` para o erro); captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar. Em cada captura: tema aplicado, sem rolagem horizontal, sem erro de JS e axe sem violações, incluindo `color-contrast` (`@axe-core/playwright`, já em devDependencies). A prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-26/notes-telas.png`.
 
 ### Passos
 
@@ -76,6 +80,7 @@ updated_at: 2026-10-30T21:38:10Z
 10. Crie `apps/web/src/features/notes/routes.tsx` exportando `createNotesRoutes(parent: AnyRoute)` com as quatro rotas e o esquema `zod` dos parâmetros de busca da lista. Não altere `apps/web/src/app`.
 11. Crie `apps/web/src/features/notes/notes.e2e.ts` com `note is created, edited and deleted`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 12. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+13. Crie `apps/web/src/features/notes/evidence/harness.tsx` e `apps/web/scripts/evidence-notes.mjs` (veja "Mudar"), com as verificações de cada estado listadas na evidência `notes-telas.txt`, e rode `node apps/web/scripts/evidence-notes.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` (nunca a verificação) e repita até a última linha ser `ok  0 falha(s)`; depois abra `vostok/work/tasks/SPEC-001/evidence/TASK-26/notes-telas.png` e confira cada estado nos dois temas e nas duas larguras. Não altere `apps/web/src/app`: as rotas só são registradas na TASK-35.
 
 ### Baseline
 
@@ -95,15 +100,19 @@ test -s apps/web/src/features/notes/notes.e2e.ts
 ! grep -rnE '#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\(' apps/web/src/features/notes --include=*.tsx --include=*.ts --include=*.css
 # Nenhum controle nativo que a base da TASK-05 substitui (PD-62)
 ! grep -rnE '<select|type="(date|number)"' apps/web/src/features/notes --include=*.tsx
+# Harness e script das evidências visuais
+test -f apps/web/src/features/notes/evidence/harness.tsx
+test -f apps/web/scripts/evidence-notes.mjs
+node --check apps/web/scripts/evidence-notes.mjs
 ```
 
 ### Evidências
 
-- `notes-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/notes --reporter=verbose`
+- `notes-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/notes --reporter=verbose`
   - Prova: o ciclo da nota (criar, editar, excluir), a listagem com filtros, busca e visualização e a interface otimista passam, com axe sem violações (RF-43, CT-26, RNF-06, RNF-09).
   - Trecho: as linhas `✓` de `creates, edits and deletes a note`, `deletes a note optimistically`, `rolls back a delete and warns when refused`, `searches notes through the search endpoint` e `shows empty, loading and error states`, e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
-- `notes-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/notes --reporter=verbose -t "pd[0-9]"`
+- `notes-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/notes --reporter=verbose -t "pd[0-9]"`
   - Prova: as telas seguem as decisões do protótipo: cabeçalho da nota com "Excluir" no "Mais ações", visão geral em cartões, formulário na grade e coluna centralizada (DEC-002, PD-14, PD-19, PD-59, PD-62).
   - Trecho: as linhas `✓` de `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações`, `pd59 shows the overview in cards with Texto and Registro`, `pd62 lays the form in the grid with title, text and visibility on the full row` e `pd19 centers the header and the form in the form column`.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -111,38 +120,39 @@ test -s apps/web/src/features/notes/notes.e2e.ts
   - Prova: o fluxo ponta a ponta de CT-26 está escrito para a TASK-35.
   - Trecho: a linha com `note is created, edited and deleted`.
   - Falha: `No such file or directory` ou saída vazia.
-- `notes-telas.png` (manual): prints da lista de notas em lista e em grade, da lista vazia, carregando e com erro, da busca sem resultado, da tela da nota com a visão geral em cartões e o "Mais ações" aberto, do formulário na grade com erro de validação e do diálogo de exclusão, nos temas claro e escuro, em 360 px e em desktop, mais um print com o foco visível pelo teclado no diálogo. Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createNotesRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, os dois temas, 360 px e desktop, os estados e o foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: as telas sem rolagem horizontal em 360 px, texto legível nos dois temas e o anel de foco visível no diálogo.
-  - Falha: rolagem horizontal em 360 px, cor fora da paleta, estado sem texto, foco invisível ou exclusão sem confirmação.
+- `notes-telas.txt` (automática): `node apps/web/scripts/evidence-notes.mjs telas`
+  - Prova: identidade visual, os dois temas, 360 px e desktop, os estados e o foco por teclado, medidos no DOM e fotografados: lista de notas em lista e em grade, lista vazia, carregando e com erro, busca sem resultado, tela da nota com a visão geral em cartões e o "Mais ações" aberto, formulário na grade com erro de validação, diálogo de exclusão e foco visível pelo teclado no diálogo (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... lista em lista` e `ok ... lista em grade`, `ok ... lista vazia com texto explicativo`, `ok ... carregando visível`, `ok ... erro com "Tentar de novo"`, `ok ... busca sem resultado com texto explicativo`, `ok ... visão geral em cartões`, `ok ... "Mais ações" aberto · "Excluir" visível`, `ok ... erro de validação em role="alert" dentro do formulário`, `ok ... nenhum <select> nativo`, `ok ... "Cancelar" antes de "Salvar", à direita`, `ok ... diálogo de exclusão aberto, nada excluído antes de confirmar`, `ok ... foco dentro do diálogo por Tab · contorno de foco visível ≥ 2 px` e, em cada captura, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-26/notes-telas.png (38 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal em 360 px, cor fora da paleta ou contraste insuficiente, estado sem texto, foco invisível ou fora do diálogo, exclusão sem confirmação, violação no axe, controle nativo), a ausência da linha `png:`, a prancha sem algum dos estados ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-26/notes-telas.png`, a prancha com as 38 capturas rotuladas: 9 estados (lista em lista, em grade, vazia, carregando, erro, busca sem resultado, visão geral com "Mais ações" aberto, formulário com erro de validação e diálogo de exclusão) nos temas claro e escuro, em 1440 px e em 360 px, mais o foco no diálogo em desktop nos dois temas.
 
 ### Concluída quando
 
-- [ ] Uma nota é criada, editada e excluída, e não aparece mais depois de excluída (RF-43, CT-26).
+- [x] Uma nota é criada, editada e excluída, e não aparece mais depois de excluída (RF-43, CT-26).
 
   > Como comprovar: em `notes-tests.txt`, ver aprovados `creates, edits and deletes a note`, `asks for confirmation before deleting` e `shows not found for a deleted note`.
 
-- [ ] Editar e excluir aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
+- [x] Editar e excluir aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: em `notes-tests.txt`, ver aprovados `edits a note optimistically`, `deletes a note optimistically` e `rolls back a delete and warns when refused`.
 
-- [ ] A listagem tem filtro, ordenação, busca e visualização na URL, e a busca procura no conteúdo das notas (RF-43).
+- [x] A listagem tem filtro, ordenação, busca e visualização na URL, e a busca procura no conteúdo das notas (RF-43).
 
   > Como comprovar: em `notes-tests.txt`, ver aprovados `filters, sorts and searches notes through the url`, `switches between list and grid` e `searches notes through the search endpoint`.
 
-- [ ] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
+- [x] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
 
   > Como comprovar: em `notes-tests.txt`, ver aprovado `shows empty, loading and error states` e o resumo sem falhas.
 
-- [ ] As telas funcionam em 360 px e desktop, nos dois temas, só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e desktop, nos dois temas, só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `notes-telas.png` e conferir as telas legíveis nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `notes-telas.txt`, ver só linhas `ok`, inclusive `axe sem violações (inclui color-contrast)`, `sem rolagem horizontal` e `contorno de foco visível ≥ 2 px`, e a última linha `ok  0 falha(s)`; abrir a prancha `notes-telas.png` e conferir as telas legíveis nos dois temas e larguras; o comando de cor literal da Verificação não encontra nada.
 
-- [ ] A tela da nota tem "Editar" com lápis, "Excluir" em vermelho só dentro de "Mais ações" e a visão geral em cartões (Texto e Registro); o formulário usa a grade da base numa coluna centralizada, com a visibilidade em grupo segmentado e as ações à direita (PD-14, PD-19, PD-59, PD-62).
+- [x] A tela da nota tem "Editar" com lápis, "Excluir" em vermelho só dentro de "Mais ações" e a visão geral em cartões (Texto e Registro); o formulário usa a grade da base numa coluna centralizada, com a visibilidade em grupo segmentado e as ações à direita (PD-14, PD-19, PD-59, PD-62).
 
   > Como comprovar: em `notes-pd-tests.txt`, ver aprovados os quatro testes `pd14`, `pd59`, `pd62` e `pd19`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `notes-e2e-specs.txt` lista o fluxo.
 
@@ -170,6 +180,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Visão geral em cartões (PD-59): "Texto" na zona principal e "Registro" na lateral; a tela recebe `extra_tabs` para a TASK-35 montar Conexões.
 - Formulário com a base da TASK-05 (PD-19, PD-62): `FormGrid`, `FormActions` e a visibilidade em `FormSegmented`.
 
+**Evidências visuais.** A prancha `notes-telas.png` é gerada por `apps/web/scripts/evidence-notes.mjs`, no molde do `evidence-shots.mjs` da TASK-05: a evidência é o comando, cuja saída (`notes-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas da feature só são registradas no app na TASK-35 (antes disso o `pnpm dev` mostra só a casca, com 404), o script serve uma página virtual com `src/features/notes/evidence/harness.tsx`, que monta `createNotesRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app` e fora do build de produção; a API é simulada no navegador com fixtures do próprio script. Descartado: capturar à mão com `pnpm dev`, impossível sem as rotas registradas, e registrar as rotas antes da TASK-35, que muda `apps/web/src/app`.
+
 **Riscos.** O formato dos resultados de `/search` (`groups[].items[]` com `id`, `title`, `snippet`, `updated_at`) difere do item de `/notes`; a lista converte os dois para o mesmo item de exibição no hook. A busca devolve no máximo 8 resultados por contexto (TASK-16): com `q`, a lista mostra esses resultados sem paginação e o texto "Mostrando as notas mais próximas da busca".
 
 **Referências.** RF-43; CT-26; RN-21; CB-06; RNF-03, RNF-06, RNF-08, RNF-09, RNF-10; decisão 13 da spec; DEC-002; PD-14, PD-19, PD-59 e PD-62 de `docs/decisoes-do-prototipo.md`.
@@ -195,9 +207,19 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual notes-telas.png trocada por automática notes-telas.txt gerada por apps/web/scripts/evidence-notes.mjs, com a prancha PNG como Artefato; harness da feature em src/features/notes/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 13 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 4 evidência(s) em evidence/TASK-26/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
 | # | Data | Origem | Resumo |
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md, DEC-002 a DEC-004 e os componentes da TASK-05; PD-14: Editar com lápis e Excluir em danger só no Mais ações; PD-59: visão geral em cartões Texto e Registro, com extra_tabs; PD-62 e PD-19: FormGrid, FormActions, visibilidade em FormSegmented e coluna centralizada, filtros no SelectField; testes pd14, pd59, pd62 e pd19; Verificação sem controles nativos; evidência notes-pd-tests.txt, Concluída quando, Detalhes técnicos e card atualizados; linha test -e da pasta da feature removida da Baseline, que a validação recusa |
+| 2 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 3 | 2026-10-31 | agente | Evidência manual notes-telas.png trocada por automática notes-telas.txt gerada por apps/web/scripts/evidence-notes.mjs, com a prancha PNG como Artefato; harness da feature em src/features/notes/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 13 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

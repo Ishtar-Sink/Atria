@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-15, RF-16, RF-17, CT-12]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: c9858a3050499131358b1247da4d8b60ee5cf750c1933372ff48d79e472d56fd
-adjustments: 1
-adjusted_at: 2026-10-30T21:40:25Z
+status: done
+content_hash: 69b186b280c35798f1a831e8d2e0b0f218089740c9ca3ef5b721f4fde6b97409
+adjustments: 3
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: c9858a3050499131358b1247da4d8b60ee5cf750c1933372ff48d79e472d56fd
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:40:25Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-32: Paleta de comandos
@@ -44,6 +45,7 @@ updated_at: 2026-10-30T21:40:25Z
 - `packages/ui`: diálogo, campo de busca, lista navegável e atalho de teclado (`kbd`).
 - `packages/theme`: tokens do tema, de sobreposição, de desfoque e de `--motion-*`.
 - `packages/contracts`: tipos gerados de `/search`, de `/me/preferences` (atalho e contextos padrão) e da criação de notas, tarefas, metas, projetos e entradas do diário.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -67,6 +69,8 @@ updated_at: 2026-10-30T21:40:25Z
 - `apps/web/src/features/command-palette/parse-query.test.ts` (criar): testes dos prefixos.
 - `apps/web/src/features/command-palette/quick-create.test.tsx` (criar): testes da criação rápida.
 - `apps/web/src/features/command-palette/command-palette.e2e.ts` (criar): fluxo ponta a ponta do CT-12, rodado só na TASK-35.
+- `apps/web/src/features/command-palette/evidence/harness.tsx` (criar): página de evidência que monta `CommandPaletteProvider` e `PaletteTrigger` (a feature não tem rotas) sobre uma tela de exemplo num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-command-palette.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-command-palette.mjs temas|estados`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (`/search` com resultados de vários contextos, `/me/preferences`, recentes, uma resposta lenta para o carregando, lista vazia e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações incluindo `color-contrast`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-32/`.
 
 ### Passos
 
@@ -86,6 +90,7 @@ updated_at: 2026-10-30T21:40:25Z
 10. Implementar `palette-trigger.tsx` (`PaletteTrigger`, botão com aparência de campo, `aria-label` e a dica do atalho em `kbd`) e `command-palette-provider.tsx` (`CommandPaletteProvider`, que registra o atalho e renderiza `CommandPalette`). Exportar os dois para a TASK-35 montar no layout e na topbar; a feature não tem `routes.tsx` nem `nav.ts` e não altera `apps/web/src/app`.
 11. Criar `command-palette.e2e.ts` (Playwright) com o CT-12: Ctrl/Cmd + K com o foco num campo, fundo borrado, busca com e sem contextos, nota rápida e "abrir para completar" até a tela da nota, em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 12. Rodar a Verificação até passar sem nenhum warning de lint.
+13. Criar `evidence/harness.tsx` e `apps/web/scripts/evidence-command-palette.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-command-palette.mjs temas` e `node apps/web/scripts/evidence-command-palette.mjs estados`. Corrigir o código da tarefa a cada linha `FALHA` e abrir as pranchas `command-palette-themes-widths.png` e `command-palette-states-focus.png` para conferir.
 
 ### Baseline
 
@@ -102,11 +107,14 @@ grep -q "@supports not (backdrop-filter" apps/web/src/features/command-palette/c
 grep -q "prefers-reduced-motion" apps/web/src/features/command-palette/command-palette.css
 grep -q "export function PaletteTrigger" apps/web/src/features/command-palette/palette-trigger.tsx
 test -f apps/web/src/features/command-palette/command-palette.e2e.ts
+test -f apps/web/src/features/command-palette/evidence/harness.tsx
+test -f apps/web/scripts/evidence-command-palette.mjs
+node --check apps/web/scripts/evidence-command-palette.mjs
 ```
 
 ### Evidências
 
-- `command-palette-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/command-palette`
+- `command-palette-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/command-palette --reporter=verbose`
   - Prova: os testes da paleta passam, cobrindo atalho com foco em campo, gatilho da topbar, diálogo com foco preso, teclas, prefixos, contextos, recentes, criação rápida, estados, axe e interface otimista (RF-15, RF-16, RF-17, CT-12, CB-13, RNF-06, RNF-09).
   - Trecho: os arquivos `parse-query.test.ts`, `use-palette-shortcut.test.tsx`, `command-palette.test.tsx` e `quick-create.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
@@ -118,46 +126,48 @@ test -f apps/web/src/features/command-palette/command-palette.e2e.ts
   - Prova: a feature tem o diálogo, o provedor, o gatilho da topbar, traduções, hooks, testes e o e2e do CT-12.
   - Trecho: `command-palette.tsx`, `command-palette-provider.tsx`, `palette-trigger.tsx`, `i18n/pt-br.json` e `command-palette.e2e.ts` na lista.
   - Falha: `No such file or directory` ou algum desses arquivos ausente.
-- `command-palette-themes-widths.png` (manual): prints da paleta aberta sobre uma tela, com resultados agrupados, nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com o provedor e o gatilho montados só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: fundo borrado, identidade visual nos dois temas e layout funcional a partir de 360 px (RF-15, RNF-08, RNF-10).
-  - Trecho: o fundo visivelmente borrado atrás do diálogo e a paleta inteira visível em 360 px.
-  - Falha: fundo sem desfoque nem escurecimento, diálogo cortado em 360 px ou contraste baixo no tema escuro.
-- `command-palette-states-focus.png` (manual): prints da paleta vazia (recentes e ações), carregando, sem resultados, com erro, e com o resultado ativo destacado navegando só pelas setas.
+- `command-palette-themes-widths.txt` (automática): `node apps/web/scripts/evidence-command-palette.mjs temas`
+  - Prova: fundo borrado, identidade visual nos dois temas e layout funcional a partir de 360 px, medidos no DOM e fotografados: a paleta aberta sobre uma tela, com resultados agrupados, em 1440 px e em 360 px, nos temas claro e escuro (RF-15, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema aplicado`, `ok ... diálogo aberto (role="dialog", aria-modal)`, `ok ... fundo com backdrop-filter blur` (ou o fallback opaco), `ok ... resultados agrupados por contexto`, `ok ... diálogo inteiro dentro da janela` em 360 px, `ok ... dica do atalho no gatilho`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-32/command-palette-themes-widths.png (4 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (fundo sem desfoque nem escurecimento, diálogo cortado em 360 px, contraste baixo no tema escuro apontado pelo axe), a ausência da linha `png:` ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-32/command-palette-themes-widths.png`, a prancha com as capturas rotuladas: a paleta aberta com resultados agrupados e o fundo borrado, nos temas claro e escuro, em 1440 px e em 360 px.
+- `command-palette-states-focus.txt` (automática): `node apps/web/scripts/evidence-command-palette.mjs estados`
   - Prova: todos os estados da paleta e a navegação por teclado (decisões 36 e 37, RNF-06).
-  - Trecho: os recentes e as ações de criar, o indicador de carregamento, o texto de sem resultados, a mensagem de erro e o destaque do item ativo.
-  - Falha: paleta vazia sem conteúdo, estado sem texto ou item ativo sem destaque visível.
+  - Trecho: `ok ... paleta vazia com recentes e ações de criar`, `ok ... indicador de carregamento visível` (resposta lenta), `ok ... texto de sem resultados visível`, `ok ... mensagem de erro visível` (`problem+json`), `ok ... item ativo depois das setas (aria-activedescendant)`, `ok ... destaque visível no item ativo`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-32/command-palette-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (paleta vazia sem conteúdo, estado sem texto, item ativo sem destaque visível), a ausência da linha `png:` ou código de saída diferente de 0.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-32/command-palette-states-focus.png`, a prancha com a paleta vazia (recentes e ações), carregando, sem resultados, com erro e com o resultado ativo destacado navegando só pelas setas, nos dois temas.
 
 ### Concluída quando
 
-- [ ] A paleta abre com Ctrl + K no Windows e no Linux, Cmd + K no macOS, também com o foco num campo, e pelo clique no campo da topbar, borrando o fundo (RF-15, CT-12, CB-13).
+- [x] A paleta abre com Ctrl + K no Windows e no Linux, Cmd + K no macOS, também com o foco num campo, e pelo clique no campo da topbar, borrando o fundo (RF-15, CT-12, CB-13).
 
   > Como comprovar: na saída `command-palette-tests.txt`, ver aprovados os casos da `use-palette-shortcut.test.tsx` e `opens from the topbar trigger`; em `command-palette-backdrop.txt`, ver o `backdrop-filter` com o fallback.
 
-- [ ] A paleta é um diálogo com foco preso, setas navegam, Enter abre e Esc fecha devolvendo o foco (RF-15, CT-12).
+- [x] A paleta é um diálogo com foco preso, setas navegam, Enter abre e Esc fecha devolvendo o foco (RF-15, CT-12).
 
   > Como comprovar: ver aprovados `is a dialog with a label and traps the focus`, `navigates results with arrow keys and opens with enter` e `closes with escape and returns the focus to the trigger`.
 
-- [ ] A busca vale para todas as entidades ou só para os contextos escolhidos, começando pelos contextos padrão da pessoa, com os prefixos `>` e `#` (RF-16, CT-12).
+- [x] A busca vale para todas as entidades ou só para os contextos escolhidos, começando pelos contextos padrão da pessoa, com os prefixos `>` e `#` (RF-16, CT-12).
 
   > Como comprovar: ver aprovados `searches every context by default`, `searches only the chosen contexts`, `starts with the default contexts from the preferences` e os casos da `parse-query.test.ts`.
 
-- [ ] A paleta cria uma entidade só com os campos mínimos e "abrir para completar" leva à tela própria; sem abrir, a entidade fica salva (RF-17, CT-12).
+- [x] A paleta cria uma entidade só com os campos mínimos e "abrir para completar" leva à tela própria; sem abrir, a entidade fica salva (RF-17, CT-12).
 
   > Como comprovar: ver aprovados os casos da `quick-create.test.tsx`, entre eles `opens the entity screen with open to complete`.
 
-- [ ] Com o campo vazio, a paleta mostra os recentes e as ações de criar, e o atalho configurado nas preferências é respeitado (RF-15).
+- [x] Com o campo vazio, a paleta mostra os recentes e as ações de criar, e o atalho configurado nas preferências é respeitado (RF-15).
 
   > Como comprovar: ver aprovados `shows recent items and create actions when empty` e `uses the shortcut saved in the user preferences`.
 
-- [ ] A criação rápida aparece na hora e é desfeita com aviso se o servidor recusar (RNF-09).
+- [x] A criação rápida aparece na hora e é desfeita com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: ver aprovado `rolls back and shows the undo notice when the server rejects` em `quick-create.test.tsx`.
 
-- [ ] A paleta não tem violações no axe, funciona só pelo teclado, nos dois temas e a partir de 360 px, sem animação com movimento reduzido (RNF-06, RNF-08, RNF-10).
+- [x] A paleta não tem violações no axe, funciona só pelo teclado, nos dois temas e a partir de 360 px, sem animação com movimento reduzido (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovado `has no axe violations`, a linha `prefers-reduced-motion` em `command-palette-backdrop.txt` e os prints `command-palette-themes-widths.png` e `command-palette-states-focus.png`.
+  > Como comprovar: ver aprovado `has no axe violations`, a linha `prefers-reduced-motion` em `command-palette-backdrop.txt`; em `command-palette-themes-widths.txt` e `command-palette-states-focus.txt`, ver só linhas `ok` (tema, fundo borrado, sem rolagem horizontal, axe sem violações, estados e item ativo destacado) e `ok  0 falha(s)`, e conferir nas pranchas `command-palette-themes-widths.png` e `command-palette-states-focus.png` os dois temas, as duas larguras, os estados e o destaque do item ativo.
 
-- [ ] Testes, typecheck e lint passam sem warning, o gatilho fica exportado para a topbar e o e2e do CT-12 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, o gatilho fica exportado para a topbar e o e2e do CT-12 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `palette-trigger.tsx` e `command-palette.e2e.ts` aparecem em `command-palette-files.txt`.
 
@@ -178,6 +188,7 @@ Libera a integração do frontend, que coloca a paleta e o gatilho na topbar.
 - **Riscos:** conflito do atalho com o do navegador (mitigado com `preventDefault` e o atalho configurável); rotas de "abrir para completar" diferentes das definidas pelas features donas (mitigado pelo e2e da TASK-35); o tempo de 300 ms do RNF-04 depende do servidor (TASK-16), e a paleta só acrescenta a espera curta entre teclas.
 - **Referências da spec:** RF-15, RF-16, RF-17, RF-59, CT-12, CB-13, FA-05, RNF-04, RNF-06, RNF-08 a RNF-10, decisões 15, 16 e 34 a 40.
 - **Decisões do protótipo (DEC-002):** nenhuma PD muda a paleta. As rotas de "abrir para completar" continuam as de edição das features donas (`/notes/{id}/edit`, `/tasks/{id}/edit`, `/goals/{id}/edit`, `/projects/{id}/edit`, `/journal/{id}/edit`), todas presentes depois dos ajustes das TASK-23, TASK-24, TASK-26, TASK-27 e TASK-30, e conferidas pelo `registers every open-to-complete route` da TASK-35.
+- **Evidências visuais:** as pranchas `command-palette-themes-widths.png` e `command-palette-states-focus.png` são geradas por `apps/web/scripts/evidence-command-palette.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como a TASK-35 é quem monta o provedor e o gatilho no layout e registra as rotas, o script monta a feature por `src/features/command-palette/evidence/harness.tsx` (provedor e gatilho sobre uma tela de exemplo, num roteador em memória com os providers e o layout do app), servido por uma página virtual do Vite, com a API simulada por fixtures; nada muda em `apps/web/src/app`.
 - **Arquivos em comum na onda 7:** nenhum.
 
 ### Card
@@ -198,9 +209,19 @@ Libera a integração do frontend, que coloca a paleta e o gatilho na topbar.
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Evidências manuais command-palette-themes-widths.png e command-palette-states-focus.png trocadas por automáticas command-palette-themes-widths.txt e command-palette-states-focus.txt geradas por apps/web/scripts/evidence-command-palette.mjs, com a prancha PNG como Artefato; harness da feature em src/features/command-palette/evidence/harness.tsx montando o provedor e o gatilho sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-32/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
 | # | Data | Origem | Resumo |
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md, DEC-002 a DEC-004 e as rotas de detalhe das TASK-24 e TASK-25; Detalhes técnicos registram que nenhuma PD muda a paleta e que as rotas de abrir para completar existem nas features donas; linha test -e da pasta da feature removida da Baseline, que a validação recusa |
+| 2 | 2026-10-31 | agente | Evidências manuais command-palette-themes-widths.png e command-palette-states-focus.png trocadas por automáticas command-palette-themes-widths.txt e command-palette-states-focus.txt geradas por apps/web/scripts/evidence-command-palette.mjs, com a prancha PNG como Artefato; harness da feature em src/features/command-palette/evidence/harness.tsx montando o provedor e o gatilho sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 3 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

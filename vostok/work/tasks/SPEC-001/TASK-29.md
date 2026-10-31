@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-65, RF-66, RF-67, RF-68, RF-69, RF-70, CT-35, CT-36, CT-37, CT-38]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 687a8430ccf176862351e11b813bc550b4daf50a06eeb5e533018e09112a60b7
-adjustments: 2
-adjusted_at: 2026-10-31T00:18:43Z
+status: done
+content_hash: 1ff8416ec529ee1e349d7ebc9645259ffcec5388bb250ef374e6809c68611360
+adjustments: 4
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 687a8430ccf176862351e11b813bc550b4daf50a06eeb5e533018e09112a60b7
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-31T00:18:43Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-29: Modo leitura
@@ -48,6 +49,7 @@ updated_at: 2026-10-31T00:18:43Z
 - `packages/ui`: botões, barra de ferramentas, diálogo de confirmação, abas e estados.
 - `packages/theme`: tokens do tema claro e escuro e as cores `accent`, `primary`, `success`, `warning` e `info` dos destaques.
 - `packages/contracts`: tipos gerados de `/files/{id}`, `/books/{id}/reading-position`, `/articles/{id}/reading-position`, `/books/{id}/reading-sessions`, `/books/{id}/book-notes`, `/articles/{id}/article-notes` e `/books/{id}/highlights`, `/articles/{id}/highlights`.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais automáticas (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha por `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -73,6 +75,8 @@ updated_at: 2026-10-31T00:18:43Z
 - `apps/web/src/features/reader/passage-note-panel.test.tsx` (criar): testes da nota de trecho.
 - `apps/web/src/features/reader/highlights-tab.test.tsx` (criar): testes dos destaques.
 - `apps/web/src/features/reader/reader.e2e.ts` (criar): fluxos ponta a ponta dos CT-35 a CT-38, rodados só na TASK-35.
+- `apps/web/src/features/reader/evidence/harness.tsx` (criar): página de evidência que monta `createReaderRoutes` num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e fora do layout do app, como a TASK-35 as registra; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-reader.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-reader.mjs themes-widths|states-focus`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (livro com `last_read_page` 40, um PDF válido de várias páginas com texto montado em bytes no próprio script, bytes inválidos para o PDF corrompido, um destaque, resposta lenta do arquivo para o carregando e `problem+json` nos erros), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, e as verificações de cada estado) e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-29/`.
 
 ### Passos
 
@@ -95,6 +99,7 @@ updated_at: 2026-10-31T00:18:43Z
 12. Criar `routes.tsx` com `createReaderRoutes(root_route)`: as duas rotas usam `lazyRouteComponent(() => import('./reader-page'))`, para o `pdfjs-dist` ficar num chunk carregado só nelas; `routes.tsx` não importa `load-pdf.ts` nem `pdfjs-dist`. Um comentário diz que a TASK-35 registra estas rotas fora do layout autenticado. A feature não tem `nav.ts`.
 13. Criar `reader.e2e.ts` (Playwright) com os CT-35 a CT-38: abrir o PDF de um livro e de um artigo, zoom, navegação, tema, fechar na página 12 e reabrir na 12; ao fechar de 40 a 62, oferta com 22 páginas, confirmada sem correção (histórico com "22 páginas") e com correção, e recusada (a retomada continua na 62 nos três casos); nota de trecho com e sem comentário; dois destaques de cores diferentes na aba "Destaques" e download, em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 14. Rodar a Verificação até passar sem nenhum warning de lint.
+15. Criar `apps/web/src/features/reader/evidence/harness.tsx` e `apps/web/scripts/evidence-reader.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-reader.mjs themes-widths` e `node apps/web/scripts/evidence-reader.mjs states-focus`. Corrigir o código da tarefa a cada linha `FALHA` e conferir as pranchas `reader-themes-widths.png` e `reader-states-focus.png` abrindo-as.
 
 ### Baseline
 
@@ -111,15 +116,19 @@ grep -q '"pdfjs-dist"' apps/web/package.json
 test "$(grep -rl "pdfjs-dist" apps/web/src/features/reader --include='*.ts' --include='*.tsx' | grep -v '\.test\.tsx$')" = "apps/web/src/features/reader/load-pdf.ts"
 ! grep -rnE "https?://[^\"' ]*(cdn|unpkg|jsdelivr)" apps/web/src/features/reader
 test -f apps/web/src/features/reader/reader.e2e.ts
+# Evidências visuais automáticas
+test -f apps/web/src/features/reader/evidence/harness.tsx
+test -f apps/web/scripts/evidence-reader.mjs
+node --check apps/web/scripts/evidence-reader.mjs
 ```
 
 ### Evidências
 
-- `reader-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/reader`
+- `reader-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/reader --reporter=verbose`
   - Prova: os testes do leitor passam, cobrindo tela própria, zoom, navegação, tema, retomada, oferta de sessão, nota de trecho, destaques, download, erros de PDF, renderização sob demanda e axe (RF-65 a RF-70, CT-35 a CT-38, CB-16 a CB-20, RNF-06).
   - Trecho: os arquivos `reader-page.test.tsx`, `use-reading-position.test.tsx`, `use-reading-session-offer.test.tsx`, `passage-note-panel.test.tsx` e `highlights-tab.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `reader-session-offer.txt` (automática): `pnpm --filter @atria/web test -- src/features/reader -t "pd60|dec004"`
+- `reader-session-offer.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/reader --reporter=verbose -t "pd60|dec004"`
   - Prova: ao fechar o livro, a oferta vem com as páginas avançadas (22, de 40 a 62), pode ser corrigida, grava páginas e data só com a confirmação, e a página de retomada muda só pelo leitor, confirmando ou não a sessão (PD-60, DEC-004, RF-66, RF-67, CT-36).
   - Trecho: os casos `pd60 offers 22 pages read when advancing from page 40 to 62`, `pd60 lets the person correct the pages before confirming`, `pd60 sends pages_read and read_on with the range only when the pages were not corrected`, `dec004 saves the closing page whether the session is confirmed or skipped` e `dec004 confirming the session does not change the resume page` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests`, `No test files found` ou nenhum caso `pd60` ou `dec004` executado.
@@ -131,54 +140,56 @@ test -f apps/web/src/features/reader/reader.e2e.ts
   - Prova: a feature tem rotas, traduções, telas, hooks, testes, a aba "Destaques" e o e2e dos CT-35 a CT-38.
   - Trecho: `routes.tsx`, `i18n/pt-br.json`, `highlights-tab.tsx` e `reader.e2e.ts` na lista.
   - Falha: `No such file or directory` ou algum desses arquivos ausente.
-- `reader-themes-widths.png` (manual): prints do leitor com um PDF aberto nos temas claro e escuro, em 360 px e em desktop, com um destaque e o painel da nota de trecho, capturados no app local (`pnpm --filter @atria/web dev`) com as rotas da feature registradas só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: tela própria sem sidebar nem topbar, nos dois temas e a partir de 360 px (RF-65, RNF-08, RNF-10).
-  - Trecho: as capturas sem sidebar e topbar, com a barra do leitor inteira visível em 360 px.
-  - Falha: sidebar ou topbar visível, barra cortada em 360 px ou contraste baixo no tema escuro.
-- `reader-states-focus.png` (manual): prints do leitor carregando, com o erro de PDF corrompido (botão de baixar visível), com o diálogo da oferta de sessão (de 40 a 62, com 22 páginas) e com o foco visível na barra navegando só pelo teclado.
-  - Prova: estados de carregando e erro, a oferta de sessão preenchida e o foco por teclado (CB-16, RF-67, RNF-06, PD-60).
-  - Trecho: o indicador de carregamento, a mensagem de erro com o botão "Baixar", o diálogo com "da página 40 até a 62" e o campo "Páginas lidas" com 22, e o anel de foco.
-  - Falha: erro sem botão de baixar, diálogo sem as páginas preenchidas ou foco invisível.
+- `reader-themes-widths.txt` (automática): `node apps/web/scripts/evidence-reader.mjs themes-widths`
+  - Prova: tela própria sem sidebar nem topbar, nos dois temas e a partir de 360 px, medida no DOM e fotografada com um PDF aberto, um destaque e o painel da nota de trecho (RF-65, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado`, `ok ... tema escuro aplicado`, `ok ... sem sidebar nem topbar`, `ok ... página do PDF renderizada`, `ok ... destaque visível na página`, `ok ... painel da nota de trecho aberto`, `ok ... barra do leitor inteira dentro da janela`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-29/reader-themes-widths.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (sidebar ou topbar visível, barra cortada em 360 px, contraste baixo no tema escuro), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-29/reader-themes-widths.png`, a prancha com as capturas rotuladas do leitor com o PDF aberto, um destaque e o painel da nota de trecho, nos temas claro e escuro, em 360 px e em 1440 px.
+- `reader-states-focus.txt` (automática): `node apps/web/scripts/evidence-reader.mjs states-focus`
+  - Prova: estados de carregando e erro, a oferta de sessão preenchida e o foco por teclado, com a API simulada (arquivo lento, bytes de PDF inválidos e o livro aberto na página 40 e fechado na 62) (CB-16, RF-67, RNF-06, PD-60).
+  - Trecho: `ok ... estado carregando · indicador visível`, `ok ... PDF corrompido · erro em role="alert" com o botão "Baixar" visível`, `ok ... oferta de sessão · texto "da página 40 até a 62"`, `ok ... campo "Páginas lidas" com 22`, `ok ... barra navegada por Tab · contorno de foco visível (≥ 2 px)`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-29/reader-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (erro sem botão de baixar, diálogo sem as páginas preenchidas, foco invisível), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-29/reader-states-focus.png`, a prancha com o leitor carregando, o erro de PDF corrompido com o botão "Baixar", o diálogo da oferta de sessão (de 40 a 62, com 22 páginas) e o anel de foco na barra, nos temas claro e escuro, em 360 px e em 1440 px.
 
 ### Concluída quando
 
-- [ ] O PDF do livro e do artigo abre numa tela própria, sem sidebar nem topbar, com zoom, navegação por página e tema claro ou escuro (RF-65, CT-35).
+- [x] O PDF do livro e do artigo abre numa tela própria, sem sidebar nem topbar, com zoom, navegação por página e tema claro ou escuro (RF-65, CT-35).
 
   > Como comprovar: na saída `reader-tests.txt`, ver aprovados `renders without sidebar and topbar`, `zooms in and out`, `navigates by page with buttons and keyboard` e `toggles light and dark theme`.
 
-- [ ] O leitor reabre na última página lida, no livro e no artigo (RF-66, CT-35).
+- [x] O leitor reabre na última página lida, no livro e no artigo (RF-66, CT-35).
 
   > Como comprovar: ver aprovados `opens at the last read page of a book` e `opens at the last read page of an article`.
 
-- [ ] Ao fechar o livro, a sessão é oferecida com as páginas avançadas já preenchidas (22, de 40 a 62), pode ser corrigida e só entra no histórico, com páginas e data, depois de confirmada; não é oferecida sem avanço nem ao voltar páginas (RF-67, CT-36, PD-60).
+- [x] Ao fechar o livro, a sessão é oferecida com as páginas avançadas já preenchidas (22, de 40 a 62), pode ser corrigida e só entra no histórico, com páginas e data, depois de confirmada; não é oferecida sem avanço nem ao voltar páginas (RF-67, CT-36, PD-60).
 
   > Como comprovar: em `reader-session-offer.txt`, ver aprovados os casos `pd60`, e em `reader-tests.txt` os demais casos da `use-reading-session-offer.test.tsx`.
 
-- [ ] A página onde a leitura retoma muda só pelo leitor: o fechamento a grava, confirmando ou não a sessão, e a sessão não a altera (DEC-004, RF-66).
+- [x] A página onde a leitura retoma muda só pelo leitor: o fechamento a grava, confirmando ou não a sessão, e a sessão não a altera (DEC-004, RF-66).
 
   > Como comprovar: em `reader-session-offer.txt`, ver aprovados `dec004 saves the closing page whether the session is confirmed or skipped` e `dec004 confirming the session does not change the resume page`.
 
-- [ ] Um trecho selecionado vira nota no histórico do item, com a página e comentário opcional, e uma página sem texto gera nota só com a página (RF-68, CT-37).
+- [x] Um trecho selecionado vira nota no histórico do item, com a página e comentário opcional, e uma página sem texto gera nota só com a página (RF-68, CT-37).
 
   > Como comprovar: ver aprovados os casos da `passage-note-panel.test.tsx`, inclusive `creates a page only note when the page has no text`.
 
-- [ ] Os trechos podem ser destacados com cor e aparecem na aba "Destaques", com os de outro arquivo marcados (RF-69, CT-38).
+- [x] Os trechos podem ser destacados com cor e aparecem na aba "Destaques", com os de outro arquivo marcados (RF-69, CT-38).
 
   > Como comprovar: ver aprovados `lists highlights with their color and page` e `marks highlights from another file`.
 
-- [ ] O leitor tem botão para baixar o PDF, mantido quando o arquivo está corrompido ou protegido (RF-70, CT-38).
+- [x] O leitor tem botão para baixar o PDF, mantido quando o arquivo está corrompido ou protegido (RF-70, CT-38).
 
-  > Como comprovar: ver aprovados `keeps the download button and shows an error for a corrupted pdf` e `shows a protected pdf error`, e o botão no print `reader-states-focus.png`.
+  > Como comprovar: ver aprovados `keeps the download button and shows an error for a corrupted pdf` e `shows a protected pdf error`; em `reader-states-focus.txt`, ver `PDF corrompido` com `ok` e `ok  0 falha(s)`, e o botão na prancha `reader-states-focus.png`.
 
-- [ ] O `pdf.js` vem empacotado no app, sem CDN, carregado só nas rotas do leitor e com as páginas renderizadas sob demanda.
+- [x] O `pdf.js` vem empacotado no app, sem CDN, carregado só nas rotas do leitor e com as páginas renderizadas sob demanda.
 
   > Como comprovar: abrir `reader-bundle.txt` e ver só `apps/web/package.json` e `load-pdf.ts`, sem `routes.tsx`; e ver aprovado `renders only the pages near the viewport`.
 
-- [ ] O leitor não tem violações no axe, funciona só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
+- [x] O leitor não tem violações no axe, funciona só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovados os casos `has no axe violations` e conferir os prints `reader-themes-widths.png` e `reader-states-focus.png`.
+  > Como comprovar: ver aprovados os casos `has no axe violations`; em `reader-themes-widths.txt` e `reader-states-focus.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `contorno de foco visível`, `sem rolagem horizontal` e `axe sem violações` com `ok` e `ok  0 falha(s)`, e conferir as pranchas `reader-themes-widths.png` e `reader-states-focus.png`.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e dos CT-35 a CT-38 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e dos CT-35 a CT-38 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `reader.e2e.ts` aparece em `reader-files.txt`.
 
@@ -198,6 +209,7 @@ Libera a integração do frontend, que monta as rotas do leitor e a aba de desta
 - **Decisões do protótipo (DEC-002):** a oferta de sessão mostra as páginas avançadas (fechamento menos abertura, 22 de 40 a 62) num campo corrigível e grava `pages_read` e `read_on` (PD-60); o intervalo `from_page`/`to_page`, opcional no contrato da TASK-13, vai junto só quando as páginas não foram corrigidas, para não gravar um intervalo que contradiz as páginas, e nunca aparece na tela (descartados enviar sempre o intervalo, que ficaria incoerente após a correção, e nunca enviá-lo, que perderia o CT-36). A página de retomada é gravada só pelo `use-reading-position`, no fechamento e na troca de página, confirmando ou não a sessão (DEC-004); descartado a sessão confirmada atualizar a retomada.
 - **Decisões:** `pdfjs-dist` empacotado (decisão 48), descartados o CDN e o leitor nativo; rota própria sem modal (decisão 49); a nota de trecho num painel lateral dentro do leitor, descartado o modal por [project/architecture-10]; a oferta de sessão num diálogo de confirmação, o único modal permitido; o tema do leitor muda só o leitor, descartado mudar o tema global ao ler; a sessão só é gravada depois da confirmação (RN-23). As rotas são registradas pela TASK-35 fora do layout autenticado.
 - **Pré-condição:** `pdfjs-dist` declarado em `apps/web/package.json` pela TASK-05, de que esta depende, com a justificativa de [project/stack-12] registrada lá: é o leitor decidido na spec (decisão 48), empacotado para funcionar sem internet ([project/architecture-12]). Esta tarefa não altera esse arquivo; a Verificação confere a declaração.
+- **Evidências visuais.** As pranchas `reader-themes-widths.png` e `reader-states-focus.png` são geradas por `apps/web/scripts/evidence-reader.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG, e a prancha vai para a pasta de evidências da tarefa. Como as rotas da feature só são registradas no app pela TASK-35, o script sobe o Vite com uma página virtual que carrega `src/features/reader/evidence/harness.tsx`, que monta `createReaderRoutes` num roteador em memória com os providers do app, fora do layout, sem mudar `apps/web/src/app`; a API e o arquivo são simulados por `context.route('/api/**')` com fixtures no script (o PDF de exemplo é montado em bytes, sem arquivo novo no repositório), o `pdfjs-dist` roda de verdade no Chromium, e cada captura passa pelo axe (inclusive `color-contrast`).
 - **Riscos:** PDF grande deixa o leitor lento ou pesa no Lighthouse (mitigado com chunk próprio e renderização sob demanda); worker do `pdf.js` bloqueado pela CSP sem inline (mitigado com o worker como arquivo do próprio app, mesma origem); PDF escaneado sem texto (CB-20, nota só com a página).
 - **Referências da spec:** RF-65 a RF-70, CT-35 a CT-38, RN-22 a RN-25, CB-16 a CB-20, decisões 44 a 52, risco "PDF grande", RNF-05, RNF-06, RNF-08, RNF-10; PD-60 de `docs/decisoes-do-prototipo.md`; DEC-002 e DEC-004 da memória; contrato da sessão e da posição da TASK-13.
 - **Arquivos em comum na onda 7:** nenhum.
@@ -221,6 +233,14 @@ Libera a integração do frontend, que monta as rotas do leitor e a aba de desta
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 4 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Evidências manuais reader-themes-widths.png e reader-states-focus.png trocadas por automáticas reader-themes-widths.txt e reader-states-focus.txt geradas por apps/web/scripts/evidence-reader.mjs, com a prancha PNG como Artefato; harness da feature em src/features/reader/evidence/harness.tsx montando as rotas fora do layout sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 6 evidência(s) em evidence/TASK-29/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -228,3 +248,5 @@ Libera a integração do frontend, que monta as rotas do leitor e a aba de desta
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler: decisoes-do-prototipo (PD-60), DEC-002 a DEC-004 e contrato de sessao e posicao da TASK-13; PD-60: oferta ao fechar com as paginas avancadas preenchidas e corrigiveis (22, de 40 a 62), POST com pages_read e read_on e intervalo so sem correcao; DEC-004: a retomada e gravada so pelo leitor no fechamento, confirmando ou nao a sessao; testes pd60 e dec004, evidencia reader-session-offer.txt, e2e, Concluida quando, Detalhes tecnicos e card |
 | 2 | 2026-10-31 | agente | Linha da Baseline que conferia a pasta criada pela própria tarefa removida (recusada pela validação do vostok 0.2.3; defeito da issue 6) |
+| 3 | 2026-10-31 | agente | Evidências manuais reader-themes-widths.png e reader-states-focus.png trocadas por automáticas reader-themes-widths.txt e reader-states-focus.txt geradas por apps/web/scripts/evidence-reader.mjs, com a prancha PNG como Artefato; harness da feature em src/features/reader/evidence/harness.tsx montando as rotas fora do layout sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

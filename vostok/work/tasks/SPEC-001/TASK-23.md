@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-36, RF-37, CT-23]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: acd113d2c0f5bb820a93df5450050dd9822926d4630129ce740e2a7bf58b4781
-adjustments: 4
-adjusted_at: 2026-10-30T22:05:05Z
+status: done
+content_hash: efc133914957486cb85fba5df355cab29ea1aa8d70fa33b21f35c1cb2edf9ee6
+adjustments: 6
+adjusted_at: 2026-10-31T09:47:14Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: acd113d2c0f5bb820a93df5450050dd9822926d4630129ce740e2a7bf58b4781
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:05:05Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:47:14Z
+model: sonnet
 ---
 
 # TASK-23: Telas de Metas
@@ -33,6 +34,7 @@ updated_at: 2026-10-30T22:05:05Z
 - `docs/decisoes-do-prototipo.md` (linhas PD-11, PD-14, PD-19, PD-57, PD-59, PD-61 e PD-62 e a seção "Decisões resolvidas em 30/10 (DEC-002)"; as decisões valem sobre o texto antigo desta tarefa)
 - `vostok/memory/decisions.md`, por `vostok memory search decision DEC-002 DEC-003 DEC-004 DEC-006`: DEC-002 (as decisões do protótipo valem já; os relatórios com filtros por entidade entram no MVP), DEC-004 (item 3: Progresso das metas sem período, com os filtros de meta e de situação) e DEC-006 (item 1: metas com etiquetas no servidor e o filtro por prazo, e o campo de etiquetas da base na tela)
 - `vostok/work/tasks/SPEC-001/TASK-05.md` (componentes da base: `PageHeader` com "Voltar" e ações, `MenuButton`, `SelectField`, `SegmentedField`, `DateField`, `TagField`, `FormGrid`, `FormActions` e as ligações `FormSelect`, `FormSegmented`, `FormDate` e `FormTags` de `apps/web/src/shared/forms/form-fields.tsx`)
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05: Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha)
 - `vostok/work/tasks/SPEC-001/TASK-17.md` (passos 3 e 14: o relatório `goals-progress`, sem período, com os filtros `goal_id` e `goal_status`, e `GET /reports/{report}`)
 - `vostok/work/tasks/SPEC-001/TASK-08.md` (passo 8: `GET|POST /goals` com `status`, `q`, `sort`, `cursor` e `limit`, `GET|PATCH|DELETE /goals/{id}` e o `goal_status` `planned`, `in_progress`, `completed` e `abandoned`; pela DEC-006, a TASK-08 acrescentou o campo `labels` da meta (`TEXT[]`, até 20 etiquetas de até 50 caracteres; uma repetida, sem diferenciar maiúsculas, dá 422), o filtro `label` (uma etiqueta por pedido) e o filtro `has_deadline=true|false`)
 - `apps/web/src/app` (só leitura: layout e roteador raiz)
@@ -63,6 +65,8 @@ updated_at: 2026-10-30T22:05:05Z
 - `apps/web/src/features/goals/lib/goal-reports.test.ts` (criar): testes dos caminhos dos relatórios (PD-61).
 - `apps/web/src/features/goals/screens/goals-screens.test.tsx` (criar): testes das três telas, dos estados e do axe (CT-23).
 - `apps/web/src/features/goals/goals.e2e.ts` (criar): fluxo ponta a ponta de CT-23, rodado na TASK-35.
+- `apps/web/src/features/goals/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createGoalsRoutes` num roteador em memória do TanStack Router (`createMemoryHistory`), com os providers do app (`AppProviders`: tema, TanStack Query, i18n e preferências) e dentro do layout do app (`AppLayout`); não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema (a Verificação de cor literal continua valendo); passa no typecheck e no lint.
+- `apps/web/scripts/evidence-goals.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-goals.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite, com um plugin que serve uma página HTML virtual carregando o `harness.tsx`, e o encerra no fim (KNW-006); simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (metas com e sem prazo, uma com prazo vencido, etiquetas, quatro marcos com um concluído, respostas lentas para o estado de carregando e `problem+json` para o erro); captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar. Em cada captura: tema aplicado, sem rolagem horizontal, sem erro de JS e axe sem violações, incluindo `color-contrast` (`@axe-core/playwright`, já em devDependencies). A prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-23/goals-telas.png`.
 
 ### Passos
 
@@ -79,6 +83,7 @@ updated_at: 2026-10-30T22:05:05Z
 11. Crie `apps/web/src/features/goals/routes.tsx` exportando `createGoalsRoutes(parent: AnyRoute)` com as quatro rotas, o esquema `zod` dos parâmetros de busca da lista e o `tab` (`overview` ou `milestones`, padrão `overview`) da tela da meta. Não altere `apps/web/src/app`.
 12. Crie `apps/web/src/features/goals/goals.e2e.ts` com `goal with four milestones shows 25 percent after one is done`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 13. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+14. Crie `apps/web/src/features/goals/evidence/harness.tsx` e `apps/web/scripts/evidence-goals.mjs` (veja "Mudar"), com as verificações de cada estado listadas na evidência `goals-telas.txt`, e rode `node apps/web/scripts/evidence-goals.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` (nunca a verificação) e repita até a última linha ser `ok  0 falha(s)`; depois abra `vostok/work/tasks/SPEC-001/evidence/TASK-23/goals-telas.png` e confira cada estado nos dois temas e nas duas larguras. Não altere `apps/web/src/app`: as rotas só são registradas na TASK-35.
 
 ### Baseline
 
@@ -98,15 +103,19 @@ test -s apps/web/src/features/goals/goals.e2e.ts
 ! grep -rnE '#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\(' apps/web/src/features/goals --include=*.tsx --include=*.ts --include=*.css
 # Nenhum controle nativo que a base da TASK-05 substitui (PD-57, PD-62)
 ! grep -rnE '<select|type="(date|number)"' apps/web/src/features/goals --include=*.tsx
+# Harness e script das evidências visuais
+test -f apps/web/src/features/goals/evidence/harness.tsx
+test -f apps/web/scripts/evidence-goals.mjs
+node --check apps/web/scripts/evidence-goals.mjs
 ```
 
 ### Evidências
 
-- `goals-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/goals --reporter=verbose`
+- `goals-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/goals --reporter=verbose`
   - Prova: metas, marcos e progresso passam nos testes, com interface otimista, reversão e axe sem violações (RF-36, RF-37, CT-23, RNF-06, RNF-09).
   - Trecho: as linhas `✓` de `returns 25 with one of four milestones done`, `completes a milestone and shows 25 percent at once`, `creates a goal, adds four milestones, completes one and shows 25 percent`, `rolls back a completed milestone when refused` e `shows empty, loading and error states`, e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
-- `goals-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/goals --reporter=verbose -t "(pd|dec)[0-9]"`
+- `goals-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/goals --reporter=verbose -t "(pd|dec)[0-9]"`
   - Prova: as telas seguem as decisões do protótipo e a DEC-006: relatórios do módulo e da meta, cabeçalho do detalhe, visão geral em cartões, formulário na grade, calendário próprio, coluna centralizada, etiquetas em pills, filtros de etiqueta e de prazo e os quatro valores do `goal_status` (DEC-002, DEC-006, PD-11, PD-14, PD-19, PD-57, PD-59, PD-61, PD-62).
   - Trecho: as linhas `✓` de `dec006 sends the label and has_deadline filters to the server`, `dec006 filters goals by label and by deadline through the url`, `dec006 adds labels as pills and sends them with the goal`, `pd62 lists the four goal statuses in the status filter`, `pd62 offers the four goal statuses in the form`, `pd61 lists the goals reports in the Relatórios menu`, `pd61 opens the goal progress report filtered by the goal from Mais ações`, `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações`, `pd59 shows the overview in cards with Progresso, Descrição and Registro`, `pd62 lays the form in the grid with title, description and visibility on the full row`, `pd57 picks the deadline in the custom calendar` e `pd19 centers the header and the form in the form column`.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -114,50 +123,51 @@ test -s apps/web/src/features/goals/goals.e2e.ts
   - Prova: o fluxo ponta a ponta de CT-23 está escrito para a TASK-35.
   - Trecho: a linha com `goal with four milestones shows 25 percent after one is done`.
   - Falha: `No such file or directory` ou saída vazia.
-- `goals-telas.png` (manual): prints da lista de metas em lista e em grade, com o menu "Relatórios" aberto, da lista vazia, carregando e com erro, dos filtros de status, etiqueta e prazo, do formulário na grade com as etiquetas em pills, o calendário do prazo aberto e com erro de validação, da visão geral da meta em cartões com o "Mais ações" aberto e da aba Marcos com quatro marcos e um concluído (25%), nos temas claro e escuro, em 360 px e em desktop, mais um print com o foco visível pelo teclado na caixa de um marco. Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createGoalsRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados e o foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: a barra com "25%", prazo vencido sem vermelho nem "atrasada" e o anel de foco visível.
-  - Falha: rolagem horizontal em 360 px, gamificação ou vermelho, estado sem texto ou foco invisível.
+- `goals-telas.txt` (automática): `node apps/web/scripts/evidence-goals.mjs telas`
+  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados e o foco por teclado, medidos no DOM e fotografados: lista em lista e em grade com o menu "Relatórios" aberto, filtros de status, etiqueta e prazo, lista vazia, carregando e com erro, formulário na grade com as etiquetas em pills e o calendário do prazo aberto, formulário com erro de validação, visão geral da meta em cartões com o "Mais ações" aberto, aba Marcos com quatro marcos e um concluído (25%) e foco visível pelo teclado na caixa de um marco (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... menu "Relatórios" aberto · item "Progresso das metas"`, `ok ... filtro de status com Planejada, Em andamento, Concluída e Abandonada`, `ok ... ?has_deadline=true&label=casa na URL`, `ok ... lista vazia com texto explicativo`, `ok ... carregando visível`, `ok ... erro com "Tentar de novo"`, `ok ... etiquetas em pills · 2 pills`, `ok ... calendário do prazo dentro da janela`, `ok ... erro de validação em role="alert" dentro do formulário`, `ok ... nenhum <select> nem input date nativo`, `ok ... "Cancelar" antes de "Salvar", à direita`, `ok ... cartões Progresso, Descrição e Registro`, `ok ... "Mais ações" aberto · "Excluir" visível`, `ok ... barra de progresso aria-valuenow 25 · "25%"`, `ok ... prazo vencido sem "atrasada" e sem a cor de perigo`, `ok ... foco na caixa de um marco por Tab · contorno de foco visível ≥ 2 px` e, em cada captura, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-23/goals-telas.png (42 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal em 360 px, gamificação ou vermelho no prazo vencido, estado sem texto, foco invisível, violação no axe ou de contraste, controle nativo), a ausência da linha `png:`, a prancha sem algum dos estados ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-23/goals-telas.png`, a prancha com as 42 capturas rotuladas: 10 estados (lista em lista com o prazo vencido, grade com "Relatórios" aberto, filtros com o seletor de status aberto, vazia, carregando, erro, formulário com pills e calendário aberto, formulário com erro de validação, visão geral com "Mais ações" aberto e aba Marcos com 25%) nos temas claro e escuro, em 1440 px e em 360 px, mais o foco na caixa de um marco em desktop nos dois temas.
 
 ### Concluída quando
 
-- [ ] Metas são cadastradas e editadas com título, descrição, prazo opcional e status, numa listagem com filtros, busca e visualização na URL (RF-36, CT-23).
+- [x] Metas são cadastradas e editadas com título, descrição, prazo opcional e status, numa listagem com filtros, busca e visualização na URL (RF-36, CT-23).
 
   > Como comprovar: em `goals-tests.txt`, ver aprovados `creates a goal with title, deadline and status`, `filters and searches goals through the url` e `switches between list and grid`.
 
-- [ ] Marcos são acrescentados e concluídos, e o progresso é a porcentagem de marcos concluídos, mudando na hora (RF-37, CT-23).
+- [x] Marcos são acrescentados e concluídos, e o progresso é a porcentagem de marcos concluídos, mudando na hora (RF-37, CT-23).
 
   > Como comprovar: em `goals-tests.txt`, ver aprovados `returns 25 with one of four milestones done`, `completes a milestone and shows 25 percent at once` e `creates a goal, adds four milestones, completes one and shows 25 percent`.
 
-- [ ] Sem marcos, o progresso segue o status, e a recusa do servidor desfaz a mudança com aviso (RF-37, RNF-09).
+- [x] Sem marcos, o progresso segue o status, e a recusa do servidor desfaz a mudança com aviso (RF-37, RNF-09).
 
   > Como comprovar: em `goals-tests.txt`, ver aprovados `uses the status when there are no milestones`, `rolls back a goal update when refused` e `rolls back a completed milestone when refused`.
 
-- [ ] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
+- [x] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
 
   > Como comprovar: em `goals-tests.txt`, ver aprovado `shows empty, loading and error states` e o resumo sem falhas.
 
-- [ ] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `goals-telas.png` e conferir as telas legíveis nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `goals-telas.txt`, ver só linhas `ok`, inclusive `axe sem violações (inclui color-contrast)`, `sem rolagem horizontal`, `prazo vencido sem "atrasada" e sem a cor de perigo` e `contorno de foco visível ≥ 2 px`, e a última linha `ok  0 falha(s)`; abrir a prancha `goals-telas.png` e conferir as telas legíveis nos dois temas e larguras; o comando de cor literal da Verificação não encontra nada.
 
-- [ ] O módulo e a meta emitem o relatório "Progresso das metas": pelo botão "Relatórios" do cabeçalho da lista e pelo "Mais ações" da meta, já filtrado por ela (PD-61, DEC-002).
+- [x] O módulo e a meta emitem o relatório "Progresso das metas": pelo botão "Relatórios" do cabeçalho da lista e pelo "Mais ações" da meta, já filtrado por ela (PD-61, DEC-002).
 
   > Como comprovar: em `goals-pd-tests.txt`, ver aprovados `pd61 lists the goals reports in the Relatórios menu` e `pd61 opens the goal progress report filtered by the goal from Mais ações`.
 
-- [ ] A tela da meta tem "Editar" com lápis e "Mais ações" com o relatório e "Excluir" em vermelho, e a visão geral em cartões (Progresso, Descrição e Registro), com os marcos na aba Marcos (PD-14, PD-59).
+- [x] A tela da meta tem "Editar" com lápis e "Mais ações" com o relatório e "Excluir" em vermelho, e a visão geral em cartões (Progresso, Descrição e Registro), com os marcos na aba Marcos (PD-14, PD-59).
 
   > Como comprovar: em `goals-pd-tests.txt`, ver aprovados `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações` e `pd59 shows the overview in cards with Progresso, Descrição and Registro`; em `goals-tests.txt`, `deletes the goal after confirmation from Mais ações` e `shows the Visão geral and Marcos tabs before the extra tabs`.
 
-- [ ] A meta tem etiquetas em pills no formulário e no cartão "Registro", a lista filtra por etiqueta e por prazo, e o status usa os quatro valores do `goal_status` (`planned`, `in_progress`, `completed` e `abandoned`) (DEC-006, PD-11, PD-62).
+- [x] A meta tem etiquetas em pills no formulário e no cartão "Registro", a lista filtra por etiqueta e por prazo, e o status usa os quatro valores do `goal_status` (`planned`, `in_progress`, `completed` e `abandoned`) (DEC-006, PD-11, PD-62).
 
   > Como comprovar: em `goals-pd-tests.txt`, ver aprovados `dec006 sends the label and has_deadline filters to the server`, `dec006 filters goals by label and by deadline through the url`, `dec006 adds labels as pills and sends them with the goal`, `pd62 lists the four goal statuses in the status filter` e `pd62 offers the four goal statuses in the form`.
 
-- [ ] O formulário usa a base da TASK-05: grade de duas colunas numa coluna centralizada, prazo no calendário próprio, status e visibilidade nos seletores da base e as ações à direita (PD-19, PD-57, PD-62).
+- [x] O formulário usa a base da TASK-05: grade de duas colunas numa coluna centralizada, prazo no calendário próprio, status e visibilidade nos seletores da base e as ações à direita (PD-19, PD-57, PD-62).
 
   > Como comprovar: em `goals-pd-tests.txt`, ver aprovados `pd62 lays the form in the grid with title, description and visibility on the full row`, `pd57 picks the deadline in the custom calendar` e `pd19 centers the header and the form in the form column`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `goals-e2e-specs.txt` lista o fluxo.
 
@@ -187,6 +197,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Status pelo `goal_status` real da TASK-08: `planned`, `in_progress`, `completed` e `abandoned`, em `FormSelect` (mais de três opções) e no filtro da lista. Descartados: os três status do protótipo (`active`, `paused`, `done`), que não existem no servidor, e o grupo segmentado condicional.
 - Etiquetas e filtros (DEC-006, item 1): a meta ganha `labels` no `FormTags` (o `TagField` da base, PD-11), mostradas em pills na lista e no cartão "Registro"; a lista filtra por `label` e `has_deadline`, que a TASK-08 passa a oferecer. O filtro de etiqueta é um campo de texto confirmado com Enter, porque não há rota que liste as etiquetas existentes. Descartado: tirar as etiquetas da tela.
 
+**Evidências visuais.** A prancha `goals-telas.png` é gerada por `apps/web/scripts/evidence-goals.mjs`, no molde do `evidence-shots.mjs` da TASK-05: a evidência é o comando, cuja saída (`goals-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas da feature só são registradas no app na TASK-35 (antes disso o `pnpm dev` mostra só a casca, com 404), o script serve uma página virtual com `src/features/goals/evidence/harness.tsx`, que monta `createGoalsRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app` e fora do build de produção; a API é simulada no navegador com fixtures do próprio script. Descartado: capturar à mão com `pnpm dev`, impossível sem as rotas registradas, e registrar as rotas antes da TASK-35, que muda `apps/web/src/app`.
+
 **Riscos.** O campo `labels` e os filtros `label` e `has_deadline` vêm do ajuste da TASK-08 pela DEC-006; a tela repete os limites do servidor (20 etiquetas de até 50 caracteres, sem repetidas) para o erro aparecer antes do envio. A operação de reabrir marco também depende do contrato do contexto goals (TASK-08).
 
 **Referências.** RF-36, RF-37; CT-23; RN-15; RNF-06, RNF-08, RNF-09, RNF-10; decisão 8 da spec; DEC-002, DEC-004 e DEC-006; PD-11, PD-14, PD-19, PD-57, PD-59, PD-61 e PD-62 de `docs/decisoes-do-prototipo.md`.
@@ -215,6 +227,14 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual goals-telas.png trocada por automática goals-telas.txt gerada por apps/web/scripts/evidence-goals.mjs, com a prancha PNG como Artefato; harness da feature em src/features/goals/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 14 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 4 evidência(s) em evidence/TASK-23/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -224,3 +244,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 | 2 | 2026-10-30 | agente | Links dos relatórios no padrão do Coordenador para módulos e entidades: módulo /reports/goals-progress?from_module=goals e meta /reports/goals-progress?goal_id=<id>&run=1&from_module=goals, em Mudar, Passos, testes pd61, Concluída quando e Detalhes técnicos (PD-61); linha test -e da pasta da feature removida da Baseline, recusada pela validação |
 | 3 | 2026-10-30 | agente | Etiquetas da meta no FormTags (TagField da base) no formulário, em pills na lista e no cartão Registro, e filtros tag e has_deadline na lista e no useGoals, com testes dec006 (DEC-006, PD-11); goal_status real planned, in_progress, completed e abandoned no filtro, no formulário (FormSelect, sem o grupo segmentado condicional), no i18n e no goalProgress, com testes pd62; Ler, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
 | 4 | 2026-10-30 | agente | Nomes do contrato da TASK-08 ajustada (DEC-006): campo labels no lugar de tags e filtro label no lugar de tag, na URL, no useGoals, no formulário, nos testes dec006 e nos Detalhes técnicos; limites de 20 etiquetas de até 50 caracteres sem repetidas no zod, com o teste dec006 refuses more than 20 labels or a label longer than 50 characters inside the form; has_deadline=true\|false confirmado |
+| 5 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 6 | 2026-10-31 | agente | Evidência manual goals-telas.png trocada por automática goals-telas.txt gerada por apps/web/scripts/evidence-goals.mjs, com a prancha PNG como Artefato; harness da feature em src/features/goals/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 14 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-18, RF-19, CT-13]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 422aebbf5f465ce20b66c1e88ab23dd625a0af48bdc3208a2b67baeb055101fe
-adjustments: 2
-adjusted_at: 2026-10-30T21:59:37Z
+status: done
+content_hash: a86cb1e9eeae3e6fc6b1a782fbb503139aa427be785bf540771c0b4c1d95e03d
+adjustments: 4
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 422aebbf5f465ce20b66c1e88ab23dd625a0af48bdc3208a2b67baeb055101fe
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:59:37Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-31: Aba Conexões
@@ -46,6 +47,7 @@ updated_at: 2026-10-30T21:59:37Z
 - `packages/ui`: abas, lista, campo de busca, filtros, estados e diálogo de confirmação.
 - `packages/theme`: tokens do tema.
 - `packages/contracts`: tipos gerados de `/links`, `/links/{id}`, `/search` (escolha da entidade a ligar) e dos `GET` por id das entidades ligáveis, usados para o título.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -66,6 +68,8 @@ updated_at: 2026-10-30T21:59:37Z
 - `apps/web/src/features/connections/connections-summary.test.tsx` (criar): testes da lista compacta (PD-42).
 - `apps/web/src/features/connections/use-linked-titles.test.tsx` (criar): testes do título das entidades ligadas.
 - `apps/web/src/features/connections/connections.e2e.ts` (criar): fluxo ponta a ponta do CT-13, rodado só na TASK-35.
+- `apps/web/src/features/connections/evidence/harness.tsx` (criar): página de evidência que monta `createConnectionsRoutes` e uma rota de teste com `ConnectionsTab` (uma nota de exemplo) num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-connections.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-connections.mjs temas|estados`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (ligações de várias categorias, `/search`, os `GET` por id, uma resposta lenta para o carregando e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações incluindo `color-contrast`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-31/`.
 
 ### Passos
 
@@ -87,6 +91,7 @@ updated_at: 2026-10-30T21:59:37Z
 10. Criar `routes.tsx` com `createConnectionsRoutes(parent_route)`. A feature não tem `nav.ts`; a TASK-35 monta `ConnectionsTab` nas telas de cada entidade e `ConnectionsSummary` na propriedade `links_slot` da Visão geral do projeto (TASK-30).
 11. Criar `connections.e2e.ts` (Playwright) com o CT-13: ligar uma nota a uma meta, ver a ligação nos dois lados, filtrar e agrupar a aba, remover pela meta e ver que some dos dois lados, em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 12. Rodar a Verificação até passar sem nenhum warning de lint.
+13. Criar `evidence/harness.tsx` e `apps/web/scripts/evidence-connections.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-connections.mjs temas` e `node apps/web/scripts/evidence-connections.mjs estados`. Corrigir o código da tarefa a cada linha `FALHA` e abrir as pranchas `connections-themes-widths.png` e `connections-states-focus.png` para conferir.
 
 ### Baseline
 
@@ -103,15 +108,18 @@ grep -q "export function ConnectionsSummary" apps/web/src/features/connections/c
 ! grep -qE "'card'|\"card\"" apps/web/src/features/connections/entity-categories.ts
 grep -q "/cards/" apps/web/src/features/connections/entity-categories.ts
 test -f apps/web/src/features/connections/connections.e2e.ts
+test -f apps/web/src/features/connections/evidence/harness.tsx
+test -f apps/web/scripts/evidence-connections.mjs
+node --check apps/web/scripts/evidence-connections.mjs
 ```
 
 ### Evidências
 
-- `connections-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/connections`
+- `connections-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/connections --reporter=verbose`
   - Prova: os testes da aba Conexões passam, cobrindo ligações nos dois lados, filtro, busca, agrupamento, categorização, criação, remoção, estados, axe e interface otimista (RF-18, RF-19, CT-13, RNF-06, RNF-09).
   - Trecho: os arquivos `connections-tab.test.tsx`, `new-connection-page.test.tsx` e `use-connection-mutations.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `connections-consumers.txt` (automática): `pnpm --filter @atria/web test -- src/features/connections -t "pd42|dec003|linked"`
+- `connections-consumers.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/connections --reporter=verbose -t "pd42|dec003|linked"`
   - Prova: a feature atende os consumidores das ligações: a lista compacta para o cartão "Ligações" da Visão geral do projeto (PD-42), a tarefa ligada a um cartão visível do lado da tarefa (DEC-003) e o título de cada entidade ligada lido do `GET` por id, com os 14 tipos do contrato da TASK-15.
   - Trecho: os casos `pd42 lists the linked entities with title and type label up to the limit`, `pd42 shows the empty text and the connect link to the connections tab`, `dec003 lists the task linked to a project card on the task side`, `dec003 reads the project card title and link from the card endpoint` e `reads the title from the detail endpoint of each linked type` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests`, `No test files found` ou nenhum caso `pd42` ou `dec003` executado.
@@ -119,46 +127,48 @@ test -f apps/web/src/features/connections/connections.e2e.ts
   - Prova: a feature tem a aba reutilizável, a rota de ligar, traduções, hooks, testes e o e2e do CT-13.
   - Trecho: `connections-tab.tsx`, `connections-summary.tsx`, `use-linked-titles.ts`, `routes.tsx`, `i18n/pt-br.json` e `connections.e2e.ts` na lista.
   - Falha: `No such file or directory` ou algum desses arquivos ausente.
-- `connections-themes-widths.png` (manual): prints da aba Conexões agrupada por categoria e da tela de ligar nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com a aba montada numa tela de teste só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: identidade visual nos dois temas, categorias distinguíveis e layout funcional a partir de 360 px (RNF-08, RNF-10).
-  - Trecho: as capturas com os grupos por categoria legíveis, sem rolagem horizontal.
-  - Falha: rótulos cortados em 360 px ou contraste baixo no tema escuro.
-- `connections-states-focus.png` (manual): prints da aba nos estados vazio, carregando e erro, e da lista de resultados da tela de ligar com o foco visível navegando só pelo teclado.
-  - Prova: todos os estados e o foco por teclado ([project/frontend-10], [project/frontend-12], RNF-06).
-  - Trecho: o texto explicativo do estado vazio, o indicador de carregamento, a mensagem de erro e o anel de foco no resultado ativo.
-  - Falha: estado sem texto ou resultado que não recebe foco.
+- `connections-themes-widths.txt` (automática): `node apps/web/scripts/evidence-connections.mjs temas`
+  - Prova: identidade visual nos dois temas, categorias distinguíveis e layout funcional a partir de 360 px, medidos no DOM e fotografados: a aba Conexões agrupada por categoria e a tela de ligar (`/connections/new`), em 1440 px e em 360 px, nos temas claro e escuro (RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema aplicado`, `ok ... grupos por categoria visíveis` (um cabeçalho por categoria das fixtures), `ok ... rótulo da categoria em cada ligação`, `ok ... controles Filtros, Busca e Visualização`, `ok ... campo de busca da tela de ligar`, `ok ... rótulos sem corte em 360 px`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-31/connections-themes-widths.png (8 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rótulos cortados ou rolagem horizontal em 360 px, contraste baixo no tema escuro apontado pelo axe, grupos ausentes), a ausência da linha `png:` ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-31/connections-themes-widths.png`, a prancha com as capturas rotuladas: aba agrupada por categoria e tela de ligar, nos temas claro e escuro, em 1440 px e em 360 px.
+- `connections-states-focus.txt` (automática): `node apps/web/scripts/evidence-connections.mjs estados`
+  - Prova: todos os estados da aba e o foco por teclado na tela de ligar ([project/frontend-10], [project/frontend-12], RNF-06).
+  - Trecho: `ok ... estado vazio com texto explicativo`, `ok ... indicador de carregamento visível` (resposta lenta), `ok ... mensagem de erro visível` (`problem+json`), `ok ... resultado ativo depois de Tab e setas`, `ok ... contorno de foco visível · ≥ 2px` no resultado ativo, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-31/connections-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (estado sem texto, resultado que não recebe foco, contorno de foco ausente ou menor que 2 px), a ausência da linha `png:` ou código de saída diferente de 0.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-31/connections-states-focus.png`, a prancha com a aba nos estados vazio, carregando e erro e a lista de resultados da tela de ligar com o foco visível navegando só pelo teclado, nos dois temas.
 
 ### Concluída quando
 
-- [ ] Qualquer entidade pode ser ligada a outra, e a ligação aparece nos dois lados (RF-18, CT-13).
+- [x] Qualquer entidade pode ser ligada a outra, e a ligação aparece nos dois lados (RF-18, CT-13).
 
   > Como comprovar: na saída `connections-tests.txt`, ver aprovados `searches entities and links the chosen one` e `shows a connection created on the other side`.
 
-- [ ] A aba "Conexões" serve a qualquer entidade, recebendo só o tipo e o id (RF-19).
+- [x] A aba "Conexões" serve a qualquer entidade, recebendo só o tipo e o id (RF-19).
 
   > Como comprovar: ver aprovado `lists the connections of any entity type and id` e conferir que a Verificação acha `export function ConnectionsTab`.
 
-- [ ] Cada ligação mostra o título da entidade, lido do `GET` por id do tipo, e os tipos seguem os 14 do contrato da TASK-15, com `milestone` e `transfer` pelo rótulo do tipo, sem link, e o `project_card` com o título e o link para a tela do cartão no projeto, lidos de `GET /cards/{card_id}` (TASK-14); a tarefa ligada a um cartão aparece na aba da tarefa (RF-19, DEC-003).
+- [x] Cada ligação mostra o título da entidade, lido do `GET` por id do tipo, e os tipos seguem os 14 do contrato da TASK-15, com `milestone` e `transfer` pelo rótulo do tipo, sem link, e o `project_card` com o título e o link para a tela do cartão no projeto, lidos de `GET /cards/{card_id}` (TASK-14); a tarefa ligada a um cartão aparece na aba da tarefa (RF-19, DEC-003).
 
   > Como comprovar: em `connections-consumers.txt`, ver aprovados `reads the title from the detail endpoint of each linked type`, `dec003 lists the task linked to a project card on the task side` e `dec003 reads the project card title and link from the card endpoint`; a Verificação não acha `'card'` e acha `/cards/` em `entity-categories.ts`.
 
-- [ ] `ConnectionsSummary` lista as ligações de uma entidade para o cartão "Ligações" da Visão geral do projeto, com o texto vazio e o link "Conectar a algo" (PD-42).
+- [x] `ConnectionsSummary` lista as ligações de uma entidade para o cartão "Ligações" da Visão geral do projeto, com o texto vazio e o link "Conectar a algo" (PD-42).
 
   > Como comprovar: em `connections-consumers.txt`, ver aprovados os casos `pd42` da `connections-summary.test.tsx`; a Verificação acha `export function ConnectionsSummary`.
 
-- [ ] A aba tem filtro, busca, agrupamento e categorização, guardados na URL, e os estados vazio, carregando e erro (RF-19, CT-13).
+- [x] A aba tem filtro, busca, agrupamento e categorização, guardados na URL, e os estados vazio, carregando e erro (RF-19, CT-13).
 
   > Como comprovar: ver aprovados `filters by category`, `searches by title`, `groups by category and by date`, `labels each connection with its category` e `keeps filter, search and grouping in the URL`.
 
-- [ ] Remover a ligação de um lado tira dos dois, com confirmação, na hora e desfeito com aviso se o servidor recusar (RF-18, CT-13, RNF-09).
+- [x] Remover a ligação de um lado tira dos dois, com confirmação, na hora e desfeito com aviso se o servidor recusar (RF-18, CT-13, RNF-09).
 
   > Como comprovar: ver aprovados `removes the connection before the server answers` e `rolls back and shows the undo notice when the server rejects`.
 
-- [ ] A aba e a tela de ligar não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
+- [x] A aba e a tela de ligar não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovados `has no axe violations` e `is operable by keyboard only`, e conferir os prints `connections-themes-widths.png` e `connections-states-focus.png`.
+  > Como comprovar: ver aprovados `has no axe violations` e `is operable by keyboard only`; em `connections-themes-widths.txt` e `connections-states-focus.txt`, ver só linhas `ok` (tema, sem rolagem horizontal, axe sem violações, estados e contorno de foco) e `ok  0 falha(s)`, e conferir nas pranchas `connections-themes-widths.png` e `connections-states-focus.png` os dois temas, as duas larguras, os estados e o foco.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e do CT-13 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e do CT-13 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `connections.e2e.ts` aparece em `connections-files.txt`.
 
@@ -180,6 +190,7 @@ Libera a integração do frontend, que monta a aba em cada tela de entidade.
 - **Cartão de projeto (TASK-14):** o título e o link do `project_card` vêm de `GET /cards/{card_id}`, que devolve o `project_id` para montar `/projects/<project_id>/cards/<card_id>` (rota da TASK-30). Descartados o rótulo do tipo sem link, que a versão anterior desta tarefa previa por falta da leitura por id, e guardar o `project_id` na ligação, que mudaria o contrato de `/links`.
 - **Riscos:** rota de uma entidade diferente da definida pela feature dona (mitigado pelo e2e da TASK-35); `milestone` e `transfer` sem leitura por id no contrato (ficam com o rótulo do tipo, sem link); uma leitura por ligação para o título (aceitável para as poucas ligações de uma entidade, com cache).
 - **Referências da spec:** RF-18, RF-19, CT-13, RN-10, CB-06, decisão 27, [project/architecture-05], RNF-06, RNF-08 a RNF-10; PD-42 e PD-46 de `docs/decisoes-do-prototipo.md`; DEC-002 e DEC-003 da memória; contrato de `/links` da TASK-15; `GET /cards/{card_id}` da TASK-14.
+- **Evidências visuais:** as pranchas `connections-themes-widths.png` e `connections-states-focus.png` são geradas por `apps/web/scripts/evidence-connections.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas das features só são registradas no app pela TASK-35, o script monta a feature por `src/features/connections/evidence/harness.tsx` (rotas da feature e uma tela de teste com a aba, num roteador em memória com os providers e o layout do app), servido por uma página virtual do Vite, com a API simulada por fixtures; nada muda em `apps/web/src/app`.
 - **Arquivos em comum na onda 7:** nenhum.
 
 ### Card
@@ -201,6 +212,14 @@ Libera a integração do frontend, que monta a aba em cada tela de entidade.
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Evidências manuais connections-themes-widths.png e connections-states-focus.png trocadas por automáticas connections-themes-widths.txt e connections-states-focus.txt geradas por apps/web/scripts/evidence-connections.mjs, com a prancha PNG como Artefato; harness da feature em src/features/connections/evidence/harness.tsx montando as rotas e a aba sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-31/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -208,3 +227,5 @@ Libera a integração do frontend, que monta a aba em cada tela de entidade.
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler: decisoes-do-prototipo (PD-42, PD-46), DEC-002 e DEC-003 e contrato de /links da TASK-15; tipos alinhados aos 14 da TASK-15 (project_card no lugar de card, transfer e milestone), com project_card, milestone e transfer sem link; titulo de cada ligacao pelo GET por id (use-linked-titles.ts), pois /links nao traz titulo; uso de linked_type e linked_id do servidor; PD-42: ConnectionsSummary para o cartao Ligacoes da Visao geral do projeto, montado pela TASK-35 em links_slot; DEC-003: tarefa ligada ao cartao visivel do lado da tarefa; testes, Verificacao, evidencia connections-consumers.txt, Concluida quando, Detalhes tecnicos e card |
 | 2 | 2026-10-30 | agente | Ler com GET /cards/{card_id} da TASK-14 e a rota do cartão da TASK-30; project_card com detail_path /cards/{id}, título title e link /projects/{project_id}/cards/{id} com o project_id da resposta, rótulo do tipo sem link enquanto carrega ou em 404 card_not_found; route como função do id e da resposta; testes, Verificação, Evidências, Concluída quando, Detalhes técnicos e card atualizados; linha de Baseline que citava a pasta criada pela tarefa removida |
+| 3 | 2026-10-31 | agente | Evidências manuais connections-themes-widths.png e connections-states-focus.png trocadas por automáticas connections-themes-widths.txt e connections-states-focus.txt geradas por apps/web/scripts/evidence-connections.mjs, com a prancha PNG como Artefato; harness da feature em src/features/connections/evidence/harness.tsx montando as rotas e a aba sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-38, RF-39, CT-24]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: ff05aad368022bd144d46fdd33aaf222e420d2a9678812d6bcbeefb63c543e2d
-adjustments: 5
-adjusted_at: 2026-10-30T22:23:10Z
+status: done
+content_hash: 86dbae7dea19f23b7d77aeacb05eb91e2c5061077ae85daaea358522e37f4e13
+adjustments: 7
+adjusted_at: 2026-10-31T09:48:13Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: ff05aad368022bd144d46fdd33aaf222e420d2a9678812d6bcbeefb63c543e2d
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:23:10Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:48:13Z
+model: sonnet
 ---
 
 # TASK-24: Telas de Tarefas
@@ -32,6 +33,7 @@ updated_at: 2026-10-30T22:23:10Z
 - `prototype/atria-prototype.html` (telas de tarefas validadas no protótipo; pelas decisões do protótipo, `completeBtn` (botão só com o check, `aria-pressed` e o nome "Concluir hoje: <título>"), o template `#entity-detail` com "Voltar", "Concluir hoje", "Editar" e "Mais ações", a visão geral da tarefa em `overviewHTML` (`k === 'task'`), a aba "Ocorrências" da tarefa diária (`tab === 'occurrences'`), os selos "Aberta hoje" e "Feita hoje" de `KINDS.task.badges`, o formulário `KINDS.task` com a grade `.screen-form .form`, as etiquetas no topo do cartão "Registro" (`reg`) e, para o botão "Relatórios" do módulo, a constante `REPORTS` (relatório `tasks-done`, módulo `tasks`, sem filtros) e `repsOf`)
 - `docs/decisoes-do-prototipo.md` (linhas PD-04, PD-11, PD-14, PD-19, PD-32, PD-33, PD-57, PD-59, PD-61 e PD-62 e a seção "Decisões resolvidas em 30/10 (DEC-002)"; as decisões valem sobre o texto antigo desta tarefa)
 - `vostok/memory/decisions.md`, por `vostok memory search decision DEC-002 DEC-003 DEC-004 DEC-006 DEC-008`: DEC-002 (as decisões do protótipo valem já, também nas telas); DEC-003 (a tarefa ligada a um cartão de projeto é uma ligação do contexto links e aparece na aba Conexões, sem campo na tarefa); DEC-004 (Tarefas concluídas e abertas sem período); DEC-006 (item 1: tarefas com etiquetas no servidor e o campo de etiquetas da base na tela; item 4: recorrência com a regra completa, com o mesmo editor dos lembretes e do Financeiro); DEC-008 (esse editor é um componente da base, em `apps/web/src/shared/forms`, que as telas importam)
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05: Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha)
 - `vostok/work/tasks/SPEC-001/TASK-05.md` (componentes da base: `Button` com a variação `success` e o estado `aria-pressed` (PD-03), `PageHeader` com "Voltar" e ações, `MenuButton`, `SelectField`, `SegmentedField`, `DateField`, `TimeField`, `TagField`, `FormGrid`, `FormActions` e as ligações `FormSelect`, `FormSegmented`, `FormDate`, `FormTime` e `FormTags` de `apps/web/src/shared/forms/form-fields.tsx`; e, pela DEC-008, `RecurrenceFields`/`FormRecurrence` e `summarizeRule(rule, locale)` de `apps/web/src/shared/forms/recurrence-fields.tsx`, com a prop `with_time`, padrão `true`)
 - `vostok/work/tasks/SPEC-001/TASK-17.md` (o relatório `tasks-done`, do módulo `tasks`, sem período e sem filtros)
 - `vostok/work/tasks/SPEC-001/TASK-22.md` e `vostok/work/tasks/SPEC-001/TASK-25.md` (o Financeiro e os Lembretes usam o mesmo `FormRecurrence` da base: o Financeiro com `with_time={false}`, os Lembretes com o horário obrigatório; DEC-006, DEC-008)
@@ -66,6 +68,8 @@ updated_at: 2026-10-30T22:23:10Z
 - `apps/web/src/features/tasks/screens/task-form-screen.tsx` (criar): criar e editar tarefa pontual ou recorrente em rota própria.
 - `apps/web/src/features/tasks/screens/tasks-screens.test.tsx` (criar): testes das telas, dos estados e do axe (CT-24).
 - `apps/web/src/features/tasks/tasks.e2e.ts` (criar): fluxo ponta a ponta de CT-24, rodado na TASK-35.
+- `apps/web/src/features/tasks/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createTasksRoutes` num roteador em memória do TanStack Router (`createMemoryHistory`), com os providers do app (`AppProviders`: tema, TanStack Query, i18n e preferências) e dentro do layout do app (`AppLayout`); não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema (a Verificação de cor literal continua valendo); passa no typecheck e no lint.
+- `apps/web/scripts/evidence-tasks.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-tasks.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite, com um plugin que serve uma página HTML virtual carregando o `harness.tsx`, e o encerra no fim (KNW-006); simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (tarefas pontuais abertas, vencidas e concluídas, recorrentes com a ocorrência de hoje aberta e feita, etiquetas e as ocorrências de hoje e dos seis dias seguintes de `GET /tasks/occurrences`, respostas lentas para o estado de carregando e `problem+json` para o erro), com o relógio do navegador fixo em `2026-11-05T12:00:00-03:00` (`page.clock`) e o fuso `America/Sao_Paulo` no contexto, para "hoje" ser estável; captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar. Em cada captura: tema aplicado, sem rolagem horizontal, sem erro de JS e axe sem violações, incluindo `color-contrast` (`@axe-core/playwright`, já em devDependencies). A prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-24/tasks-telas.png`.
 
 ### Passos
 
@@ -84,6 +88,7 @@ updated_at: 2026-10-30T22:23:10Z
 12. Crie `apps/web/src/features/tasks/routes.tsx` exportando `createTasksRoutes(parent: AnyRoute)` com as quatro rotas, o esquema `zod` dos parâmetros de busca da lista e o `tab` (`overview` ou `occurrences`, padrão `overview`) do detalhe. Não altere `apps/web/src/app`.
 13. Crie `apps/web/src/features/tasks/tasks.e2e.ts` com `single task is completed and reopened` e `daily task completes only today occurrence`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 14. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+15. Crie `apps/web/src/features/tasks/evidence/harness.tsx` e `apps/web/scripts/evidence-tasks.mjs` (veja "Mudar"), com as verificações de cada estado listadas na evidência `tasks-telas.txt`, e rode `node apps/web/scripts/evidence-tasks.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` (nunca a verificação) e repita até a última linha ser `ok  0 falha(s)`; depois abra `vostok/work/tasks/SPEC-001/evidence/TASK-24/tasks-telas.png` e confira cada estado nos dois temas e nas duas larguras. Não altere `apps/web/src/app`: as rotas só são registradas na TASK-35.
 
 ### Baseline
 
@@ -108,15 +113,19 @@ test ! -e apps/web/src/features/tasks/components/recurrence-fields.tsx
 ! grep -rnE "features/tasks/components/recurrence-fields|['\"]\.\.?/(components/)?recurrence-fields['\"]|function (RecurrenceFields|FormRecurrence|summarizeRule)" apps/web/src/features/tasks
 grep -rq 'FormRecurrence' apps/web/src/features/tasks/screens/task-form-screen.tsx
 grep -rq 'summarizeRule' apps/web/src/features/tasks/screens
+# Harness e script das evidências visuais
+test -f apps/web/src/features/tasks/evidence/harness.tsx
+test -f apps/web/scripts/evidence-tasks.mjs
+node --check apps/web/scripts/evidence-tasks.mjs
 ```
 
 ### Evidências
 
-- `tasks-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/tasks --reporter=verbose`
+- `tasks-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/tasks --reporter=verbose`
   - Prova: tarefas pontuais e recorrentes passam nos testes, com conclusão por ocorrência, reversão e axe sem violações (RF-38, RF-39, CT-24, RNF-06, RNF-09).
   - Trecho: as linhas `✓` de `completes and reopens a single task`, `completes only today occurrence of a daily task`, `creates a daily task and completes today occurrence only`, `rolls back the completion and warns when refused` e `shows empty, loading and error states`, e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
-- `tasks-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/tasks --reporter=verbose -t "(pd|dec)[0-9]"`
+- `tasks-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/tasks --reporter=verbose -t "(pd|dec)[0-9]"`
   - Prova: as telas seguem as decisões do protótipo e a DEC-006: botão de concluir só com o ícone nas listas e com texto no detalhe, "Concluir hoje" e "Feita hoje" na diária, sem histórico das recorrentes, cabeçalho do detalhe, visão geral em cartões, formulário na grade, calendário e hora da base, coluna centralizada, relatório do módulo, etiquetas e a regra de recorrência completa (DEC-002, DEC-006, PD-04, PD-11, PD-14, PD-19, PD-32, PD-33, PD-57, PD-59, PD-61, PD-62).
   - Trecho: as linhas `✓` de `pd61 lists the tasks report in the Relatórios menu`, `dec006 sends the label filter to the server`, `dec006 filters tasks by label through the url`, `dec006 adds labels as pills and sends them with the task`, `dec006 offers the full recurrence rule`, `dec006 summarizes the full rule in the overview`, `pd04 completes from the list with the icon-only check button`, `pd33 completes today occurrence from the list and shows Feita hoje`, `pd33 completes and reopens today from the detail with a text button`, `pd32 rolls back when the server refuses a past occurrence`, `pd32 lists only today and the next six days in Ocorrências`, `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações`, `pd59 shows the overview in cards with Tarefa, Anotações and Registro`, `pd62 lays the form in the grid with the repetition as a segmented field`, `pd57 picks the due date and the rule start in the custom calendar` e `pd19 centers the header and the form in the form column`.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -124,66 +133,67 @@ grep -rq 'summarizeRule' apps/web/src/features/tasks/screens
   - Prova: os fluxos ponta a ponta de CT-24 estão escritos para a TASK-35.
   - Trecho: as linhas com `single task is completed and reopened` e `daily task completes only today occurrence`.
   - Falha: `No such file or directory` ou saída vazia.
-- `tasks-telas.png` (manual): prints da lista em lista e agrupada por dia, com o menu "Relatórios" aberto e o filtro de etiqueta, com tarefas pontuais, com etiquetas em pills, recorrentes ("Aberta hoje" e "Feita hoje") e concluídas e o botão de check, da lista vazia, carregando e com erro, do detalhe com a visão geral em cartões, "Concluir hoje" e o "Mais ações" aberto, da aba Ocorrências, e do formulário na grade com as etiquetas em pills, a recorrência semanal aberta com os dias da semana e o calendário aberto, nos temas claro e escuro, em 360 px e em desktop, mais um print com o foco visível pelo teclado no botão de concluir. Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createTasksRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados e o foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: pendências sem vermelho nem contador, a concluída riscada em token neutro, o check verde claro que fica verde cheio quando feita e o anel de foco visível.
-  - Falha: rolagem horizontal em 360 px, vermelho ou contador de urgência, estado sem texto ou foco invisível.
+- `tasks-telas.txt` (automática): `node apps/web/scripts/evidence-tasks.mjs telas`
+  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados e o foco por teclado, medidos no DOM e fotografados: lista em lista com tarefas pontuais, etiquetas em pills, recorrentes ("Aberta hoje" e "Feita hoje"), concluídas e o botão de check, lista agrupada por dia com o menu "Relatórios" aberto, filtro de etiqueta, lista vazia, carregando e com erro, detalhe com a visão geral em cartões, "Concluir hoje" e o "Mais ações" aberto, aba Ocorrências, formulário na grade com as etiquetas em pills e a recorrência semanal aberta com os dias da semana, formulário com o calendário aberto e foco visível pelo teclado no botão de concluir (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... nenhuma caixa de seleção para concluir`, `ok ... botão "Concluir hoje: Alongamento da manhã" só com o ícone e aria-pressed`, `ok ... selos "Aberta hoje" e "Feita hoje"`, `ok ... concluída riscada em token neutro`, `ok ... pendência sem a cor de perigo e sem contador`, `ok ... menu "Relatórios" aberto · item "Tarefas concluídas e abertas"`, `ok ... ?label=casa na URL`, `ok ... lista vazia com texto explicativo`, `ok ... carregando visível`, `ok ... erro com "Tentar de novo"`, `ok ... cartões Tarefa, Anotações e Registro`, `ok ... botão "Concluir hoje" com texto no detalhe`, `ok ... "Mais ações" aberto · "Excluir" visível`, `ok ... Ocorrências com hoje e os seis dias seguintes · 7 dias`, `ok ... etiquetas em pills · 2 pills`, `ok ... recorrência semanal com os dias da semana`, `ok ... calendário dentro da janela`, `ok ... nenhum <select> nem input date ou time nativo`, `ok ... "Cancelar" antes de "Salvar", à direita`, `ok ... foco no botão de concluir por Tab · contorno de foco visível ≥ 2 px` e, em cada captura, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-24/tasks-telas.png (42 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal em 360 px, vermelho ou contador de urgência, caixa de seleção para concluir, estado sem texto, foco invisível, violação no axe ou de contraste, controle nativo), a ausência da linha `png:`, a prancha sem algum dos estados ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-24/tasks-telas.png`, a prancha com as 42 capturas rotuladas: 10 estados (lista em lista com pontuais, recorrentes "Aberta hoje" e "Feita hoje", concluídas e o check, agrupada por dia com "Relatórios" aberto, filtro de etiqueta, vazia, carregando, erro, detalhe com "Concluir hoje" e "Mais ações" aberto, aba Ocorrências, formulário com pills e a recorrência semanal aberta, formulário com o calendário aberto) nos temas claro e escuro, em 1440 px e em 360 px, mais o foco no botão de concluir em desktop nos dois temas.
 
 ### Concluída quando
 
-- [ ] Tarefas pontuais são cadastradas, concluídas e reabertas, com a mudança na hora e desfeita com aviso se o servidor recusar (RF-38, CT-24, RNF-09).
+- [x] Tarefas pontuais são cadastradas, concluídas e reabertas, com a mudança na hora e desfeita com aviso se o servidor recusar (RF-38, CT-24, RNF-09).
 
   > Como comprovar: em `tasks-tests.txt`, ver aprovados `creates a single task`, `completes and reopens a single task`, `completes and reopens a task from the list` e `rolls back the completion and warns when refused`.
 
-- [ ] Tarefas recorrentes são criadas e cada ocorrência é concluída separadamente; mudar a regra vale desta ocorrência em diante (RF-39, CT-24).
+- [x] Tarefas recorrentes são criadas e cada ocorrência é concluída separadamente; mudar a regra vale desta ocorrência em diante (RF-39, CT-24).
 
   > Como comprovar: em `tasks-tests.txt`, ver aprovados `creates a daily recurring task`, `completes only today occurrence of a daily task`, `creates a daily task and completes today occurrence only` e `changes a recurring task from an occurrence on`.
 
-- [ ] Tarefas recorrentes mostram só hoje e os próximos dias, sem histórico, e as pontuais vencidas continuam na lista como abertas (RF-39).
+- [x] Tarefas recorrentes mostram só hoje e os próximos dias, sem histórico, e as pontuais vencidas continuam na lista como abertas (RF-39).
 
   > Como comprovar: em `tasks-tests.txt`, ver aprovados `recurring occurrences start today` e `keeps overdue single tasks open without history of recurring ones`.
 
-- [ ] A listagem tem filtros, busca e visualização na URL, com "hoje" no fuso do usuário (RF-38).
+- [x] A listagem tem filtros, busca e visualização na URL, com "hoje" no fuso do usuário (RF-38).
 
   > Como comprovar: em `tasks-tests.txt`, ver aprovados `filters tasks through the url`, `switches between list and grouped by day` e `lists today tasks in the user timezone`.
 
-- [ ] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
+- [x] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
 
   > Como comprovar: em `tasks-tests.txt`, ver aprovado `shows empty, loading and error states` e o resumo sem falhas.
 
-- [ ] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `tasks-telas.png` e conferir as telas legíveis nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `tasks-telas.txt`, ver só linhas `ok`, inclusive `axe sem violações (inclui color-contrast)`, `sem rolagem horizontal`, `pendência sem a cor de perigo e sem contador` e `contorno de foco visível ≥ 2 px`, e a última linha `ok  0 falha(s)`; abrir a prancha `tasks-telas.png` e conferir as telas legíveis nos dois temas e larguras; o comando de cor literal da Verificação não encontra nada.
 
-- [ ] Concluir nas listas é um botão só com o ícone de check, com o nome da ação e do título, e no detalhe é um botão com texto; a ocorrência de hoje da diária se conclui pela listagem e pelo detalhe, com "Aberta hoje" ou "Feita hoje" (PD-04, PD-33).
+- [x] Concluir nas listas é um botão só com o ícone de check, com o nome da ação e do título, e no detalhe é um botão com texto; a ocorrência de hoje da diária se conclui pela listagem e pelo detalhe, com "Aberta hoje" ou "Feita hoje" (PD-04, PD-33).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `pd04 completes from the list with the icon-only check button`, `pd33 completes today occurrence from the list and shows Feita hoje` e `pd33 completes and reopens today from the detail with a text button`.
 
-- [ ] Recorrentes não oferecem dias passados: a aba Ocorrências mostra hoje e os seis dias seguintes, e a recusa de uma data passada desfaz a mudança com aviso (PD-32).
+- [x] Recorrentes não oferecem dias passados: a aba Ocorrências mostra hoje e os seis dias seguintes, e a recusa de uma data passada desfaz a mudança com aviso (PD-32).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `pd32 lists only today and the next six days in Ocorrências` e `pd32 rolls back when the server refuses a past occurrence`.
 
-- [ ] O detalhe da tarefa tem "Editar" com lápis, "Mais ações" com "Excluir" em vermelho e a visão geral em cartões (Tarefa, Anotações e Registro) (PD-14, PD-59).
+- [x] O detalhe da tarefa tem "Editar" com lápis, "Mais ações" com "Excluir" em vermelho e a visão geral em cartões (Tarefa, Anotações e Registro) (PD-14, PD-59).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações` e `pd59 shows the overview in cards with Tarefa, Anotações and Registro`; em `tasks-tests.txt`, `deletes the task after confirmation from Mais ações`.
 
-- [ ] O módulo emite o relatório "Tarefas concluídas e abertas" pelo botão "Relatórios" do cabeçalho da lista (PD-61).
+- [x] O módulo emite o relatório "Tarefas concluídas e abertas" pelo botão "Relatórios" do cabeçalho da lista (PD-61).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovado `pd61 lists the tasks report in the Relatórios menu`; em `tasks-tests.txt`, `builds the module report path`.
 
-- [ ] A tarefa tem etiquetas em pills no formulário, na lista e no cartão "Registro", e a lista filtra por etiqueta (DEC-006, PD-11).
+- [x] A tarefa tem etiquetas em pills no formulário, na lista e no cartão "Registro", e a lista filtra por etiqueta (DEC-006, PD-11).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `dec006 sends the label filter to the server`, `dec006 filters tasks by label through the url` e `dec006 adds labels as pills and sends them with the task`.
 
-- [ ] A recorrência oferece a regra completa (frequência, intervalo, dias da semana, dia do mês, horário, início e fim) pelo `FormRecurrence` da base, o mesmo dos lembretes e do Financeiro, e o detalhe mostra o resumo da regra pelo `summarizeRule` da base, sem cópia local (DEC-006, DEC-008).
+- [x] A recorrência oferece a regra completa (frequência, intervalo, dias da semana, dia do mês, horário, início e fim) pelo `FormRecurrence` da base, o mesmo dos lembretes e do Financeiro, e o detalhe mostra o resumo da regra pelo `summarizeRule` da base, sem cópia local (DEC-006, DEC-008).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `dec006 offers the full recurrence rule` e `dec006 summarizes the full rule in the overview`; a Verificação não acha `components/recurrence-fields.tsx` na feature e acha `FormRecurrence` no formulário e `summarizeRule` nas telas.
 
-- [ ] O formulário usa a base da TASK-05: grade numa coluna centralizada, repetição e visibilidade em grupo segmentado, datas no calendário próprio, hora em 24 h e as ações à direita (PD-19, PD-57, PD-62).
+- [x] O formulário usa a base da TASK-05: grade numa coluna centralizada, repetição e visibilidade em grupo segmentado, datas no calendário próprio, hora em 24 h e as ações à direita (PD-19, PD-57, PD-62).
 
   > Como comprovar: em `tasks-pd-tests.txt`, ver aprovados `pd62 lays the form in the grid with the repetition as a segmented field`, `pd57 picks the due date and the rule start in the custom calendar` e `pd19 centers the header and the form in the form column`; em `tasks-tests.txt`, `pd62 accepts 930 as 09:30 in the rule time`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `tasks-e2e-specs.txt` lista os dois fluxos.
 
@@ -214,6 +224,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Concluir com o botão de check (DEC-002, PD-04, PD-33): nas listas e na aba Ocorrências, o `Button` `success` só com o ícone, com `aria-pressed` e o nome "Concluir hoje: <título>"; no detalhe, o botão com texto. Descartada: a caixa de seleção com o título como rótulo, que a PD-04 troca.
 - Detalhe próprio em `/tasks/$taskId` (PD-14, PD-33, PD-59), que a tarefa não tinha e que a aba Conexões da TASK-31 e o registro da TASK-35 já esperam; cabeçalho com "Editar" e "Mais ações", "Excluir" só dentro do menu; visão geral em cartões e Ocorrências numa aba, como no protótipo. Descartado: só a listagem e o formulário, que deixariam a PD-33 sem o "Concluir hoje" do detalhe.
 - Formulário com a base da TASK-05 (PD-19, PD-57, PD-62): `FormGrid`, `FormActions`, repetição em `FormSegmented` ("Pontual" e "Recorrente", no lugar da caixa "Repetir"), frequência em `FormSelect`, datas em `FormDate`, hora em `FormTime` e visibilidade em `FormSegmented`.
+
+**Evidências visuais.** A prancha `tasks-telas.png` é gerada por `apps/web/scripts/evidence-tasks.mjs`, no molde do `evidence-shots.mjs` da TASK-05: a evidência é o comando, cuja saída (`tasks-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas da feature só são registradas no app na TASK-35 (antes disso o `pnpm dev` mostra só a casca, com 404), o script serve uma página virtual com `src/features/tasks/evidence/harness.tsx`, que monta `createTasksRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app` e fora do build de produção; a API é simulada no navegador com fixtures do próprio script. O relógio do navegador fica fixo para "hoje" e as ocorrências serem as mesmas em toda execução ([project/testing-07]). Descartado: capturar à mão com `pnpm dev`, impossível sem as rotas registradas, e registrar as rotas antes da TASK-35, que muda `apps/web/src/app`.
 
 **Riscos.** O campo `labels` e o filtro `label` vêm do ajuste da TASK-09 pela DEC-006; a tela repete os limites do servidor (20 etiquetas de até 50 caracteres, sem repetidas) para o erro aparecer antes do envio. `GET /tasks/occurrences` aceita no máximo 366 dias: o período "todas" lista só as tarefas, sem expandir ocorrências. "Hoje" precisa ser calculado no fuso do usuário com o relógio injetável ([project/testing-07]).
 
@@ -246,6 +258,14 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual tasks-telas.png trocada por automática tasks-telas.txt gerada por apps/web/scripts/evidence-tasks.mjs, com a prancha PNG como Artefato; harness da feature em src/features/tasks/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 15 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 4 evidência(s) em evidence/TASK-24/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -256,3 +276,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 | 3 | 2026-10-30 | agente | Etiquetas da tarefa no FormTags (TagField da base), em pills na linha e no cartão Registro, e filtro tag na lista e no useTasks, com testes dec006 (DEC-006, PD-11); recorrência com a regra completa e o mesmo editor dos lembretes e do Financeiro, resumo da regra no subtítulo e no cartão Tarefa, Concluir hoje só com ocorrência hoje, testes dec006 offers the full recurrence rule e dec006 summarizes the full rule in the overview (DEC-006); botão Relatórios na lista com tasks-done, lib/task-reports.ts e teste pd61 (PD-61); Ler, Mudar, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
 | 4 | 2026-10-30 | agente | Nomes do contrato da TASK-09 ajustada (DEC-006): campo labels no lugar de tags e filtro label no lugar de tag, na URL, no useTasks, no formulário, nos testes dec006 e nos Detalhes técnicos; limites de 20 etiquetas de até 50 caracteres sem repetidas no zod, com o teste dec006 refuses more than 20 labels or a label longer than 50 characters inside the form |
 | 5 | 2026-10-30 | agente | DEC-008: components/recurrence-fields.tsx removido de Mudar; passo 5 usa FormRecurrence da base com o horário (opcional pelo zod da feature) e summarizeRule(rule, locale) para os resumos da regra; formulário (passo 10) e detalhe (passo 9) apontam para os componentes da base; resumos da regra fora do i18n da feature (passo 2); Ler com a API da TASK-05, DEC-008 e TASK-22/TASK-25 no mesmo editor; Verificação com grep que rejeita a cópia local e exige FormRecurrence e summarizeRule; testes da tela mantidos; Concluída quando, Detalhes técnicos e card atualizados |
+| 6 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 7 | 2026-10-31 | agente | Evidência manual tasks-telas.png trocada por automática tasks-telas.txt gerada por apps/web/scripts/evidence-tasks.mjs, com a prancha PNG como Artefato; harness da feature em src/features/tasks/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 15 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

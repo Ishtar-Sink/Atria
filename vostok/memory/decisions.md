@@ -2,7 +2,7 @@
 type: decision
 title: "Decisões"
 description: "Decisões estruturantes do projeto e o motivo de cada uma. Consulte antes de decidir algo que afete arquitetura, stack, dados, contratos ou convenções, e quando houver ambiguidade."
-updated_at: 2026-10-30T22:18:58Z
+updated_at: 2026-10-31T10:48:52Z
 ---
 
 # Decisões
@@ -106,3 +106,63 @@ Entradas criadas por `vostok memory add` e consultadas por `vostok memory search
 - **Alternativas descartadas:** Manter a preferência na feature de Configurações e uma cópia do editor por tela.
 - **Consequências:** TASK-05 recebe o ajuste 5 e a implementação; TASK-22, TASK-24, TASK-25, TASK-28 e TASK-33 passam a importar da base.
 - **Substitui:** Nenhuma
+
+## DEC-009: Telas da onda 7: CSS por feature e contratos pelo pacote
+
+- **Data:** 2026-10-31
+- **Status:** ativa
+- **Tags:** frontend, css, contracts, onda-7, telas, packages-ui
+- **Origem:** Escolha do usuário em 2026-10-31, nas perguntas da TASK-22 durante a execução da onda 7 da SPEC-001.
+- **Contexto:** As tarefas de tela não listavam `.module.css` em "Mudar" e `apps/web/package.json` não declarava `@atria/contracts`, embora 15 telas usem os tipos da API; o `MenuItem` de `packages/ui` não tem item desabilitado.
+- **Decisão:** (1) A TASK-22 é ajustada para declarar `"@atria/contracts": "workspace:*"` em `apps/web/package.json` e rodar `pnpm install`, servindo a todas as telas; as features importam os tipos de `@atria/contracts`. (2) Módulos CSS são permitidos dentro da pasta da própria feature, só com tokens do tema. (3) Ação indisponível de menu sai do menu e a explicação aparece na tela, sem mudar `packages/ui` (ex.: "Excluir" da conta padrão).
+- **Alternativas descartadas:** Tipos locais por feature até a TASK-35 (contraria [project/api-02]); só estilo inline (sem media query); acrescentar `disabled` ao `MenuItem` de `packages/ui`.
+- **Consequências:** Telas que já usaram tipos locais ou import relativo de `packages/contracts` (TASK-19, 20, 23, 24) devem passar a importar de `@atria/contracts`; a finalização de cada tela confere isso. Módulos CSS fora de "Mudar" dentro da feature não são desvio de escopo.
+- **Substitui:** Nenhuma.
+
+## DEC-010: Dias de fora do mês do calendário fiéis ao protótipo
+
+- **Data:** 2026-10-31
+- **Status:** ativa
+- **Tags:** #frontend #calendario #acessibilidade #prototipo
+- **Origem:** Usuário, no chat de 31/10/2026, durante as evidências visuais automáticas da onda 7 (TASK-24 e TASK-25)
+- **Contexto:** O axe acusou color-contrast (3,95:1 no claro, mínimo 4,5:1) nos dias de fora do mês do Calendar de packages/ui (.outside com text-muted e opacity 0.7); no protótipo esses dias são ainda mais claros (color-mix de --text-muted a 55%).
+- **Decisão:** Os dias de fora do mês seguem o protótipo: color-mix(in srgb, var(--text-muted) 55%, transparent). As evidências visuais excluem só esses dias da regra color-contrast do axe, com o motivo anotado; o resto do calendário continua checado.
+- **Alternativas descartadas:** Escurecer os dias de fora do mês até 4,5:1, divergindo do protótipo.
+- **Consequências:** Os dias de fora do mês ficam abaixo de 4,5:1 por decisão de fidelidade ao protótipo (DEC-007); os scripts apps/web/scripts/evidence-*.mjs não contam esses nós no color-contrast.
+- **Substitui:** nenhuma
+
+## DEC-011: Botão Adicionar cartão da raia mais escuro que o protótipo
+
+- **Data:** 2026-10-31
+- **Status:** ativa
+- **Tags:** #frontend #projetos #acessibilidade #prototipo
+- **Origem:** Usuário, no chat de 31/10/2026, durante as evidências visuais automáticas da TASK-30
+- **Contexto:** No protótipo, o botão "+ Adicionar cartão" de cada raia usa a cor da raia a 60% (.lane .btn-muted), que reprova no axe color-contrast nos dois temas.
+- **Decisão:** O botão "+ Adicionar cartão" da raia usa color-mix(in srgb, var(--lane) 55%, var(--text)) em apps/web/src/features/projects/projects.module.css e passa no contraste, divergindo de propósito do protótipo (exceção à DEC-007).
+- **Alternativas descartadas:** Manter a cor do protótipo e excluir o botão da regra color-contrast, como a DEC-010 faz com o calendário.
+- **Consequências:** O botão fica um pouco mais forte que no protótipo; a evidência da TASK-30 não precisa de exceção de contraste.
+- **Substitui:** nenhuma
+
+## DEC-012: Topbar em 360 px com a busca numa linha e a trilha embaixo
+
+- **Data:** 2026-10-31
+- **Status:** ativa
+- **Tags:** #frontend #layout #topbar #prototipo
+- **Origem:** Usuário, no chat de 31/10/2026, durante as evidências visuais automáticas da onda 7 (TASK-22)
+- **Contexto:** Em 360 px, no protótipo, o campo "Buscar ou criar…" se espreme ao lado da trilha e quebra o texto em 2 ou 3 linhas; no app ele chegava a sobrepor a trilha.
+- **Decisão:** Em até 720 px, `.searchTrigger` (apps/web/src/app/layout/app-layout.module.css) tem largura mínima de calc(var(--space) * 34): a busca fica numa linha só e a trilha desce para baixo dela, divergindo de propósito do protótipo (exceção à DEC-007).
+- **Alternativas descartadas:** Copiar o protótipo, com a busca estreita quebrando o texto ao lado da trilha.
+- **Consequências:** A topbar em 360 px fica mais baixa que a do protótipo (o evidence-shots.mjs da TASK-05 aceita altura menor ou igual) e sem sobreposição.
+- **Substitui:** nenhuma
+
+## DEC-013: Hover do botão de sucesso igual ao protótipo
+
+- **Data:** 2026-10-31
+- **Status:** ativa
+- **Tags:** #frontend #botao #acessibilidade #prototipo
+- **Origem:** Usuário, no chat de 31/10/2026, durante as evidências visuais automáticas da TASK-22
+- **Contexto:** O hover da variante success do Button de packages/ui tinha 3,99:1 no tema claro; o do protótipo (color-mix de --success 22% com --success-soft, texto --success) tem 3,49:1; o mínimo é 4,5:1.
+- **Decisão:** O hover da variante success segue exatamente o protótipo. As evidências visuais capturam o botão em repouso (sem o ponteiro em cima) e não contam o hover dele na regra color-contrast.
+- **Alternativas descartadas:** Escurecer só o hover no tema claro até 4,5:1, divergindo do protótipo.
+- **Consequências:** O hover do botão de sucesso fica abaixo de 4,5:1 no tema claro por fidelidade ao protótipo (DEC-007), como a DEC-010 no calendário.
+- **Substitui:** nenhuma

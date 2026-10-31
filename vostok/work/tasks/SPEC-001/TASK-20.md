@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-05, RF-10, RF-11, RF-12, RF-13, CT-05, CT-10]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 2605a796696703819d4572bf00c0f5d9686431baa1a52b913afa880f2af5ab97
-adjustments: 2
-adjusted_at: 2026-10-30T21:37:22Z
+status: done
+content_hash: faa286f1848d9f121e5c26bf052f5ea1ca088eb0a9b9746b7ba9332dd6dead77
+adjustments: 4
+adjusted_at: 2026-10-31T09:46:59Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 2605a796696703819d4572bf00c0f5d9686431baa1a52b913afa880f2af5ab97
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:37:22Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:46:59Z
+model: sonnet
 ---
 
 # TASK-20: Telas de admin
@@ -43,6 +44,7 @@ updated_at: 2026-10-30T21:37:22Z
 - `vostok/rules/project/frontend.md`
 - `vostok/rules/project/code-style.md`
 - `vostok/rules/project/testing.md`
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05)
 
 ### Mudar
 
@@ -65,6 +67,8 @@ updated_at: 2026-10-30T21:37:22Z
 - `apps/web/src/features/admin/screens/instance-screen.tsx` (criar): versão, espaço usado e saúde da instância (RF-13).
 - `apps/web/src/features/admin/screens/instance-screen.test.tsx` (criar): testes dos dados e dos estados carregando e erro (CT-10).
 - `apps/web/src/features/admin/admin.e2e.ts` (criar): fluxos ponta a ponta de papéis e convite opcional, rodados na TASK-35.
+- `apps/web/src/features/admin/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createAdminRoutes` num roteador em memória do TanStack Router com os providers do app (tema, TanStack Query, i18n, preferências), dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-admin.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-admin.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (`/me` como admin, usuários com uma conta desativada, lista vazia, respostas lentas para o carregando e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, por `@axe-core/playwright`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; a prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-20/admin-telas.png`.
 
 ### Passos
 
@@ -83,6 +87,7 @@ updated_at: 2026-10-30T21:37:22Z
 13. Crie `apps/web/src/features/admin/routes.tsx` exportando `createAdminRoutes(parent: AnyRoute)` com as quatro rotas e o esquema `zod` dos parâmetros de busca da lista de usuários; o `beforeLoad` redireciona para `/` quem não é `admin` nem `elevated`. Não altere `apps/web/src/app`.
 14. Crie `apps/web/src/features/admin/admin.e2e.ts` com `admin grants elevated and elevated manages a user`, `elevated cannot change instance settings` e `sign-up works without invite when the requirement is off`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 15. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+16. Crie `apps/web/src/features/admin/evidence/harness.tsx` e `apps/web/scripts/evidence-admin.mjs` (veja "Mudar") e rode `node apps/web/scripts/evidence-admin.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` e repita até a última linha ser `ok  0 falha(s)`; abra a prancha `admin-telas.png` para conferir os estados, os temas e as larguras.
 
 ### Baseline
 
@@ -102,11 +107,15 @@ test -s apps/web/src/features/admin/admin.e2e.ts
 ! grep -rnE '#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\(' apps/web/src/features/admin --include=*.tsx --include=*.ts --include=*.css
 # Nenhum controle nativo que a base da TASK-05 substitui (PD-62)
 ! grep -rnE '<select|type="(date|number)"' apps/web/src/features/admin --include=*.tsx
+# Harness e script das evidências visuais
+test -f apps/web/src/features/admin/evidence/harness.tsx
+test -f apps/web/scripts/evidence-admin.mjs
+node --check apps/web/scripts/evidence-admin.mjs
 ```
 
 ### Evidências
 
-- `admin-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/admin --reporter=verbose`
+- `admin-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/admin --reporter=verbose`
   - Prova: telas, hooks e permissões de administração passam, com reversão otimista e axe sem violações (RF-05, RF-10 a RF-13, CT-05, CT-10, RNF-06, RNF-09).
   - Trecho: as linhas `✓` de `elevated toggles only user accounts`, `rolls back the toggle when the server refuses`, `admin turns off the invite requirement`, `generates and copies an invite link`, `shows version, used space and health`, `picks the role filter in the custom select by keyboard` e `renders the header and the form in the centered form column` (PD-19, PD-62), e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -114,46 +123,47 @@ test -s apps/web/src/features/admin/admin.e2e.ts
   - Prova: os fluxos ponta a ponta de papéis e convite opcional estão escritos para a TASK-35 (CT-05, CT-10).
   - Trecho: as linhas com `admin grants elevated and elevated manages a user`, `elevated cannot change instance settings` e `sign-up works without invite when the requirement is off`.
   - Falha: `No such file or directory` ou saída vazia.
-- `admin-telas.png` (manual): prints da lista de usuários em lista e em tabela, da lista vazia, carregando e com erro, dos convites com o interruptor, da geração de convite e do estado da instância, nos temas claro e escuro, em 360 px e em desktop, mais um print com o foco visível pelo teclado numa ação da linha, um do filtro por papel aberto no seletor próprio e um da geração de convite com o cabeçalho e o formulário na coluna centralizada e as ações à direita embaixo da linha (PD-19, PD-62). Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createAdminRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, os dois temas, 360 px e desktop, os estados vazio, carregando e erro e o foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: a tabela legível ou trocada por lista em 360 px sem rolagem horizontal da página, a conta desativada sem vermelho e o anel de foco visível.
-  - Falha: rolagem horizontal da página em 360 px, cor fora da paleta, estado sem texto explicativo ou foco invisível.
+- `admin-telas.txt` (automática): `node apps/web/scripts/evidence-admin.mjs telas`
+  - Prova: identidade visual, os dois temas, 360 px e desktop, os estados vazio, carregando e erro e o foco por teclado, medidos no DOM e fotografados nas telas montadas pelo harness da feature (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura, `ok ... visualização em tabela` e `ok ... visualização em lista` (a tabela vira lista em 360 px), `ok ... estado vazio com texto explicativo`, `ok ... estado carregando visível`, `ok ... erro com "Tentar de novo"`, `ok ... conta desativada sem vermelho`, `ok ... seletor próprio do papel aberto, sem <select>`, `ok ... interruptor "Exigir convite para cadastro" visível`, `ok ... cabeçalho e formulário na coluna centralizada` e `ok ... ações à direita com "Cancelar" antes de "Gerar"` na geração de convite, `ok ... versão, espaço usado e saúde visíveis` e `ok ... contorno de foco visível depois de Tab (≥ 2 px)` numa ação da linha; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-20/admin-telas.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal da página em 360 px, violação do axe ou contraste insuficiente, estado sem texto explicativo, conta desativada em vermelho, `<select>` nativo, foco invisível), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-20/admin-telas.png`, a prancha com as capturas rotuladas, nos temas claro e escuro, em 360 px e em desktop: lista de usuários em lista e em tabela, lista vazia, carregando e com erro, convites com o interruptor, geração de convite e estado da instância, mais o foco visível pelo teclado numa ação da linha, o filtro por papel aberto no seletor próprio e a geração de convite com o cabeçalho e o formulário na coluna centralizada e as ações à direita embaixo da linha (PD-19, PD-62).
 
 ### Concluída quando
 
-- [ ] O admin concede e retira o papel `elevated`, e o `elevated` não vê essa ação (RF-10, CT-10).
+- [x] O admin concede e retira o papel `elevated`, e o `elevated` não vê essa ação (RF-10, CT-10).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovados `only admin changes roles`, `grants elevated optimistically` e `hides role actions from elevated`.
 
-- [ ] O `elevated` gera convites com link para copiar (RF-11, CT-10).
+- [x] O `elevated` gera convites com link para copiar (RF-11, CT-10).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovados `creates an invite link` e `generates and copies an invite link`.
 
-- [ ] O `elevated` vê a lista de usuários com filtros, busca e visualização na URL, e desativa ou reativa só contas `user` (RF-12, CT-10).
+- [x] O `elevated` vê a lista de usuários com filtros, busca e visualização na URL, e desativa ou reativa só contas `user` (RF-12, CT-10).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovados `filters and searches users through the url`, `switches between list and table`, `elevated toggles only user accounts` e `deactivates a user after confirmation`.
 
-- [ ] O `elevated` vê versão, espaço usado e saúde da instância, e não vê nenhum controle das configurações da instância (RF-13, CT-10).
+- [x] O `elevated` vê versão, espaço usado e saúde da instância, e não vê nenhum controle das configurações da instância (RF-13, CT-10).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovados `shows version, used space and health`, `elevated never changes the instance` e `elevated does not see the invite requirement`.
 
-- [ ] O admin desliga a exigência de convite, com a mudança na hora e desfeita com aviso se o servidor recusar (RF-05, CT-05, RNF-09).
+- [x] O admin desliga a exigência de convite, com a mudança na hora e desfeita com aviso se o servidor recusar (RF-05, CT-05, RNF-09).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovados `turns off the invite requirement optimistically`, `admin turns off the invite requirement` e `rolls back the toggle when the server refuses`.
 
-- [ ] As telas mostram vazio com texto, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
+- [x] As telas mostram vazio com texto, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
 
   > Como comprovar: em `admin-tests.txt`, ver aprovado `shows empty, loading and error states` e o resumo sem falhas.
 
-- [ ] As telas funcionam em 360 px e desktop, nos dois temas, só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e desktop, nos dois temas, só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `admin-telas.png` e conferir as telas legíveis nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `admin-telas.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `sem rolagem horizontal` e `axe sem violações (inclusive color-contrast)` com `ok` e a última linha `ok  0 falha(s)`; abrir a prancha `admin-telas.png` e conferir as telas legíveis nos dois temas e larguras; a Verificação não encontra cor literal.
 
-- [ ] O filtro por papel usa o seletor próprio da base, sem `<select>` nativo, e a geração de convite tem o cabeçalho e o formulário numa coluna centralizada, com "Cancelar" e "Gerar" à direita (PD-19, PD-62).
+- [x] O filtro por papel usa o seletor próprio da base, sem `<select>` nativo, e a geração de convite tem o cabeçalho e o formulário numa coluna centralizada, com "Cancelar" e "Gerar" à direita (PD-19, PD-62).
 
-  > Como comprovar: em `admin-tests.txt`, ver aprovados `picks the role filter in the custom select by keyboard` e `renders the header and the form in the centered form column`; o último comando da Verificação não encontra `<select`, `type="date"` nem `type="number"` na feature.
+  > Como comprovar: em `admin-tests.txt`, ver aprovados `picks the role filter in the custom select by keyboard` e `renders the header and the form in the centered form column`; a Verificação não encontra `<select`, `type="date"` nem `type="number"` na feature; em `admin-telas.txt`, ver `seletor próprio do papel aberto, sem <select>`, `cabeçalho e formulário na coluna centralizada` e `ações à direita com "Cancelar" antes de "Gerar"` com `ok`, e na prancha `admin-telas.png`, ver o seletor aberto e a coluna centralizada.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `admin-e2e-specs.txt` lista os três fluxos.
 
@@ -181,6 +191,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Visualização em lista ou tabela; em 360 px a tabela vira lista.
 - Campos e ações com a base da TASK-05 (DEC-002, PD-62): o filtro por papel é o `SelectField` (seletor próprio) e a geração de convite usa `FormGrid` e `FormActions` numa coluna centralizada (PD-19). Descartado: o `<select>` nativo e ações próprias da feature, que a PD-62 troca em todo o app.
 
+**Evidências visuais.** A prancha `admin-telas.png` é gerada por `apps/web/scripts/evidence-admin.mjs`, como as da TASK-05: a evidência é um comando cuja saída (`admin-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas só são registradas no roteador pela TASK-35, o `pnpm dev` não mostra as telas; por isso o script sobe o Vite com uma página virtual que carrega `apps/web/src/features/admin/evidence/harness.tsx`, que monta `createAdminRoutes` num roteador em memória com os providers do app, dentro do layout, sem tocar em `apps/web/src/app` e fora do build de produção. A API é simulada no navegador (`context.route('/api/**')`) com fixtures do próprio script, e cada captura passa pelo axe, inclusive o contraste.
+
 **Riscos.** O papel de quem usa vem de `GET /me` (TASK-06); sem ele, as ações ficam escondidas. O filtro por situação (ativa ou desativada) não existe em `GET /admin/users`; a situação aparece em cada linha. O espaço usado pode vir em unidade diferente de bytes: conferir o tipo gerado em `@atria/contracts`.
 
 **Referências.** RF-05, RF-10, RF-11, RF-12, RF-13; CT-05, CT-10; RN-11, RN-12, RN-13; RNF-06, RNF-08, RNF-09, RNF-10; decisão 9 da spec; DEC-002; PD-19 e PD-62 de `docs/decisoes-do-prototipo.md`.
@@ -207,6 +219,14 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 2 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual admin-telas.png trocada por automática admin-telas.txt gerada por apps/web/scripts/evidence-admin.mjs, com a prancha PNG como Artefato; harness da feature em src/features/admin/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 16 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 3 evidência(s) em evidence/TASK-20/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -214,3 +234,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md (PD-19, PD-62), DEC-002 a DEC-004 e os componentes da TASK-05; filtro por papel no SelectField próprio, com o teste picks the role filter in the custom select by keyboard (PD-62); geração de convite com PageHeader, FormGrid e FormActions na coluna centralizada e o teste renders the header and the form in the centered form column (PD-19, PD-62); Verificação sem select, date e number nativos; Evidências, Concluída quando, Detalhes técnicos e card atualizados |
 | 2 | 2026-10-30 | agente | Linha test -e da pasta da feature removida da Baseline, recusada pela validação depois do ajuste 1 |
+| 3 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | agente | Evidência manual admin-telas.png trocada por automática admin-telas.txt gerada por apps/web/scripts/evidence-admin.mjs, com a prancha PNG como Artefato; harness da feature em src/features/admin/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 16 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

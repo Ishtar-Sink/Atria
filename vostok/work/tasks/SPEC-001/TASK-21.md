@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-22, RF-23, CT-16]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 2509f5b1e57a79482c521a36265f2fcccb954129d1d3d7291d48e942f9ff5367
-adjustments: 2
-adjusted_at: 2026-10-30T21:54:59Z
+status: done
+content_hash: 9b6ac854f01984f73248637fe6c4f7c10ef17552a6ac45bd0de3d6d770e167ac
+adjustments: 4
+adjusted_at: 2026-10-31T09:47:40Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 2509f5b1e57a79482c521a36265f2fcccb954129d1d3d7291d48e942f9ff5367
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:54:59Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:47:40Z
+model: sonnet
 ---
 
 # TASK-21: Dashboard
@@ -50,6 +51,7 @@ updated_at: 2026-10-30T21:54:59Z
 - `vostok/rules/project/frontend.md`
 - `vostok/rules/project/code-style.md`
 - `vostok/rules/project/testing.md`
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05)
 
 ### Mudar
 
@@ -71,6 +73,8 @@ updated_at: 2026-10-30T21:54:59Z
 - `apps/web/src/features/dashboard/screens/dashboard-screen.tsx` (criar): tela do Dashboard com a saudação e as duas zonas de blocos (PD-25 a PD-28, PD-34).
 - `apps/web/src/features/dashboard/screens/dashboard-screen.test.tsx` (criar): testes das zonas, dos blocos, dos limites, dos estados de cada bloco, do bloco oculto, do olho e do axe (CT-16).
 - `apps/web/src/features/dashboard/dashboard.e2e.ts` (criar): fluxos ponta a ponta do dashboard, do bloco oculto em Configurações e do olho, rodados na TASK-35.
+- `apps/web/src/features/dashboard/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createDashboardRoutes` num roteador em memória do TanStack Router com os providers do app (tema, TanStack Query, i18n, preferências), dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-dashboard.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-dashboard.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), fixa o relógio do navegador, simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (tarefas com uma vencida, lembretes de manhã, tarde e noite, uma previsão de recorrente, o resumo do Financeiro, o Diário e as leituras, além de respostas vazias, lentas para o carregando e `problem+json` para o erro), grava os blocos ocultos e o olho no `localStorage` antes de abrir a página, captura nos temas claro e escuro, em 1440 px, em 900 px (menos de 960 px) e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, por `@axe-core/playwright`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; a prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-21/dashboard-telas.png`.
 
 ### Passos
 
@@ -109,6 +113,7 @@ updated_at: 2026-10-30T21:54:59Z
 10. Crie `apps/web/src/features/dashboard/routes.tsx` exportando `createDashboardRoutes(parent: AnyRoute)` com a rota `/`. Não altere `apps/web/src/app`.
 11. Crie `apps/web/src/features/dashboard/dashboard.e2e.ts` com `dashboard shows data from every module`, `block hidden in the dashboard settings stays hidden after reload`, `completing a task removes it from today` e `eye hides the money values after reload`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 12. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+13. Crie `apps/web/src/features/dashboard/evidence/harness.tsx` e `apps/web/scripts/evidence-dashboard.mjs` (veja "Mudar") e rode `node apps/web/scripts/evidence-dashboard.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` e repita até a última linha ser `ok  0 falha(s)`; abra a prancha `dashboard-telas.png` para conferir os estados, os temas e as larguras.
 
 ### Baseline
 
@@ -131,11 +136,15 @@ test -s apps/web/src/features/dashboard/dashboard.e2e.ts
 ! grep -rnE 'hide\(|Personalizar|Ocultar' apps/web/src/features/dashboard --include=*.tsx --include=*.ts --include=*.json
 # Mesma chave dos blocos ocultos que Configurações grava (TASK-33)
 grep -q 'atria.dashboard.hidden_blocks' apps/web/src/features/dashboard/hooks/use-hidden-blocks.ts
+# Harness e script das evidências visuais
+test -f apps/web/src/features/dashboard/evidence/harness.tsx
+test -f apps/web/scripts/evidence-dashboard.mjs
+node --check apps/web/scripts/evidence-dashboard.mjs
 ```
 
 ### Evidências
 
-- `dashboard-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/dashboard --reporter=verbose`
+- `dashboard-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/dashboard --reporter=verbose`
   - Prova: a saudação, as duas zonas, os blocos com os limites, as tarefas de hoje com as vencidas e a conclusão pelo check, os lembretes por período do dia, os próximos dias, o bloco Dinheiro lido do resumo do Financeiro, o olho dos blocos sensíveis, as mensagens calmas, os estados de cada bloco e o bloco oculto em Configurações, com axe sem violações (RF-22, RF-23, CT-16, RNF-06, PD-04, PD-15, PD-16, PD-25 a PD-30, PD-33, PD-34, PD-51).
   - Trecho: as linhas `✓` de `shows the greeting and the two zones with the blocks in order`, `grows the last card of each zone so the columns end together`, `shows at most three tasks and three reminders`, `shows all done for today with the count of the day`, `completes a task from the dashboard with the check button`, `groups today reminders into morning, afternoon and night`, `reads the money block from the financial summary`, `masks the money values and the journal text with the eye and keeps it after reload`, `keeps a block hidden in settings hidden after reload`, `has no hide button on the blocks`, `shows state messages in italic muted text without background`, `shows each block empty, loading and error on its own` e `has no axe violations`, e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -143,46 +152,47 @@ grep -q 'atria.dashboard.hidden_blocks' apps/web/src/features/dashboard/hooks/us
   - Prova: os fluxos ponta a ponta de CT-16, da conclusão de tarefa e do olho estão escritos para a TASK-35.
   - Trecho: as linhas com `dashboard shows data from every module`, `block hidden in the dashboard settings stays hidden after reload`, `completing a task removes it from today` e `eye hides the money values after reload`.
   - Falha: `No such file or directory` ou saída vazia.
-- `dashboard-telas.png` (manual): prints do Dashboard com dados (saudação, as duas zonas terminando juntas, "Tarefas de hoje" com uma vencida e o check, "Lembretes de hoje" em Manhã, Tarde e Noite, "Próximos dias" com uma previsão de recorrente, o Diário e o Dinheiro com a previsão do mês seguinte), com "Tudo feito por hoje.", com o Dinheiro e o Diário escondidos pelo olho, com um bloco oculto em Configurações, com todos os blocos ocultos e com um bloco em cada estado (vazio, carregando e erro), nos temas claro e escuro, em 360 px, em menos de 960 px e em desktop, mais um print com o foco visível pelo teclado no check de uma tarefa. Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createDashboardRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, tom calmo, os dois temas, as larguras, os estados de cada bloco, o olho e o foco por teclado (RNF-06, RNF-08, RNF-10, PD-15, PD-16, PD-25).
-  - Trecho: as duas zonas lado a lado no desktop e numa coluna abaixo de 960 px, as mensagens em itálico sem fundo, "•••••" no lugar dos valores, nenhum vermelho em pendências e o anel de foco visível.
-  - Falha: rolagem horizontal em 360 px, buraco embaixo de uma das zonas, contador de urgência ou vermelho em pendência, mensagem com fundo colorido, bloco sem estado ou foco invisível.
+- `dashboard-telas.txt` (automática): `node apps/web/scripts/evidence-dashboard.mjs telas`
+  - Prova: identidade visual, tom calmo, os dois temas, as larguras, os estados de cada bloco, o olho e o foco por teclado, medidos no DOM e fotografados na tela montada pelo harness da feature (RNF-06, RNF-08, RNF-10, PD-15, PD-16, PD-25).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura, `ok ... saudação com o primeiro nome e a data longa`, `ok ... duas zonas lado a lado` no desktop e `ok ... uma coluna com a zona principal primeiro` em 900 px e em 360 px, `ok ... colunas terminando juntas`, `ok ... tarefa vencida com "Era para" sem vermelho`, `ok ... lembretes em Manhã, Tarde e Noite`, `ok ... previsão de recorrente em Próximos dias`, `ok ... previsão do mês seguinte no Dinheiro`, `ok ... "Tudo feito por hoje."`, `ok ... valores do Dinheiro como "•••••" e texto do Diário oculto`, `ok ... bloco oculto em Configurações ausente`, `ok ... estado "Todos os blocos estão ocultos" com o link para Configurações`, `ok ... bloco vazio com mensagem em itálico sem fundo`, `ok ... bloco carregando`, `ok ... bloco com erro e "Tentar de novo"` e `ok ... contorno de foco visível depois de Tab (≥ 2 px)` no check de uma tarefa; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-21/dashboard-telas.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal em 360 px, buraco embaixo de uma das zonas, contador de urgência ou vermelho em pendência, mensagem com fundo colorido, bloco sem estado, violação do axe ou contraste insuficiente, foco invisível), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-21/dashboard-telas.png`, a prancha com as capturas rotuladas, nos temas claro e escuro, em 360 px, em menos de 960 px e em desktop: o Dashboard com dados (saudação, as duas zonas terminando juntas, "Tarefas de hoje" com uma vencida e o check, "Lembretes de hoje" em Manhã, Tarde e Noite, "Próximos dias" com uma previsão de recorrente, o Diário e o Dinheiro com a previsão do mês seguinte), com "Tudo feito por hoje.", com o Dinheiro e o Diário escondidos pelo olho, com um bloco oculto em Configurações, com todos os blocos ocultos e com um bloco em cada estado (vazio, carregando e erro), mais o foco visível pelo teclado no check de uma tarefa.
 
 ### Concluída quando
 
-- [ ] O Dashboard abre com a saudação pela hora do dia, o primeiro nome, a data longa e "Escrever no diário", e mostra as duas zonas: na principal, "Tarefas de hoje", "Lembretes de hoje" e "Próximos dias"; na lateral, Diário, Dinheiro e Leituras; numa coluna abaixo de 960 px, com as colunas terminando juntas (RF-22, CT-16, PD-25, PD-26, PD-27).
+- [x] O Dashboard abre com a saudação pela hora do dia, o primeiro nome, a data longa e "Escrever no diário", e mostra as duas zonas: na principal, "Tarefas de hoje", "Lembretes de hoje" e "Próximos dias"; na lateral, Diário, Dinheiro e Leituras; numa coluna abaixo de 960 px, com as colunas terminando juntas (RF-22, CT-16, PD-25, PD-26, PD-27).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `greets by the time of day with the first name and the long date`, `opens a new journal entry from the greeting`, `shows the greeting and the two zones with the blocks in order`, `keeps the zones in one column below 960 px with the main zone first` e `grows the last card of each zone so the columns end together`.
 
-- [ ] "Tarefas de hoje" mostra até 3, com as pontuais vencidas, conclui pelo botão só com o check, tira a concluída do bloco, mostra "Tudo feito por hoje. Aproveite o resto do dia." e "Ver todas ({n} tarefas hoje)"; os lembretes ficam num bloco separado, até 3, em Manhã, Tarde e Noite (PD-04, PD-27, PD-28, PD-33, PD-34).
+- [x] "Tarefas de hoje" mostra até 3, com as pontuais vencidas, conclui pelo botão só com o check, tira a concluída do bloco, mostra "Tudo feito por hoje. Aproveite o resto do dia." e "Ver todas ({n} tarefas hoje)"; os lembretes ficam num bloco separado, até 3, em Manhã, Tarde e Noite (PD-04, PD-27, PD-28, PD-33, PD-34).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `asks for today tasks with the overdue ones in the user timezone`, `counts the tasks of the day including the completed ones`, `completes a task optimistically and removes it from the block`, `sends today as the occurrence date of a daily task`, `brings the task back and warns when the completion is refused`, `shows at most three tasks and three reminders`, `shows all done for today with the count of the day`, `shows tasks and reminders in separate blocks`, `names the complete button with the action and the title` e `groups today reminders into morning, afternoon and night`.
 
-- [ ] "Próximos dias" junta movimentações e lembretes dos próximos 7 dias, até 5, com as previsões das recorrentes, e o bloco Dinheiro mostra o saldo total, o que falta no mês, a previsão do mês seguinte com até 5 contas e o saldo por conta recolhido, lidos do resumo do Financeiro (PD-27, PD-29, PD-51).
+- [x] "Próximos dias" junta movimentações e lembretes dos próximos 7 dias, até 5, com as previsões das recorrentes, e o bloco Dinheiro mostra o saldo total, o que falta no mês, a previsão do mês seguinte com até 5 contas e o saldo por conta recolhido, lidos do resumo do Financeiro (PD-27, PD-29, PD-51).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `joins upcoming transactions and reminders of the next seven days up to five`, `links forecast items to their recurrence`, `reads the money block from the financial summary`, `asks for the next month bills with the recurring forecasts` e `shows the money block with the month left and the next month forecast`.
 
-- [ ] O olho do Diário e do Dinheiro troca o texto e os valores por "•••••" e a escolha continua depois de recarregar (PD-15).
+- [x] O olho do Diário e do Dinheiro troca o texto e os valores por "•••••" e a escolha continua depois de recarregar (PD-15).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `masks a sensitive block and remembers it after remount`, `toggles the eye of a sensitive block with aria-pressed` e `masks the money values and the journal text with the eye and keeps it after reload`.
 
-- [ ] Os blocos não têm "Ocultar": o dashboard só lê os blocos ocultos em Configurações › Dashboard, o oculto continua oculto depois de recarregar e, com todos ocultos, a tela leva às Configurações (RF-23, CT-16, PD-30).
+- [x] Os blocos não têm "Ocultar": o dashboard só lê os blocos ocultos em Configurações › Dashboard, o oculto continua oculto depois de recarregar e, com todos ocultos, a tela leva às Configurações (RF-23, CT-16, PD-30).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `reads the hidden blocks saved by the dashboard settings`, `keeps a block hidden in settings hidden after reload`, `has no hide button on the blocks` e `shows the all hidden state with the link to the dashboard settings`; a Verificação não acha `block-visibility-panel.tsx` nem "Ocultar" e acha a chave `atria.dashboard.hidden_blocks`.
 
-- [ ] Cada bloco tem os próprios estados vazio com mensagem calma em itálico, carregando e erro com "Tentar de novo", e bloco oculto não busca dados (RF-22, PD-16).
+- [x] Cada bloco tem os próprios estados vazio com mensagem calma em itálico, carregando e erro com "Tentar de novo", e bloco oculto não busca dados (RF-22, PD-16).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `shows each block empty, loading and error on its own`, `shows state messages in italic muted text without background` e `does not fetch hidden blocks`.
 
-- [ ] A tela navega por teclado com foco visível e não tem violações no axe (RNF-06).
+- [x] A tela navega por teclado com foco visível e não tem violações no axe (RNF-06).
 
   > Como comprovar: em `dashboard-tests.txt`, ver aprovados `navigates every block and control by keyboard` e `has no axe violations`.
 
-- [ ] A tela funciona em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
+- [x] A tela funciona em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `dashboard-telas.png` e ver as zonas legíveis nas larguras e temas, sem vermelho em pendências; o comando de cor literal da Verificação não encontra nada.
+  > Como comprovar: em `dashboard-telas.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `sem rolagem horizontal`, `tarefa vencida com "Era para" sem vermelho` e `axe sem violações (inclusive color-contrast)` com `ok` e a última linha `ok  0 falha(s)`; abrir a prancha `dashboard-telas.png` e ver as zonas legíveis nas larguras e temas, sem vermelho em pendências; o comando de cor literal da Verificação não encontra nada.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `dashboard-e2e-specs.txt` lista os quatro fluxos.
 
@@ -215,6 +225,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - *Metas (PD-31):* fora, enquanto a PD-31 estiver em aberto.
 - Cada bloco carrega e falha sozinho; bloco oculto não busca dados (`enabled: false`). "Hoje" e a hora da saudação no fuso do usuário com o relógio injetável ([project/testing-07]).
 
+**Evidências visuais.** A prancha `dashboard-telas.png` é gerada por `apps/web/scripts/evidence-dashboard.mjs`, como as da TASK-05: a evidência é um comando cuja saída (`dashboard-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas só são registradas no roteador pela TASK-35, o `pnpm dev` não mostra a tela; por isso o script sobe o Vite com uma página virtual que carrega `apps/web/src/features/dashboard/evidence/harness.tsx`, que monta `createDashboardRoutes` num roteador em memória com os providers do app, dentro do layout, sem tocar em `apps/web/src/app` e fora do build de produção. A API é simulada no navegador (`context.route('/api/**')`) com fixtures do próprio script, o relógio é fixo, os blocos ocultos e o olho são gravados no `localStorage` antes de abrir a página, e cada captura passa pelo axe, inclusive o contraste.
+
 **Riscos.** Os nomes dos campos de `/tasks/occurrences` (inclusive o título da tarefa), de `/journal-entries` e de `/books` precisam ser conferidos em `@atria/contracts` (TASK-09, TASK-12 e TASK-13). O bloco Dinheiro faz três consultas e "Próximos dias" faz duas; cada bloco carrega junto e mostra um só estado de carregando e de erro. A chave dos blocos ocultos é um contrato com a TASK-33: um id diferente faria o bloco não sumir.
 
 **Referências.** RF-22, RF-23; CT-16; RNF-05, RNF-06, RNF-08, RNF-10; decisões 21 e 59 da spec; DEC-002, DEC-003 e DEC-004; PD-04, PD-15, PD-16, PD-25 a PD-30, PD-33, PD-34, PD-35 e PD-51; [project/frontend-14], [project/frontend-16].
@@ -242,6 +254,14 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 2 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual dashboard-telas.png trocada por automática dashboard-telas.txt gerada por apps/web/scripts/evidence-dashboard.mjs (1440, 900 e 360 px), com a prancha PNG como Artefato; harness da feature em src/features/dashboard/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 13 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 3 evidência(s) em evidence/TASK-21/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -249,3 +269,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md (PD-29, PD-51), DEC-002 a DEC-004, TASK-07 e as rotas da TASK-22; bloco Dinheiro lido de /financial-summaries do mês atual e do seguinte, com saldo total, o que falta no mês, a previsão do mês seguinte com até 5 contas e o saldo por conta recolhido, no lugar da soma dos saldos no cliente (PD-29); próximas movimentações com as ocorrências virtuais das recorrentes, que levam à recorrente (PD-51, DEC-003); testes, Concluída quando, Evidências, Detalhes técnicos e card atualizados |
 | 2 | 2026-10-30 | agente | Ler com as PDs do dashboard, o estudo, TASK-05, TASK-09, TASK-10, TASK-12, TASK-13 e TASK-33; duas zonas em pilhas que terminam juntas, uma coluna abaixo de 960 px (PD-25); saudação com primeiro nome, data longa e Escrever no diário (PD-26); blocos today, reminders e upcoming na principal e journal, balance e reading na lateral, com os ids da TASK-33, tarefas e lembretes até 3 e próximos dias até 5 (PD-27); tarefas de hoje com as vencidas, concluída some, Tudo feito por hoje e Ver todas com o total do dia (PD-28); sem Ocultar nem painel Personalizar, o dashboard só lê os blocos ocultos de Configurações, com o estado de todos ocultos (PD-30); concluir pelo botão success só com o check e Concluir hoje na diária (PD-04, PD-33); tarefas e lembretes em blocos separados, lembretes em Manhã, Tarde e Noite (PD-34); olho no Diário e no Dinheiro, gravado no navegador (PD-15); mensagens calmas em itálico sem fundo (PD-16); bloco Metas fora pela PD-31 em aberto; linha de Baseline que citava a pasta criada pela tarefa removida; testes, Verificação, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
+| 3 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | agente | Evidência manual dashboard-telas.png trocada por automática dashboard-telas.txt gerada por apps/web/scripts/evidence-dashboard.mjs (1440, 900 e 360 px), com a prancha PNG como Artefato; harness da feature em src/features/dashboard/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 13 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

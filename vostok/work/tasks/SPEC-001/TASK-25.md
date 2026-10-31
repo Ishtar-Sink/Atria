@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-40, RF-41, RF-42, CT-25]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 28fd3f8db25b3d503d69d88ab19bac0aab3570554dfd99fba2ba63b43c7e1337
-adjustments: 2
-adjusted_at: 2026-10-30T22:23:56Z
+status: done
+content_hash: b306968a9f012eae300d307001b26a9bc7363690422e44a32fcbedc89d419962
+adjustments: 4
+adjusted_at: 2026-10-31T09:49:01Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 28fd3f8db25b3d503d69d88ab19bac0aab3570554dfd99fba2ba63b43c7e1337
-attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:23:56Z
+attempts: 1
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:49:01Z
+model: sonnet
 ---
 
 # TASK-25: Telas de Lembretes
@@ -32,6 +33,7 @@ updated_at: 2026-10-30T22:23:56Z
 - `prototype/atria-prototype.html` (telas de lembretes e o pedido de permissão validados no protótipo; pelas decisões do protótipo, o template `#entity-detail` com "Voltar", "Editar" e "Mais ações", a visão geral do lembrete em `overviewHTML` (`k === 'reminder'`), o formulário `KINDS.reminder` com a grade `.screen-form .form` e o campo de data e hora (`data-dt-time`, `.time-field`))
 - `docs/decisoes-do-prototipo.md` (linhas PD-11, PD-14, PD-19, PD-57, PD-59 e PD-62 e a seção "Decisões resolvidas em 30/10 (DEC-002)"; as decisões valem sobre o texto antigo desta tarefa; PD-11 não se aplica: lembretes não têm etiquetas)
 - `vostok/memory/decisions.md`, por `vostok memory search decision DEC-002 DEC-003 DEC-004 DEC-008`: DEC-002 (as decisões do protótipo valem já, também nas telas); DEC-003 e DEC-004 não mudam o contexto reminders; DEC-008 (o editor da regra de recorrência é um componente da base, em `apps/web/src/shared/forms`, que as telas importam)
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05: Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha)
 - `vostok/work/tasks/SPEC-001/TASK-05.md` (componentes da base: `PageHeader` com "Voltar" e ações, `MenuButton`, `SelectField`, `SegmentedField`, `DateField`, `TimeField`, `DateTimeField` (valor `YYYY-MM-DDTHH:mm`), `FormGrid`, `FormActions` e as ligações `FormSelect`, `FormSegmented`, `FormDate`, `FormTime` e `FormDateTime` de `apps/web/src/shared/forms/form-fields.tsx`; e, pela DEC-008, `RecurrenceFields`/`FormRecurrence` e `summarizeRule(rule, locale)` de `apps/web/src/shared/forms/recurrence-fields.tsx`, com a prop `with_time`, padrão `true`)
 - `apps/web/src/app` (só leitura: layout, roteador raiz e onde um componente global pode ser montado pela TASK-35)
 - `apps/web/src/shared` (cliente da API, interface otimista, aviso de recusa e aviso dentro do app, `Intl`, estado da listagem na URL, i18n comum, helpers de teste com axe e relógio fixo)
@@ -70,6 +72,8 @@ updated_at: 2026-10-30T22:23:56Z
 - `apps/web/src/features/reminders/screens/reminder-overview.tsx` (criar): visão geral do lembrete em cartões, com "Lembrete", "Anotações" e "Registro" (PD-59).
 - `apps/web/src/features/reminders/screens/reminders-screens.test.tsx` (criar): testes das telas, dos estados e do axe (CT-25).
 - `apps/web/src/features/reminders/reminders.e2e.ts` (criar): fluxo ponta a ponta de CT-25 com a aba aberta e com Web Push, rodado na TASK-35.
+- `apps/web/src/features/reminders/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createRemindersRoutes` num roteador em memória do TanStack Router (`createMemoryHistory`), com os providers do app (`AppProviders`: tema, TanStack Query, i18n e preferências) e dentro do layout do app (`AppLayout`), com o `ReminderNotifier` de `index.ts` montado uma vez no layout, como a TASK-35 fará, sem citar `requestPermission` (os simulados do navegador ficam no script, e a Verificação da permissão continua valendo); não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema (a Verificação de cor literal continua valendo); passa no typecheck e no lint.
+- `apps/web/scripts/evidence-reminders.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-reminders.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite, com um plugin que serve uma página HTML virtual carregando o `harness.tsx`, e o encerra no fim (KNW-006); simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (lembretes pontuais e recorrentes, um com disparo no minuto seguinte em `GET /reminders/upcoming`, a configuração do Web Push ligada na instância, respostas lentas para o estado de carregando e `problem+json` para o erro), com o relógio do navegador controlado (`page.clock`, fuso `America/Sao_Paulo`) para o disparo, e um `Notification` e um `navigator.serviceWorker`/`pushManager` simulados por `addInitScript`, que registram as chamadas e deixam escolher a permissão (`default`, `denied` ou `granted`): uma notificação real do sistema não aparece numa captura do Chromium sem interface; captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar. Em cada captura: tema aplicado, sem rolagem horizontal, sem erro de JS e axe sem violações, incluindo `color-contrast` (`@axe-core/playwright`, já em devDependencies). A prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-25/reminders-telas.png`.
 
 ### Passos
 
@@ -92,6 +96,7 @@ updated_at: 2026-10-30T22:23:56Z
 17. Crie `apps/web/src/features/reminders/routes.tsx` exportando `createRemindersRoutes(parent: AnyRoute)` com as quatro rotas e o esquema `zod` dos parâmetros de busca. Não altere `apps/web/src/app`.
 18. Crie `apps/web/src/features/reminders/reminders.e2e.ts` com Playwright, permissão de notificações concedida pelo contexto do navegador e relógio controlado: `reminder notifies with the tab open`, `reminder shows inside the app when notifications are denied` e `web push subscription is sent when the admin turned it on`, em 360 px e desktop, com axe. Não rode: os e2e rodam na TASK-35.
 19. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+20. Crie `apps/web/src/features/reminders/evidence/harness.tsx` e `apps/web/scripts/evidence-reminders.mjs` (veja "Mudar"), com as verificações de cada estado listadas na evidência `reminders-telas.txt`, e rode `node apps/web/scripts/evidence-reminders.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` (nunca a verificação) e repita até a última linha ser `ok  0 falha(s)`; depois abra `vostok/work/tasks/SPEC-001/evidence/TASK-25/reminders-telas.png` e confira cada estado nos dois temas e nas duas larguras. Não altere `apps/web/src/app`: as rotas só são registradas na TASK-35.
 
 ### Baseline
 
@@ -118,15 +123,19 @@ test ! -e apps/web/src/features/reminders/components/recurrence-fields.tsx
 ! grep -rnE "features/reminders/components/recurrence-fields|['\"]\.\.?/(components/)?recurrence-fields['\"]|function (RecurrenceFields|FormRecurrence|summarizeRule)" apps/web/src/features/reminders
 grep -rq 'FormRecurrence' apps/web/src/features/reminders/screens/reminder-form-screen.tsx
 grep -rq 'summarizeRule' apps/web/src/features/reminders/screens
+# Harness e script das evidências visuais
+test -f apps/web/src/features/reminders/evidence/harness.tsx
+test -f apps/web/scripts/evidence-reminders.mjs
+node --check apps/web/scripts/evidence-reminders.mjs
 ```
 
 ### Evidências
 
-- `reminders-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/reminders --reporter=verbose`
+- `reminders-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/reminders --reporter=verbose`
   - Prova: lembretes pontuais e recorrentes, a notificação com a aba aberta, o pedido de permissão só por clique, o aviso dentro do app com permissão negada e a inscrição no Web Push passam nos testes, com axe sem violações (RF-40, RF-41, RF-42, CT-25, RNF-06, RNF-09).
   - Trecho: as linhas `✓` de `creates a recurring reminder for one minute from now`, `notifies a reminder one minute from now with the tab open`, `does not notify the same occurrence twice`, `never asks for permission on mount`, `shows the reminder inside the app when permission is denied`, `subscribes after the person turns it on`, `does nothing when the instance has web push off` e `shows the pushed reminder with its tag`, e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
-- `reminders-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/reminders --reporter=verbose -t "pd[0-9]"`
+- `reminders-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/reminders --reporter=verbose -t "pd[0-9]"`
   - Prova: as telas seguem as decisões do protótipo: cabeçalho do detalhe, visão geral em cartões, formulário na grade, data no calendário próprio com a hora em 24 h e coluna centralizada (DEC-002, PD-14, PD-19, PD-57, PD-59, PD-62).
   - Trecho: as linhas `✓` de `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações`, `pd59 shows the overview in cards with Lembrete, Anotações and Registro`, `pd62 lays the form in the grid with the repetition as a segmented field`, `pd57 picks the date in the custom calendar and types 930 as 09:30` e `pd19 centers the header and the form in the form column`.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -134,54 +143,55 @@ grep -rq 'summarizeRule' apps/web/src/features/reminders/screens
   - Prova: os fluxos ponta a ponta de CT-25 estão escritos para a TASK-35.
   - Trecho: as linhas com `reminder notifies with the tab open`, `reminder shows inside the app when notifications are denied` e `web push subscription is sent when the admin turned it on`.
   - Falha: `No such file or directory` ou saída vazia.
-- `reminders-telas.png` (manual): prints da lista de lembretes em lista e agrupada por dia, da lista vazia, carregando e com erro, do formulário na grade com a recorrência aberta e com o calendário da data aberto, do detalhe com a visão geral em cartões e o "Mais ações" aberto, do cartão de notificações nos estados "não pedida", "bloqueada" e "ativa com Web Push", do aviso dentro do app e de uma notificação do navegador disparada com a aba aberta, nos temas claro e escuro, em 360 px e em desktop, mais um print com o foco visível pelo teclado no botão "Ativar notificações". Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createRemindersRoutes` e o `ReminderNotifier` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados da tela e da permissão e o foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: nenhum pedido de permissão antes do clique, o texto de bloqueio sem novo pedido e o anel de foco visível.
-  - Falha: pedido de permissão ao abrir a tela, rolagem horizontal em 360 px, estado sem texto ou foco invisível.
+- `reminders-telas.txt` (automática): `node apps/web/scripts/evidence-reminders.mjs telas`
+  - Prova: identidade visual, tom calmo, os dois temas, 360 px e desktop, os estados da tela e da permissão e o foco por teclado, medidos no DOM e fotografados: lista em lista com o cartão de notificações "não pedida" e agrupada por dia, lista vazia, carregando e com erro, formulário na grade com a recorrência aberta, formulário com o calendário da data aberto, detalhe com a visão geral em cartões e o "Mais ações" aberto, cartão de notificações "bloqueada" e "ativa com Web Push", aviso dentro do app e foco visível pelo teclado no botão "Ativar notificações"; a notificação do navegador disparada com a aba aberta é conferida pela chamada ao `Notification` simulado (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... nenhum pedido de permissão antes do clique · requestPermission 0 vez(es)`, `ok ... botão "Ativar notificações" visível com a permissão não pedida`, `ok ... bloqueada: texto de bloqueio sem botão de pedir de novo`, `ok ... ativa com Web Push: inscrição feita e interruptor ligado`, `ok ... notificação do navegador disparada uma vez com a aba aberta`, `ok ... aviso dentro do app em aria-live="polite"`, `ok ... lista vazia com texto explicativo`, `ok ... carregando visível`, `ok ... erro com "Tentar de novo"`, `ok ... recorrência aberta com o horário`, `ok ... calendário dentro da janela`, `ok ... nenhum <select> nem input date ou time nativo`, `ok ... "Cancelar" antes de "Salvar", à direita`, `ok ... cartões Lembrete, Anotações e Registro`, `ok ... "Mais ações" aberto · "Excluir" visível`, `ok ... foco em "Ativar notificações" por Tab · contorno de foco visível ≥ 2 px` e, em cada captura, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-25/reminders-telas.png (46 capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (pedido de permissão ao abrir a tela, novo pedido com a permissão bloqueada, notificação ausente ou duplicada, rolagem horizontal em 360 px, estado sem texto, foco invisível, violação no axe ou de contraste, controle nativo), a ausência da linha `png:`, a prancha sem algum dos estados ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-25/reminders-telas.png`, a prancha com as 46 capturas rotuladas: 11 estados (lista em lista com o cartão "não pedida", agrupada por dia, vazia, carregando, erro, formulário com a recorrência aberta, formulário com o calendário aberto, detalhe com "Mais ações" aberto, cartão "bloqueada", cartão "ativa com Web Push" e aviso dentro do app) nos temas claro e escuro, em 1440 px e em 360 px, mais o foco em "Ativar notificações" em desktop nos dois temas. A notificação do sistema operacional não é fotografada: a captura do Chromium sem interface não a mostra, e o disparo é comprovado pela linha `notificação do navegador disparada uma vez`.
 
 ### Concluída quando
 
-- [ ] Lembretes pontuais e recorrentes são cadastrados com data e hora, numa listagem com filtros, busca e visualização na URL (RF-40, CT-25).
+- [x] Lembretes pontuais e recorrentes são cadastrados com data e hora, numa listagem com filtros, busca e visualização na URL (RF-40, CT-25).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `creates a single reminder with date and time`, `creates a recurring reminder for one minute from now`, `filters reminders through the url` e `switches between list and grouped by day`.
 
-- [ ] Com o Atria aberto numa aba e a permissão dada, o lembrete aparece como notificação do navegador uma única vez (RF-41, CT-25).
+- [x] Com o Atria aberto numa aba e a permissão dada, o lembrete aparece como notificação do navegador uma única vez (RF-41, CT-25).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `notifies a reminder one minute from now with the tab open`, `does not notify the same occurrence twice` e `refetches when the tab becomes visible`.
 
-- [ ] A permissão só é pedida quando a pessoa clica, e com a permissão negada o lembrete aparece dentro do app sem novo pedido (RF-41, CB-14).
+- [x] A permissão só é pedida quando a pessoa clica, e com a permissão negada o lembrete aparece dentro do app sem novo pedido (RF-41, CB-14).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `never asks for permission on mount`, `asks only when the person clicks`, `does not ask again when denied` e `shows the reminder inside the app when permission is denied`; a Verificação confirma que só o hook de permissão chama `requestPermission`.
 
-- [ ] Com o Web Push ligado pelo admin e a permissão dada, a pessoa se inscreve e recebe o lembrete com a aba fechada; com o recurso desligado, nada é registrado (RF-42, CT-25).
+- [x] Com o Web Push ligado pelo admin e a permissão dada, a pessoa se inscreve e recebe o lembrete com a aba fechada; com o recurso desligado, nada é registrado (RF-42, CT-25).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `subscribes after the person turns it on`, `does nothing when the instance has web push off`, `shows the web push switch only when the instance has it on` e `shows the pushed reminder with its tag`.
 
-- [ ] Editar e excluir aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
+- [x] Editar e excluir aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `deletes a reminder optimistically` e `rolls back a reminder update when refused`.
 
-- [ ] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
+- [x] As telas têm estados vazio, carregando e erro, navegam por teclado e não têm violações no axe (RNF-06).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovado `shows empty, loading and error states` e o resumo sem falhas.
 
-- [ ] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e desktop, nos dois temas, em tom calmo e só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `reminders-telas.png` e conferir as telas e os estados da permissão nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `reminders-telas.txt`, ver só linhas `ok`, inclusive `nenhum pedido de permissão antes do clique`, `notificação do navegador disparada uma vez com a aba aberta`, `axe sem violações (inclui color-contrast)`, `sem rolagem horizontal` e `contorno de foco visível ≥ 2 px`, e a última linha `ok  0 falha(s)`; abrir a prancha `reminders-telas.png` e conferir as telas e os estados da permissão nos dois temas e larguras; o comando de cor literal da Verificação não encontra nada.
 
-- [ ] O lembrete tem detalhe com "Editar" com lápis, "Mais ações" com "Excluir" em vermelho e a visão geral em cartões (Lembrete, Anotações e Registro), sem ação de concluir (PD-14, PD-59, RN-19).
+- [x] O lembrete tem detalhe com "Editar" com lápis, "Mais ações" com "Excluir" em vermelho e a visão geral em cartões (Lembrete, Anotações e Registro), sem ação de concluir (PD-14, PD-59, RN-19).
 
   > Como comprovar: em `reminders-pd-tests.txt`, ver aprovados `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações` e `pd59 shows the overview in cards with Lembrete, Anotações and Registro`; em `reminders-tests.txt`, `deletes the reminder after confirmation from Mais ações`.
 
-- [ ] O formulário usa a base da TASK-05: grade numa coluna centralizada, data no calendário próprio e hora em 24 h, repetição e visibilidade em grupo segmentado e as ações à direita (PD-19, PD-57, PD-62).
+- [x] O formulário usa a base da TASK-05: grade numa coluna centralizada, data no calendário próprio e hora em 24 h, repetição e visibilidade em grupo segmentado e as ações à direita (PD-19, PD-57, PD-62).
 
   > Como comprovar: em `reminders-pd-tests.txt`, ver aprovados `pd62 lays the form in the grid with the repetition as a segmented field`, `pd57 picks the date in the custom calendar and types 930 as 09:30` e `pd19 centers the header and the form in the form column`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] O formulário de recorrência usa o `FormRecurrence` da base com o horário obrigatório, e o detalhe mostra a repetição pelo `summarizeRule` da base, sem cópia local do editor (DEC-008, CB-02, CB-03).
+- [x] O formulário de recorrência usa o `FormRecurrence` da base com o horário obrigatório, e o detalhe mostra a repetição pelo `summarizeRule` da base, sem cópia local do editor (DEC-008, CB-02, CB-03).
 
   > Como comprovar: em `reminders-tests.txt`, ver aprovados `creates a recurring reminder for one minute from now` e `creates a recurring reminder with time and timezone`; a Verificação não acha `components/recurrence-fields.tsx` na feature e acha `FormRecurrence` no formulário e `summarizeRule` nas telas.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `reminders-e2e-specs.txt` lista os três fluxos.
 
@@ -211,6 +221,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Detalhe próprio em `/reminders/$reminderId` (DEC-002, PD-14, PD-59), que a tarefa não tinha e que a aba Conexões da TASK-31 e o registro da TASK-35 já esperam; cabeçalho com "Editar" e "Mais ações", "Excluir" só dentro do menu. Descartado: só a listagem e o formulário, que deixariam a visão geral da PD-59 sem tela.
 - Formulário com a base da TASK-05 (PD-19, PD-57, PD-62): `FormGrid`, `FormActions`, data e hora em `FormDateTime` (calendário próprio e hora em 24 h), repetição e visibilidade em `FormSegmented`, frequência em `FormSelect`, datas da regra em `FormDate` e horário em `FormTime`. A nota da PD-57 de que data e hora continuariam nativas foi superada pela PD-62 e pelo `DateTimeField` da TASK-05, criado para lembretes e diário. Descartado: `<input type="datetime-local">`, que muda em cada sistema.
 
+**Evidências visuais.** A prancha `reminders-telas.png` é gerada por `apps/web/scripts/evidence-reminders.mjs`, no molde do `evidence-shots.mjs` da TASK-05: a evidência é o comando, cuja saída (`reminders-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas da feature só são registradas no app na TASK-35 (antes disso o `pnpm dev` mostra só a casca, com 404), o script serve uma página virtual com `src/features/reminders/evidence/harness.tsx`, que monta `createRemindersRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app` e fora do build de produção; a API é simulada no navegador com fixtures do próprio script. O `Notification`, o service worker e o `pushManager` são simulados por `addInitScript`, para escolher o estado da permissão e contar os pedidos e os disparos sem depender do navegador; por isso a notificação do sistema não aparece na prancha, e o disparo com a aba aberta é comprovado pela contagem. A notificação real e o Web Push com a aba fechada continuam nos testes e no e2e da TASK-35. Descartado: capturar à mão com `pnpm dev`, impossível sem as rotas registradas, e registrar as rotas antes da TASK-35, que muda `apps/web/src/app`.
+
 **Riscos.** Abas em segundo plano podem atrasar `setTimeout`; o refetch ao voltar a aba e a verificação dos ids já disparados reduzem isso. A inscrição e a chave seguem as rotas extras da TASK-10 (`/web-push/public-key`, `/push-subscriptions`); o corpo exato de `POST /push-subscriptions` deve ser conferido em `@atria/contracts`. A mistura das libs `dom` e `webworker` no typecheck pode exigir o `tsconfig` de `apps/web` da TASK-05 aceitar o `/// <reference lib="webworker" />` do arquivo.
 
 **Referências.** RF-40, RF-41, RF-42; CT-25; RN-08, RN-19; CB-02, CB-03, CB-04, CB-14; RNF-06, RNF-07, RNF-08, RNF-09, RNF-10; decisões 3 e 11 da spec; [project/frontend-15]; DEC-002, DEC-008; PD-14, PD-19, PD-57, PD-59 e PD-62 de `docs/decisoes-do-prototipo.md`.
@@ -239,6 +251,15 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidência manual reminders-telas.png trocada por automática reminders-telas.txt gerada por apps/web/scripts/evidence-reminders.mjs, com a prancha PNG como Artefato e Notification, service worker e pushManager simulados; harness da feature em src/features/reminders/evidence/harness.tsx montando as rotas e o ReminderNotifier sem mudar apps/web/src/app; Ler, Mudar, passo 20 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | testes | failed | tentativa 1 de 2 |
+| 6 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 7 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 8 | 2026-10-31 | evidências | passed | 4 evidência(s) em evidence/TASK-25/ |
+| 9 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -246,3 +267,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md, DEC-002 a DEC-004 e os componentes da TASK-05; PD-14 e PD-59: detalhe /reminders/$reminderId com Editar, Mais ações com Excluir e visão geral em cartões Lembrete, Anotações e Registro, com extra_tabs; PD-62, PD-57 e PD-19: FormGrid, FormActions, data e hora em FormDateTime, repetição e visibilidade em FormSegmented, frequência em FormSelect, datas da regra em FormDate, horário em FormTime e coluna centralizada; filtro por tipo no SelectField; Verificação sem controles nativos; evidência reminders-pd-tests.txt, Concluída quando, Detalhes técnicos e card atualizados; linha test -e da pasta da feature removida da Baseline, recusada pela validação |
 | 2 | 2026-10-30 | agente | DEC-008: components/recurrence-fields.tsx removido de Mudar; passo 9 usa FormRecurrence da base com o horário (obrigatório pelo zod da feature) e summarizeRule(rule, locale) para a repetição; formulário (passo 14) e detalhe (passo 15) apontam para os componentes da base; Ler com a API da TASK-05 e DEC-008; Verificação com grep que rejeita a cópia local e exige FormRecurrence e summarizeRule; testes da tela mantidos; Concluída quando, Detalhes técnicos e card atualizados |
+| 3 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | agente | Evidência manual reminders-telas.png trocada por automática reminders-telas.txt gerada por apps/web/scripts/evidence-reminders.mjs, com a prancha PNG como Artefato e Notification, service worker e pushManager simulados; harness da feature em src/features/reminders/evidence/harness.tsx montando as rotas e o ReminderNotifier sem mudar apps/web/src/app; Ler, Mudar, passo 20 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

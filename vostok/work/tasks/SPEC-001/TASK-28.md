@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-47, RF-48, RF-49, RF-50, RF-51, RF-52, RF-53, RF-64, CT-28, CT-29]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 85c63eb138df6e3725c1cdd35a051e129b063c23dba765cf07432da9b2029124
-adjustments: 3
-adjusted_at: 2026-10-30T22:24:49Z
+status: done
+content_hash: 31485b0db36356205f813902701ab6ec70a5ab872defe518b96822b790115095
+adjustments: 5
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 85c63eb138df6e3725c1cdd35a051e129b063c23dba765cf07432da9b2029124
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:24:49Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-28: Telas do Acervo
@@ -49,6 +50,7 @@ updated_at: 2026-10-30T22:24:49Z
 - `packages/ui`: componentes genéricos (página, abas, grade, lista, barra de progresso, formulário, `FormGrid` e `FormActions`, `SegmentedField`, `DateField`, `TagField`, `MenuButton`, `ViewSwitcher`, estados, diálogo de confirmação).
 - `packages/theme`: tokens do tema claro e escuro.
 - `packages/contracts`: tipos gerados de `/books`, `/books/{id}/cover`, `/books/{id}/reading-sessions`, `/books/{id}/book-notes`, `/articles`, `/articles/{id}/cover`, `/articles/{id}/article-notes`, `/videos`, `/videos/{id}/thumbnail` e `/files/{id}`.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais automáticas (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha por `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -87,6 +89,8 @@ updated_at: 2026-10-30T22:24:49Z
 - `apps/web/src/features/library/video-form-page.test.tsx` (criar): testes do vídeo, com o canal e o status (PD-37).
 - `apps/web/src/features/library/video-page.test.tsx` (criar): testes da visão geral do vídeo com o canal e o status (PD-37, PD-59).
 - `apps/web/src/features/library/library.e2e.ts` (criar): fluxos ponta a ponta do CT-28 e do CT-29, rodados só na TASK-35.
+- `apps/web/src/features/library/evidence/harness.tsx` (criar): página de evidência que monta `createLibraryRoutes` num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-library.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-library.mjs themes-widths|states-focus`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (livros com e sem capa, artigos, vídeos, sessões, imagens de capa, respostas lentas para o carregando, lista vazia e `problem+json` para o erro e para `unsupported_file_type`), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, e as verificações de cada estado) e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-28/`.
 
 ### Passos
 
@@ -114,6 +118,7 @@ updated_at: 2026-10-30T22:24:49Z
 12. Criar `routes.tsx` com `createLibraryRoutes(parent_route)` (sem as rotas `/read`, que são da feature `reader`) e `nav.ts` com `libraryNavItem` (destino `/library`, ícone SVG inline com `aria-hidden="true"`).
 13. Criar `library.e2e.ts` (Playwright) com o CT-28 (livro de 200 páginas criado pelo diálogo de tipo, com capa enviada, registros de 20 e 30 páginas com data, edição do primeiro para 25, progresso 27,5% na estante e na tela, histórico com "25 páginas · <data>", PDF anexado e baixado, nota no histórico) e o CT-29 (artigo com status e nota, vídeo do YouTube com miniatura na vitrine), em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 14. Rodar a Verificação até passar sem nenhum warning de lint.
+15. Criar `apps/web/src/features/library/evidence/harness.tsx` e `apps/web/scripts/evidence-library.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-library.mjs themes-widths` e `node apps/web/scripts/evidence-library.mjs states-focus`. Corrigir o código da tarefa a cada linha `FALHA` e conferir as pranchas `library-themes-widths.png` e `library-states-focus.png` abrindo-as.
 
 ### Baseline
 
@@ -131,15 +136,19 @@ test ! -e apps/web/src/features/library/create-item-dialog.tsx
 test ! -e apps/web/src/features/library/create-item-dialog.test.tsx
 ! grep -rnE "create-item-dialog|CreateItemDialog" apps/web/src/features/library
 grep -q 'CreateTypeDialog' apps/web/src/features/library/shelf-page.tsx
+# Evidências visuais automáticas
+test -f apps/web/src/features/library/evidence/harness.tsx
+test -f apps/web/scripts/evidence-library.mjs
+node --check apps/web/scripts/evidence-library.mjs
 ```
 
 ### Evidências
 
-- `library-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/library`
+- `library-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/library --reporter=verbose`
   - Prova: os testes de componente e de hook do Acervo passam, cobrindo livros, sessões, progresso, históricos, PDF, artigos, vídeos, estados, axe e interface otimista (RF-47 a RF-53, RF-64, CT-28, CT-29, RNF-06, RNF-09).
   - Trecho: os arquivos `use-book-progress.test.tsx`, `reading-session-form-page.test.tsx`, `book-page.test.tsx`, `article-form-page.test.tsx`, `video-form-page.test.tsx` e `shelf-page.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `library-prototype-decisions.txt` (automática): `pnpm --filter @atria/web test -- src/features/library -t pd`
+- `library-prototype-decisions.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/library --reporter=verbose -t pd`
   - Prova: as decisões do protótipo do Acervo estão nas telas: abas por tipo com status em chips em cada aba, livros e vídeos inclusive (PD-35), capa por upload com trocar e remover (PD-36), formulário com a capa à esquerda (PD-37), estante em retrato com o pé alinhado (PD-38, PD-39), "Registrar sessão" em cima (PD-40), visão geral em cartões (PD-59), sessão só com páginas e data (PD-60), diálogo de tipo (PD-09, PD-10), "Mais ações" (PD-14), relatórios (PD-61) e visualização por aba (PD-24) (DEC-002, DEC-004).
   - Trecho: os casos `pd35 shows one tab per type books articles and videos`, `pd35 filters books by reading status with chips`, `pd35 filters videos by watch status with chips`, `pd37 saves the channel and the watch status`, `pd37 shows the channel, the watch status and the url in the data card`, `pd36 replaces and removes the cover`, `pd40 shows the register session action above the list`, `pd59 shows the data card with the cover beside the fields and the Registro card on the side` e `pd60 registers only pages read and date without start and end pages` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests`, `No test files found` ou nenhum caso `pd` executado.
@@ -147,74 +156,76 @@ grep -q 'CreateTypeDialog' apps/web/src/features/library/shelf-page.tsx
   - Prova: a feature tem rotas, item de menu, traduções, telas, hooks, testes e o e2e dos CT-28 e CT-29.
   - Trecho: `routes.tsx`, `nav.ts`, `i18n/pt-br.json`, `cover-upload-field.tsx` e `library.e2e.ts` na lista, e nenhum `create-item-dialog.tsx`.
   - Falha: `No such file or directory`, algum desses arquivos ausente ou `create-item-dialog.tsx` na lista.
-- `library-themes-widths.png` (manual): prints da estante (abas Livros e Artigos), da tela do livro com a visão geral em cartões e do formulário do livro com a capa nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com as rotas da feature registradas só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: identidade visual nos dois temas, capas em 2:3 e 16:9, gradientes determinísticos, estante em retrato com o pé alinhado, visão geral em cartões e layout funcional a partir de 360 px (RNF-08, RNF-10, PD-35 a PD-39, PD-59).
-  - Trecho: as capturas com a barra de progresso e o status no pé dos cartões, o cartão "Registro" na lateral, a capa à esquerda dos campos no formulário e nenhuma rolagem horizontal.
-  - Falha: grade quebrada em 360 px, capa fora da proporção, imagem sem cor de fundo, pé desalinhado ou contraste baixo no tema escuro.
-- `library-states-focus.png` (manual): prints da estante nos estados vazio, carregando e erro, da tela do livro com o foco visível navegando pelas abas só com o teclado, do diálogo de tipo com o cartão da aba focado e da área de capa com o erro de arquivo inválido.
-  - Prova: todos os estados da tela, o foco por teclado, o diálogo de tipo e o erro da capa ([project/frontend-10], [project/frontend-12], RNF-06, PD-09, PD-36).
-  - Trecho: o texto explicativo do estado vazio, o indicador de carregamento, a mensagem de erro, o anel de foco na aba ativa e no cartão do tipo, e a mensagem de imagem inválida na área de capa.
-  - Falha: estado sem texto, foco invisível, aba ou cartão que não recebe foco, ou erro da capa fora do formulário.
+- `library-themes-widths.txt` (automática): `node apps/web/scripts/evidence-library.mjs themes-widths`
+  - Prova: identidade visual nos dois temas, capas em 2:3 e 16:9, gradientes determinísticos, estante em retrato com o pé alinhado, visão geral em cartões e layout funcional a partir de 360 px, medidos no DOM e fotografados na estante (abas Livros e Artigos), na tela do livro com a visão geral em cartões e no formulário do livro com a capa (RNF-08, RNF-10, PD-35 a PD-39, PD-59).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado`, `ok ... tema escuro aplicado`, `ok ... capa do livro em 2:3`, `ok ... capa do artigo em 16:9`, `ok ... gradiente determinístico sem capa`, `ok ... colunas da estante com pelo menos 170 px`, `ok ... progresso e status alinhados no pé dos cartões`, `ok ... cartão "Registro" na lateral`, `ok ... capa à esquerda dos campos no formulário`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-28/library-themes-widths.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (grade quebrada em 360 px, capa fora da proporção, imagem sem cor de fundo, pé desalinhado, contraste baixo no tema escuro), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-28/library-themes-widths.png`, a prancha com as capturas rotuladas da estante (abas Livros e Artigos), da tela do livro (visão geral em cartões) e do formulário do livro (capa à esquerda), nos temas claro e escuro, em 360 px e em 1440 px.
+- `library-states-focus.txt` (automática): `node apps/web/scripts/evidence-library.mjs states-focus`
+  - Prova: todos os estados da estante, o foco por teclado, o diálogo de tipo e o erro da capa, com a API simulada (lista vazia, resposta lenta e `problem+json`) ([project/frontend-10], [project/frontend-12], RNF-06, PD-09, PD-36).
+  - Trecho: `ok ... estado vazio · texto explicativo visível`, `ok ... estado carregando · indicador visível`, `ok ... estado de erro · mensagem visível`, `ok ... abas do livro navegadas por Tab e setas · contorno de foco visível (≥ 2 px)`, `ok ... diálogo de tipo aberto na aba Artigos · cartão Artigo focado`, `ok ... imagem inválida · erro em role="alert" dentro do formulário`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-28/library-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (estado sem texto, foco invisível, aba ou cartão que não recebe foco, erro da capa fora do formulário), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-28/library-states-focus.png`, a prancha com a estante nos estados vazio, carregando e erro, a tela do livro com o anel de foco na aba ativa, o diálogo de tipo com o cartão da aba focado e a área de capa com a mensagem de imagem inválida, nos temas claro e escuro, em 360 px e em 1440 px.
 
 ### Concluída quando
 
-- [ ] Livros são cadastrados com título, capa, autor, editora, páginas, tags e PDF opcional (RF-47, RF-51, CT-28).
+- [x] Livros são cadastrados com título, capa, autor, editora, páginas, tags e PDF opcional (RF-47, RF-51, CT-28).
 
   > Como comprovar: na saída `library-tests.txt`, ver aprovados `creates a book with title, cover, author, publisher, pages and tags` e `attaches an optional pdf`.
 
-- [ ] As páginas lidas são registradas por sessão, só com a quantidade de páginas, a data e a observação, sem página de início e de fim, e cada registro pode ser editado ou excluído; a sessão não muda a página de retomada (RF-48, CT-28, PD-60, DEC-004).
+- [x] As páginas lidas são registradas por sessão, só com a quantidade de páginas, a data e a observação, sem página de início e de fim, e cada registro pode ser editado ou excluído; a sessão não muda a página de retomada (RF-48, CT-28, PD-60, DEC-004).
 
   > Como comprovar: ver aprovados os casos da `reading-session-form-page.test.tsx` na saída `library-tests.txt`, entre eles `pd60 registers only pages read and date without start and end pages`.
 
-- [ ] O histórico de leitura tem "Registrar sessão" em cima e a lista embaixo, cada linha como "50 páginas · 26/10/2026" (PD-40, PD-60).
+- [x] O histórico de leitura tem "Registrar sessão" em cima e a lista embaixo, cada linha como "50 páginas · 26/10/2026" (PD-40, PD-60).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados `pd40 shows the register session action above the list` e `pd60 lists each session as pages and date from the most recent`.
 
-- [ ] A capa do livro (2:3) e a do artigo (16:9) são enviadas clicando ou arrastando, só imagem até 5 MB, com "Trocar" e "Remover", pelas rotas de capa da TASK-13 (PD-36, DEC-002).
+- [x] A capa do livro (2:3) e a do artigo (16:9) são enviadas clicando ou arrastando, só imagem até 5 MB, com "Trocar" e "Remover", pelas rotas de capa da TASK-13 (PD-36, DEC-002).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados os casos `pd36` da `cover-upload-field.test.tsx` e `pd36 uploads an article cover in 16 by 9`.
 
-- [ ] O Acervo tem uma aba por tipo, com o status em chips em cada aba (Livros e Artigos por `reading_status`, Vídeos por `watch_status`), a estante de livros em retrato com o pé alinhado e a visualização lembrada por aba (PD-24, PD-35, PD-38, PD-39).
+- [x] O Acervo tem uma aba por tipo, com o status em chips em cada aba (Livros e Artigos por `reading_status`, Vídeos por `watch_status`), a estante de livros em retrato com o pé alinhado e a visualização lembrada por aba (PD-24, PD-35, PD-38, PD-39).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados os casos `pd35`, `pd38`, `pd39` e `pd24` da `shelf-page.test.tsx`, inclusive `pd35 filters books by reading status with chips` e `pd35 filters videos by watch status with chips`.
 
-- [ ] O livro tem o status de leitura e o vídeo tem o canal e o status, no formulário (status em grupo segmentado) e na visão geral, na mesma estrutura do protótipo (PD-35, PD-37, PD-62).
+- [x] O livro tem o status de leitura e o vídeo tem o canal e o status, no formulário (status em grupo segmentado) e na visão geral, na mesma estrutura do protótipo (PD-35, PD-37, PD-62).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados `pd35 saves the book reading status`, `pd37 places the thumbnail on the left and url, title, channel and status on the right`, `pd37 saves the channel and the watch status` e `pd37 shows the channel, the watch status and the url in the data card`.
 
-- [ ] "Novo" abre o `CreateTypeDialog` da base com Livro, Artigo e Vídeo, o tipo da aba focado e a disposição da preferência, sem diálogo próprio na feature (PD-09, PD-10, DEC-008).
+- [x] "Novo" abre o `CreateTypeDialog` da base com Livro, Artigo e Vídeo, o tipo da aba focado e a disposição da preferência, sem diálogo próprio na feature (PD-09, PD-10, DEC-008).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados `pd09 offers one card per type with icon and description`, `pd09 focuses the type of the open tab`, `pd09 opens the form of the chosen type without a type field` e `pd10 follows the grid or list preference`; a Verificação não acha `create-item-dialog` na feature e acha `CreateTypeDialog` em `shelf-page.tsx`.
 
-- [ ] Criar abre o diálogo de tipo, e os formulários e as visões gerais seguem o protótipo: capa à esquerda, "Registro" na lateral, "Ler" ao lado de "Editar" e "Excluir" em "Mais ações", com os relatórios do módulo e do livro (PD-09, PD-10, PD-14, PD-37, PD-59, PD-61).
+- [x] Criar abre o diálogo de tipo, e os formulários e as visões gerais seguem o protótipo: capa à esquerda, "Registro" na lateral, "Ler" ao lado de "Editar" e "Excluir" em "Mais ações", com os relatórios do módulo e do livro (PD-09, PD-10, PD-14, PD-37, PD-59, PD-61).
 
   > Como comprovar: em `library-prototype-decisions.txt`, ver aprovados os casos `pd09`, `pd10`, `pd14`, `pd37`, `pd59` e `pd61`.
 
-- [ ] O progresso aparece na estante e na tela do livro, com 27,5% no exemplo do CT-28 e limite de 100% (RF-49, CT-28).
+- [x] O progresso aparece na estante e na tela do livro, com 27,5% no exemplo do CT-28 e limite de 100% (RF-49, CT-28).
 
   > Como comprovar: ver aprovados `sums the registered pages over the total`, `caps the progress at 100 percent` e `shows the book progress on the shelf`.
 
-- [ ] Os históricos de leitura e de notas ficam em abas separadas, e o PDF anexado baixa (RF-50, RF-51, CT-28).
+- [x] Os históricos de leitura e de notas ficam em abas separadas, e o PDF anexado baixa (RF-50, RF-51, CT-28).
 
   > Como comprovar: ver aprovados `shows reading history and notes in separate tabs` e `links to the reader and downloads the pdf when attached`.
 
-- [ ] Artigos têm status de leitura, notas em histórico e PDF opcional, sem barra de progresso (RF-52, RF-64, CT-29).
+- [x] Artigos têm status de leitura, notas em histórico e PDF opcional, sem barra de progresso (RF-52, RF-64, CT-29).
 
   > Como comprovar: ver aprovados os casos da `article-form-page.test.tsx` na saída `library-tests.txt`.
 
-- [ ] Vídeos mostram a miniatura na vitrine e aceitam envio manual quando ela não é buscada (RF-53, CT-29).
+- [x] Vídeos mostram a miniatura na vitrine e aceitam envio manual quando ela não é buscada (RF-53, CT-29).
 
   > Como comprovar: ver aprovados `creates a video with url and shows the thumbnail on the shelf` e `allows a manual thumbnail when none is fetched`.
 
-- [ ] A estante tem busca, filtros e modos na URL e os estados vazio, carregando e erro; as mudanças são otimistas e desfeitas com aviso na recusa (RNF-09).
+- [x] A estante tem busca, filtros e modos na URL e os estados vazio, carregando e erro; as mudanças são otimistas e desfeitas com aviso na recusa (RNF-09).
 
-  > Como comprovar: ver aprovados os casos da `shelf-page.test.tsx` e `rolls back and shows the undo notice when the server rejects`, e os estados no print `library-states-focus.png`.
+  > Como comprovar: ver aprovados os casos da `shelf-page.test.tsx` e `rolls back and shows the undo notice when the server rejects`; em `library-states-focus.txt`, ver `estado vazio`, `estado carregando` e `estado de erro` com `ok` e `ok  0 falha(s)`, e os estados na prancha `library-states-focus.png`.
 
-- [ ] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
+- [x] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovados os casos `has no axe violations` e conferir os prints `library-themes-widths.png` e `library-states-focus.png`.
+  > Como comprovar: ver aprovados os casos `has no axe violations`; em `library-themes-widths.txt` e `library-states-focus.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `contorno de foco visível`, `sem rolagem horizontal` e `axe sem violações` com `ok` e `ok  0 falha(s)`, e conferir as pranchas `library-themes-widths.png` e `library-states-focus.png`.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e dos CT-28 e CT-29 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e dos CT-28 e CT-29 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `library.e2e.ts` aparece em `library-files.txt`.
 
@@ -233,6 +244,7 @@ Libera a integração do frontend e serve de porta de entrada para o modo leitur
 - **Componentes:** estante com abas por tipo, diálogo de tipo, capa ou gradiente determinístico, área de capa por upload, cartões da visão geral, barra de progresso, formulários de livro, artigo, vídeo e sessão, abas de histórico de leitura e de notas, campo de PDF; usa `@atria/ui`, `@atria/theme`, `@atria/contracts` e `apps/web/src/shared`.
 - **Decisões:** o progresso exibido é calculado no hook com o limite de 100% (RN-14), para a estante e a tela mostrarem o mesmo valor; descartado repetir a conta em cada componente. As telas do livro e do artigo recebem abas extras por propriedade (`extra_tabs`), para a TASK-35 montar Conexões e Destaques (esta da feature `reader`, TASK-29); descartado importar a feature `reader` aqui, que criaria dependência entre tarefas da mesma onda. O registro de sessão tem rota própria ([project/architecture-10]); descartado o formulário em modal. Os botões "Ler" levam às rotas `/library/books/{id}/read` e `/library/articles/{id}/read`, definidas pela TASK-29. O PDF é baixado só por `/files/{id}` com autorização do servidor (RN-25, decisão 50).
 - **Decisões do protótipo (DEC-002):** uma aba por tipo, com o status em chips em cada aba, pelos filtros da TASK-13 (`reading_status` em livros e artigos, `watch_status` em vídeos), com o parâmetro `status` da URL descartado ao trocar de aba porque os valores são de cada tipo (PD-35); o livro ganha o status de leitura e o vídeo o canal e o status no formulário, em grupo segmentado (3 opções obrigatórias, PD-62), e na visão geral (PD-37), como a TASK-13 agora expõe; descartado o status só nos artigos, que a versão anterior desta tarefa previa por falta de suporte no servidor; descartada a listagem única com filtro de tipo. Capa por upload no livro (2:3) e no artigo (16:9) pelas rotas `GET|PUT|DELETE /books/{id}/cover` e `/articles/{id}/cover` da TASK-13, com corpo cru, e a miniatura do vídeo por `PUT /videos/{id}/thumbnail`, só com "Trocar" porque não há rota para removê-la (PD-36); a checagem de tipo e tamanho no cliente só antecipa a do servidor, que continua valendo. O componente da capa fica na feature, porque depende das rotas do Acervo; descartado `packages/ui`, que não tem regra de contrato ([project/architecture-08]). Formulário e visão geral com a capa à esquerda (PD-37, PD-59), em cartões compartilhados por `library-overview.tsx`; descartada uma visão geral por tela. Sessão só com `pages_read`, `read_on` e observação (PD-60); `from_page` e `to_page` ficam para o modo leitura (TASK-29), e a sessão nunca grava a posição de leitura (DEC-004). "Registrar sessão" é um link em cima do histórico para a rota do formulário (PD-40), descartado o formulário dentro da aba, que contrariaria [project/architecture-10]. Diálogo de tipo ao criar (PD-09) pelo `CreateTypeDialog` da base (TASK-05, DEC-008), com Livro, Artigo e Vídeo e o tipo da aba focado, e a disposição da preferência `create_layout` (PD-10), lida pelo componente; descartados o campo "Tipo" no formulário e um `create-item-dialog.tsx` próprio, que a DEC-008 troca pelo componente da base, também usado pelo Financeiro (TASK-22). Relatórios pelo menu "Relatórios" do módulo e pelo "Mais ações" do livro, com as rotas `/reports/read-pages` e `/reports/lib-status` e o filtro `book_id` na URL, os mesmos ids e nomes de filtro da TASK-17 (PD-61).
+- **Evidências visuais.** As pranchas `library-themes-widths.png` e `library-states-focus.png` são geradas por `apps/web/scripts/evidence-library.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG, e a prancha vai para a pasta de evidências da tarefa. Como as rotas da feature só são registradas no app pela TASK-35, o script sobe o Vite com uma página virtual que carrega `src/features/library/evidence/harness.tsx`, que monta `createLibraryRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app`; a API é simulada por `context.route('/api/**')` com fixtures no script, e cada captura passa pelo axe (inclusive `color-contrast`).
 - **Riscos:** miniatura do vídeo indisponível sem internet (CB-12, mitigado com envio manual); arredondamento do progresso (mitigado com `Intl.NumberFormat` e teste do 27,5%).
 - **Referências da spec:** RF-47 a RF-53, RF-64, CT-28, CT-29, RN-14, RN-21, RN-22, RN-25, CB-05, CB-12, RNF-06, RNF-08 a RNF-10, decisões 4, 29 a 31, 45 a 47 e 50; PD-07, PD-09 a PD-11, PD-13, PD-14, PD-19, PD-24, PD-35 a PD-40, PD-57, PD-59 a PD-62 de `docs/decisoes-do-prototipo.md`; DEC-002 a DEC-004 e DEC-008 da memória; contrato do Acervo da TASK-13.
 - **Arquivos em comum na onda 7:** nenhum. O `CreateTypeDialog` e a preferência `create_layout` vêm da base (TASK-05) e são só importados, também pela TASK-22 (diálogo) e pela TASK-33 (preferência).
@@ -258,6 +270,14 @@ Libera a integração do frontend e serve de porta de entrada para o modo leitur
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Evidências manuais library-themes-widths.png e library-states-focus.png trocadas por automáticas library-themes-widths.txt e library-states-focus.txt geradas por apps/web/scripts/evidence-library.mjs, com a prancha PNG como Artefato; harness da feature em src/features/library/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-28/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -266,3 +286,5 @@ Libera a integração do frontend e serve de porta de entrada para o modo leitur
 | 1 | 2026-10-30 | agente | Ler: decisoes-do-prototipo, DEC-002 a DEC-004 e contrato da TASK-13; PD-35: uma aba por tipo, status em chips na aba Artigos (reading_status); PD-36: capa por upload com trocar e remover pelas rotas de capa da TASK-13, 2:3 no livro e 16:9 no artigo e no video; PD-37 e PD-59: capa a esquerda no formulario e visao geral em cartoes com Registro na lateral; PD-38 e PD-39: estante em retrato com pe alinhado e gradiente do id; PD-40: Registrar sessao em cima da lista; PD-60 e DEC-004: sessao so com paginas, data e observacao, sem alterar a retomada; PD-09, PD-10, PD-11, PD-14, PD-24, PD-57, PD-61 e PD-62 aplicados; testes pd novos, evidencia library-prototype-decisions.txt, Concluida quando, Detalhes tecnicos e card |
 | 2 | 2026-10-30 | agente | Ler com os filtros reading_status de livros e artigos, watch_status de vídeos e os campos reading_status do livro e channel e watch_status do vídeo da TASK-13; status em chips nas abas Livros (Quero ler, Lendo, Lido) e Vídeos (Para assistir, Assistindo, Assistido), além de Artigos, com o parâmetro status da URL por aba (PD-35); status de leitura do livro no formulário em FormSegmented e na visão geral (PD-35, PD-62); canal e status do vídeo no formulário, à direita da miniatura, e na visão geral, com video-page.test.tsx em Mudar (PD-37); linha de Baseline que citava a pasta criada pela tarefa removida; testes, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
 | 3 | 2026-10-30 | agente | DEC-008: create-item-dialog.tsx e create-item-dialog.test.tsx removidos de Mudar; passo 9 monta o CreateTypeDialog da base com LIBRARY_CREATE_TYPES (Livro, Artigo, Vídeo) e o tipo da aba em focused_type, aberto por Novo na estante; testes pd09 e pd10 do diálogo mantidos em shelf-page.test.tsx, com o axe do diálogo aberto; Ler com create-type-dialog.tsx e create_layout da TASK-05 e DEC-008; Verificação com grep que rejeita create-item-dialog e exige CreateTypeDialog em shelf-page.tsx; Evidências, Concluída quando, Detalhes técnicos e card atualizados |
+| 4 | 2026-10-31 | agente | Evidências manuais library-themes-widths.png e library-states-focus.png trocadas por automáticas library-themes-widths.txt e library-states-focus.txt geradas por apps/web/scripts/evidence-library.mjs, com a prancha PNG como Artefato; harness da feature em src/features/library/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-58, RF-59, RF-60, CT-31, CT-32]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: b777e0fe3f907183aa946a3e9638ad83bfaef2dbb1428ab3bfbf1b3bc883afb0
-adjustments: 3
-adjusted_at: 2026-10-30T22:20:59Z
+status: done
+content_hash: 3f85c247b15507b62a42358f9ba95927b9b8b960b57d6a6c11e4b79154080184
+adjustments: 6
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: b777e0fe3f907183aa946a3e9638ad83bfaef2dbb1428ab3bfbf1b3bc883afb0
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:20:59Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-33: Telas de Configurações
@@ -49,6 +50,7 @@ updated_at: 2026-10-30T22:20:59Z
 - `packages/ui`: página, formulário, seletor, alternador, estados e abas.
 - `packages/theme`: tokens do tema claro e escuro.
 - `packages/contracts`: tipos gerados de `/me`, `/me/preferences`, `/admin/instance`, `/admin/instance/settings` e `/web-push/public-key`.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -70,6 +72,8 @@ updated_at: 2026-10-30T22:20:59Z
 - `apps/web/src/features/settings/search-contexts-page.test.tsx` (criar): testes dos contextos padrão.
 - `apps/web/src/features/settings/instance-settings-page.test.tsx` (criar): testes da instância.
 - `apps/web/src/features/settings/settings.e2e.ts` (criar): fluxos ponta a ponta dos CT-31 e CT-32, rodados só na TASK-35.
+- `apps/web/src/features/settings/evidence/harness.tsx` (criar): página de evidência que monta `createSettingsRoutes` num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app (com o menu do perfil da TASK-05); não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-settings.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-settings.mjs temas|estados`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (`/me` de admin e de usuário comum, `/me/preferences`, `/admin/instance/settings`, `/web-push/public-key`, uma resposta lenta para o carregando e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações incluindo `color-contrast`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-33/`.
 
 ### Passos
 
@@ -91,6 +95,7 @@ updated_at: 2026-10-30T22:20:59Z
 10. Criar `routes.tsx` com `createSettingsRoutes(parent_route)` e as quatro rotas. Não criar `nav.ts` nem `settingsNavItem` (PD-23).
 11. Criar `settings.e2e.ts` (Playwright) com o CT-31 (tema, idioma, fuso, moeda, atalho da paleta e contextos padrão valendo na hora e depois de recarregar) e o CT-32 (o admin liga o Web Push, configura o SMTP e desliga o convite), mais `settings opens from the profile menu` (PD-23) e `hidden dashboard block disappears from the dashboard` (PD-30), em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 12. Rodar a Verificação até passar sem nenhum warning de lint.
+13. Criar `evidence/harness.tsx` e `apps/web/scripts/evidence-settings.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-settings.mjs temas` e `node apps/web/scripts/evidence-settings.mjs estados`. Corrigir o código da tarefa a cada linha `FALHA` e abrir as pranchas `settings-themes-widths.png` e `settings-states-focus.png` para conferir.
 
 ### Baseline
 
@@ -112,15 +117,19 @@ test ! -e apps/web/src/features/settings/create-layout.test.tsx
 ! grep -rnE 'useCreateLayout|create-layout|atria\.settings\.create_layout' apps/web/src/features/settings
 # Nenhum controle nativo que a base da TASK-05 substitui (PD-62)
 ! grep -rnE '<select|type="(date|number)"' apps/web/src/features/settings --include=*.tsx
+# Evidências visuais automáticas
+test -f apps/web/src/features/settings/evidence/harness.tsx
+test -f apps/web/scripts/evidence-settings.mjs
+node --check apps/web/scripts/evidence-settings.mjs
 ```
 
 ### Evidências
 
-- `settings-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/settings`
+- `settings-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/settings --reporter=verbose`
   - Prova: os testes de Configurações passam, cobrindo preferências do usuário, atalho da paleta, contextos padrão da busca, configurações da instância, restrição ao admin, estados, axe e interface otimista (RF-58, RF-59, RF-60, CT-31, CT-32, RNF-06, RNF-09).
   - Trecho: os arquivos `user-preferences-page.test.tsx`, `shortcut-recorder.test.tsx`, `search-contexts-page.test.tsx` e `instance-settings-page.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `settings-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/settings --reporter=verbose -t "pd[0-9]"`
+- `settings-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/settings --reporter=verbose -t "pd[0-9]"`
   - Prova: Configurações segue as decisões do protótipo: "Opções do botão de criar", blocos visíveis do dashboard com a dica do olho, seções sem item na navegação principal e formulários com os seletores da base numa coluna centralizada (DEC-002, PD-10, PD-15, PD-19, PD-23, PD-30, PD-62).
   - Trecho: as linhas `✓` de `pd10 switches the create options between grid and list`, `pd10 defaults to grid without a saved choice`, `pd10 saves the layout per user and reads it after remount`, `pd10 ignores storage errors`, `pd30 matches the dashboard block ids`, `pd30 lists the dashboard blocks with a visibility toggle`, `pd30 hides a block and saves it in the dashboard key`, `pd15 explains the eye of the sensitive blocks`, `pd23 lists Suas preferências, Busca, Dashboard and Instância in the settings sections`, `pd62 uses the custom select and the segmented theme` e `pd19 centers the header and the form in the form column`.
   - Falha: `FAIL`, `×` em algum desses testes ou nenhum teste encontrado com o filtro.
@@ -128,58 +137,60 @@ test ! -e apps/web/src/features/settings/create-layout.test.tsx
   - Prova: a feature tem rotas, traduções, telas, hooks, testes e o e2e dos CT-31 e CT-32, sem item de menu próprio (PD-23).
   - Trecho: `routes.tsx`, `i18n/pt-br.json`, `dashboard-settings-page.tsx` e `settings.e2e.ts` na lista, e nenhum `nav.ts`.
   - Falha: `No such file or directory`, algum desses arquivos ausente ou `nav.ts` na lista.
-- `settings-themes-widths.png` (manual): prints das preferências do usuário (com o tema em grupo segmentado, o fuso aberto no seletor próprio e "Opções do botão de criar"), da seção Dashboard com os blocos visíveis, do menu do perfil aberto com Configurações e das configurações da instância nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com as rotas da feature registradas só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: a troca de tema vale na hora, a identidade visual nos dois temas e o layout funcional a partir de 360 px (RF-58, RNF-08, RNF-10).
-  - Trecho: as capturas com os campos legíveis e sem rolagem horizontal.
-  - Falha: campos cortados em 360 px ou contraste baixo no tema escuro.
-- `settings-states-focus.png` (manual): prints da tela da instância carregando, com erro e no estado sem acesso para um usuário comum, e da gravação do atalho com o foco visível navegando só pelo teclado.
+- `settings-themes-widths.txt` (automática): `node apps/web/scripts/evidence-settings.mjs temas`
+  - Prova: a troca de tema vale na hora, a identidade visual nos dois temas e o layout funcional a partir de 360 px, medidos no DOM e fotografados: preferências do usuário (com o tema em grupo segmentado, o fuso aberto no seletor próprio e "Opções do botão de criar"), a seção Dashboard com os blocos visíveis, o menu do perfil aberto com Configurações e as configurações da instância, em 1440 px e em 360 px, nos temas claro e escuro (RF-58, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema aplicado`, `ok ... tema trocado na hora pelo grupo segmentado` (`data-theme` muda sem recarregar), `ok ... seletor do fuso aberto, sem <select> nativo`, `ok ... "Opções do botão de criar" com "Em grade" e "Em lista"`, `ok ... blocos visíveis com uma caixa por bloco`, `ok ... menu do perfil com Configurações`, `ok ... formulário centralizado na largura do FormGrid`, `ok ... "Cancelar" antes de "Salvar" à direita`, `ok ... campos sem corte em 360 px`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-33/settings-themes-widths.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (campos cortados ou rolagem horizontal em 360 px, contraste baixo no tema escuro apontado pelo axe, tema sem efeito imediato, seletor nativo), a ausência da linha `png:` ou código de saída diferente de 0 (`Cannot find module` antes da tarefa, porque o script não existe).
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-33/settings-themes-widths.png`, a prancha com as capturas rotuladas: preferências do usuário, seção Dashboard, menu do perfil aberto e configurações da instância, nos temas claro e escuro, em 1440 px e em 360 px.
+- `settings-states-focus.txt` (automática): `node apps/web/scripts/evidence-settings.mjs estados`
   - Prova: os estados da tela, a restrição ao admin e o foco por teclado (RN-12, [project/frontend-10], RNF-06).
-  - Trecho: o indicador de carregamento, a mensagem de erro, o texto de sem acesso e o anel de foco no botão "Gravar".
-  - Falha: tela da instância editável para quem não é admin, estado sem texto ou foco invisível.
+  - Trecho: `ok ... instância: indicador de carregamento visível` (resposta lenta), `ok ... instância: mensagem de erro visível` (`problem+json`), `ok ... usuário comum: texto de sem acesso e nenhum campo editável`, `ok ... nenhum PATCH enviado pelo usuário comum`, `ok ... foco no botão "Gravar" depois de Tab`, `ok ... contorno de foco visível · ≥ 2px`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclui color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-33/settings-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (tela da instância editável para quem não é admin, estado sem texto, foco invisível ou contorno menor que 2 px), a ausência da linha `png:` ou código de saída diferente de 0.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-33/settings-states-focus.png`, a prancha com a tela da instância carregando, com erro e no estado sem acesso para um usuário comum, e a gravação do atalho com o foco visível navegando só pelo teclado, nos dois temas.
 
 ### Concluída quando
 
-- [ ] O usuário ajusta tema, idioma, fuso horário, moeda e o atalho da paleta, e cada preferência vale na hora e depois de recarregar (RF-58, CT-31).
+- [x] O usuário ajusta tema, idioma, fuso horário, moeda e o atalho da paleta, e cada preferência vale na hora e depois de recarregar (RF-58, CT-31).
 
   > Como comprovar: na saída `settings-tests.txt`, ver aprovados os casos da `user-preferences-page.test.tsx` e da `shortcut-recorder.test.tsx`.
 
-- [ ] A pessoa escolhe os contextos padrão da busca, com ao menos um (RF-59, CT-31).
+- [x] A pessoa escolhe os contextos padrão da busca, com ao menos um (RF-59, CT-31).
 
   > Como comprovar: ver aprovados `saves the default search contexts` e `requires at least one context`.
 
-- [ ] O admin ajusta o convite obrigatório, os papéis, o Web Push e o SMTP, sem a senha passar pela tela (RF-60, CT-32).
+- [x] O admin ajusta o convite obrigatório, os papéis, o Web Push e o SMTP, sem a senha passar pela tela (RF-60, CT-32).
 
   > Como comprovar: ver aprovados `turns off the required invite`, `turns on web push when the vapid key is configured`, `saves smtp host, port, user and sender without a password field` e `links roles to the admin users screen`.
 
-- [ ] Quem não é admin não altera as configurações da instância (RF-60, CT-32).
+- [x] Quem não é admin não altera as configurações da instância (RF-60, CT-32).
 
-  > Como comprovar: ver aprovado `shows the forbidden state for non admin users` e o texto de sem acesso no print `settings-states-focus.png`.
+  > Como comprovar: ver aprovado `shows the forbidden state for non admin users`; em `settings-states-focus.txt`, ver `ok ... usuário comum: texto de sem acesso e nenhum campo editável` e `ok  0 falha(s)`, e o texto de sem acesso na prancha `settings-states-focus.png`.
 
-- [ ] As mudanças aparecem na hora e são desfeitas com aviso se o servidor recusar (RNF-09).
+- [x] As mudanças aparecem na hora e são desfeitas com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: ver aprovado `rolls back and shows the undo notice when the server rejects`.
 
-- [ ] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
+- [x] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovados os casos `has no axe violations` e `is operable by keyboard only`, e conferir os prints `settings-themes-widths.png` e `settings-states-focus.png`.
+  > Como comprovar: ver aprovados os casos `has no axe violations` e `is operable by keyboard only`; em `settings-themes-widths.txt` e `settings-states-focus.txt`, ver só linhas `ok` (tema, sem rolagem horizontal, axe sem violações, estados e contorno de foco) e `ok  0 falha(s)`, e conferir nas pranchas `settings-themes-widths.png` e `settings-states-focus.png` os dois temas, as duas larguras, os estados e o foco.
 
-- [ ] A pessoa escolhe as "Opções do botão de criar" em grade ou em lista, gravadas na preferência `create_layout` da base, a mesma que o diálogo de tipo lê, sem cópia na feature (PD-10, DEC-008).
+- [x] A pessoa escolhe as "Opções do botão de criar" em grade ou em lista, gravadas na preferência `create_layout` da base, a mesma que o diálogo de tipo lê, sem cópia na feature (PD-10, DEC-008).
 
   > Como comprovar: em `settings-pd-tests.txt`, ver aprovados `pd10 switches the create options between grid and list`, `pd10 defaults to grid without a saved choice`, `pd10 saves the layout per user and reads it after remount` e `pd10 ignores storage errors`; a Verificação acha `set_create_layout` na tela e não acha `create-layout.ts`, `useCreateLayout` nem a chave antiga na feature.
 
-- [ ] A seção Dashboard escolhe os blocos visíveis, gravados onde o dashboard os lê, com a explicação do olho dos blocos sensíveis (PD-15, PD-30).
+- [x] A seção Dashboard escolhe os blocos visíveis, gravados onde o dashboard os lê, com a explicação do olho dos blocos sensíveis (PD-15, PD-30).
 
   > Como comprovar: em `settings-pd-tests.txt`, ver aprovados `pd30 matches the dashboard block ids`, `pd30 lists the dashboard blocks with a visibility toggle`, `pd30 hides a block and saves it in the dashboard key` e `pd15 explains the eye of the sensitive blocks`.
 
-- [ ] Configurações não aparece na navegação principal: abre pelo menu do perfil (PD-23).
+- [x] Configurações não aparece na navegação principal: abre pelo menu do perfil (PD-23).
 
   > Como comprovar: a Verificação confirma que não existe `nav.ts` na feature; em `settings-pd-tests.txt`, ver aprovado `pd23 lists Suas preferências, Busca, Dashboard and Instância in the settings sections`.
 
-- [ ] Os formulários usam a base da TASK-05: tema e opções de criar em grupo segmentado, idioma, fuso e moeda no seletor próprio, porta sem setas, numa coluna centralizada (PD-19, PD-62).
+- [x] Os formulários usam a base da TASK-05: tema e opções de criar em grupo segmentado, idioma, fuso e moeda no seletor próprio, porta sem setas, numa coluna centralizada (PD-19, PD-62).
 
   > Como comprovar: em `settings-pd-tests.txt`, ver aprovados `pd62 uses the custom select and the segmented theme` e `pd19 centers the header and the form in the form column`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e dos CT-31 e CT-32 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e dos CT-31 e CT-32 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `settings.e2e.ts` aparece em `settings-files.txt`.
 
@@ -201,6 +212,7 @@ Libera a integração do frontend e o atalho configurável da paleta.
 - **Decisões do protótipo (DEC-002, DEC-008):** "Opções do botão de criar" (PD-10) em Suas preferências, lida em `usePreferences().create_layout` e gravada por `set_create_layout(value)` do `preferences-context` da TASK-05, que a guarda por usuário no navegador (como o protótipo, em `db.prefs`); o `CreateTypeDialog` da base lê a mesma preferência. Esta tarefa não altera `apps/web/src/shared` e não tem módulo próprio da preferência. Descartados: um campo novo em `/me/preferences`, que mudaria o contexto auth (TASK-06), e o módulo `create-layout.ts` na feature, substituído pela DEC-008 porque telas da mesma onda (TASK-22, TASK-28) o importariam. "Blocos visíveis" numa seção Dashboard (PD-30), gravados na chave do navegador que o dashboard da TASK-21 lê (`atria.dashboard.hidden_blocks.<userId>`), com os ids do protótipo e sem o bloco "Metas", que depende da PD-31 em aberto. Os ids de `DASHBOARD_BLOCK_OPTIONS` (`today`, `reminders`, `upcoming`, `journal`, `balance` e `reading`) e os de `DASHBOARD_BLOCKS` da TASK-21 (`apps/web/src/features/dashboard/blocks.ts`, conferidos no arquivo atual dela) precisam bater: um id que só um lado conhece faz o bloco escondido continuar aparecendo, e o teste `pd30 matches the dashboard block ids` fixa a lista; descartado o menu "Blocos" no próprio dashboard. A dica do olho (PD-15) explica que esconder os valores do Diário e do Dinheiro não tira o bloco; o olho fica no dashboard. Formulários com a base da TASK-05 (PD-19, PD-62).
 - **Riscos:** idioma só `pt-br` no MVP (o seletor já lista o que houver nas traduções); fuso inválido salvo pelo navegador (mitigado com a lista de `Intl` e validação `zod`).
 - **Referências da spec:** RF-58, RF-59, RF-60, CT-31, CT-32, RN-12, RN-18, decisões 12, 23, 39 e 58, RNF-06, RNF-08 a RNF-10; DEC-002, DEC-008; PD-10, PD-15, PD-19, PD-23, PD-30 e PD-62 de `docs/decisoes-do-prototipo.md`.
+- **Evidências visuais:** as pranchas `settings-themes-widths.png` e `settings-states-focus.png` são geradas por `apps/web/scripts/evidence-settings.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas das features só são registradas no app pela TASK-35, o script monta a feature por `src/features/settings/evidence/harness.tsx` (as rotas de `createSettingsRoutes` num roteador em memória com os providers e o layout do app), servido por uma página virtual do Vite, com a API simulada por fixtures; nada muda em `apps/web/src/app`.
 - **Arquivos em comum na onda 7:** nenhum. Contratos entre features da onda: a chave `atria.dashboard.hidden_blocks.<userId>` e os ids dos blocos, gravados aqui e lidos pela TASK-21. A preferência `create_layout` é da base (TASK-05): esta tarefa grava, e o `CreateTypeDialog` usado pela TASK-22 e pela TASK-28 lê.
 
 ### Card
@@ -223,6 +235,15 @@ Libera a integração do frontend e o atalho configurável da paleta.
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidências manuais settings-themes-widths.png e settings-states-focus.png trocadas por automáticas settings-themes-widths.txt e settings-states-focus.txt geradas por apps/web/scripts/evidence-settings.mjs, com a prancha PNG como Artefato; harness da feature em src/features/settings/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 6 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 7 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 8 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-33/ |
+| 9 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -231,3 +252,6 @@ Libera a integração do frontend e o atalho configurável da paleta.
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md, DEC-002 a DEC-004, TASK-05 (menu do perfil, preferences-context e componentes), TASK-21 (chave dos blocos ocultos) e TASK-28 (create_layout); PD-23: nav.ts e settingsNavItem removidos, Configurações pelo menu do perfil, teste pd23, e2e e Verificação; PD-10: Opções do botão de criar em grade ou lista em create_layout de usePreferences, teste pd10; PD-30: rota /settings/dashboard com Blocos visíveis gravados em atria.dashboard.hidden_blocks.<userId>, sem o bloco Metas (PD-31 em aberto), use-dashboard-blocks.ts e testes pd30; PD-15: dica do olho dos blocos sensíveis, teste pd15; PD-62 e PD-19: tema e opções de criar em FormSegmented, idioma, fuso e moeda em FormSelect, porta sem setas, coluna centralizada; evidências settings-pd-tests.txt e settings-files.txt, Concluída quando, Detalhes técnicos e card atualizados; linha test -e da pasta da feature removida da Baseline, que a validação recusa |
 | 2 | 2026-10-30 | agente | Opções do botão de criar (create_layout, PD-10) fora do preferences-context e de shared: gravada em create-layout.ts da própria feature, na chave atria.settings.create_layout.<userId>, exposta por useCreateLayout() que as telas de criação importam, com create-layout.test.tsx, passo 5a, testes pd10 e checagens na Verificação; ids dos blocos do dashboard iguais aos de DASHBOARD_BLOCKS da TASK-21 atual, com o teste pd30 matches the dashboard block ids e a citação em Detalhes técnicos; Ler, Evidências, Concluída quando e card atualizados |
 | 3 | 2026-10-30 | agente | DEC-008: create-layout.ts e create-layout.test.tsx removidos de Mudar e passo 5a removido; Opções do botão de criar lê usePreferences().create_layout e grava por set_create_layout da TASK-05 (passo 9, Ler); testes pd10 mantidos em user-preferences-page.test.tsx, voltados à preferência (pd10 defaults, saves per user, ignores storage errors); Verificação com grep que rejeita create-layout.ts, useCreateLayout e a chave antiga na feature; Evidências, Concluída quando, Detalhes técnicos e card atualizados |
+| 4 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 5 | 2026-10-31 | agente | Evidências manuais settings-themes-widths.png e settings-states-focus.png trocadas por automáticas settings-themes-widths.txt e settings-states-focus.txt geradas por apps/web/scripts/evidence-settings.mjs, com a prancha PNG como Artefato; harness da feature em src/features/settings/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 6 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

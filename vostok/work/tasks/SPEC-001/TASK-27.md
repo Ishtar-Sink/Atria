@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-44, RF-45, RF-46, CT-27]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 58bdf3d8de66e1383d65b95a20a97f9defe4cc1ca7313ca82e5867787557be91
-adjustments: 2
-adjusted_at: 2026-10-30T22:01:58Z
+status: done
+content_hash: 08f2c85921943623723d5ec01c5bcaf3faa2112619bf1cf75f291ced7aad92c3
+adjustments: 5
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 58bdf3d8de66e1383d65b95a20a97f9defe4cc1ca7313ca82e5867787557be91
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T22:01:58Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-27: Telas do Diário
@@ -47,6 +48,7 @@ updated_at: 2026-10-30T22:01:58Z
 - `packages/ui`: componentes genéricos (página, cabeçalho, lista, formulário, estados vazio, carregando e erro, diálogo de confirmação).
 - `packages/theme`: tokens do tema claro e escuro.
 - `packages/contracts`: tipos gerados de `/journal-entries` e `/emotions`.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais automáticas (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha por `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -72,6 +74,8 @@ updated_at: 2026-10-30T22:01:58Z
 - `apps/web/src/features/journal/emotions-page.test.tsx` (criar): testes da lista de emoções.
 - `apps/web/src/features/journal/use-journal-entry-mutations.test.tsx` (criar): testes da interface otimista.
 - `apps/web/src/features/journal/journal.e2e.ts` (criar): fluxo ponta a ponta do CT-27, rodado só na TASK-35.
+- `apps/web/src/features/journal/evidence/harness.tsx` (criar): página de evidência que monta `createJournalRoutes` num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-journal.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-journal.mjs themes-widths|states-focus`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (entradas, emoções, respostas lentas para o carregando, lista vazia e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, e as verificações de cada estado) e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-27/`.
 
 ### Passos
 
@@ -94,6 +98,7 @@ updated_at: 2026-10-30T22:01:58Z
 10. Criar `routes.tsx` com `createJournalRoutes(parent_route)` (sem modal: criar e editar têm rota própria) e `nav.ts` com `journalNavItem` (rótulo `journal.nav`, destino `/journal`, ícone SVG inline com `aria-hidden="true"`).
 11. Criar `journal.e2e.ts` (Playwright) com o CT-27: duas entradas no mesmo dia com emoções e intensidade, criação de uma emoção nova e sua presença na lista, em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 12. Rodar a Verificação até passar sem nenhum warning de lint.
+13. Criar `apps/web/src/features/journal/evidence/harness.tsx` e `apps/web/scripts/evidence-journal.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-journal.mjs themes-widths` e `node apps/web/scripts/evidence-journal.mjs states-focus`. Corrigir o código da tarefa a cada linha `FALHA` e conferir as pranchas `journal-themes-widths.png` e `journal-states-focus.png` abrindo-as.
 
 ### Baseline
 
@@ -110,15 +115,19 @@ test -f apps/web/src/features/journal/journal.e2e.ts
 ! grep -rnE '<select|type="(date|time|datetime-local)"' apps/web/src/features/journal --include=*.tsx
 # Período pelo PeriodField da base (PD-55, PD-57)
 grep -q 'PeriodField' apps/web/src/features/journal/journal-list-page.tsx
+# Evidências visuais automáticas
+test -f apps/web/src/features/journal/evidence/harness.tsx
+test -f apps/web/scripts/evidence-journal.mjs
+node --check apps/web/scripts/evidence-journal.mjs
 ```
 
 ### Evidências
 
-- `journal-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/journal`
+- `journal-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/journal --reporter=verbose`
   - Prova: os testes de componente e de hook do Diário passam, cobrindo entradas, emoções, intensidade, estados, axe e interface otimista (RF-44, RF-45, RF-46, CT-27, RNF-06, RNF-09).
   - Trecho: os arquivos `journal-entry-form-page.test.tsx`, `emotion-picker.test.tsx`, `emotions-page.test.tsx`, `journal-list-page.test.tsx` e `use-journal-entry-mutations.test.tsx` marcados como aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `journal-pd-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/journal --reporter=verbose -t "pd[0-9]"`
+- `journal-pd-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/journal --reporter=verbose -t "pd[0-9]"`
   - Prova: as telas seguem as decisões do protótipo: emoções em chips com a intensidade de 1 a 5 liberada ao marcar, data no calendário próprio com a hora em 24 h, formulário na grade numa coluna centralizada, cabeçalho da entrada com "Excluir" no "Mais ações", visão geral em cartões, período no `PeriodField` e o relatório do módulo (DEC-002, PD-14, PD-19, PD-55, PD-57, PD-59, PD-61, PD-62).
   - Trecho: as linhas `✓` de `pd55 filters the period with the PeriodField and sends from and to`, `pd61 lists the journal report in the Relatórios menu`, `pd62 shows the emotions as chips in a grid`, `pd62 enables the intensity from 1 to 5 only after the emotion is marked`, `pd62 sends the emotion without intensity when no dot is chosen`, `pd62 lays the form in the grid with text, emotions and visibility on the full row`, `pd57 picks the date in the custom calendar and types 2130 as 21:30`, `pd19 centers the header and the form in the form column`, `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações` e `pd59 shows the overview in cards with Entrada, Emoções and Registro`.
   - Falha: `FAIL`, `×` em algum desses testes ou nenhum teste encontrado com o filtro.
@@ -126,66 +135,68 @@ grep -q 'PeriodField' apps/web/src/features/journal/journal-list-page.tsx
   - Prova: a feature tem rotas, item de menu, traduções, telas, hooks, testes e o e2e do CT-27.
   - Trecho: `routes.tsx`, `nav.ts`, `i18n/pt-br.json` e `journal.e2e.ts` na lista.
   - Falha: `No such file or directory` ou algum desses arquivos ausente.
-- `journal-themes-widths.png` (manual): prints da lista (com o `PeriodField` aberto e o menu "Relatórios" aberto), do formulário (com as emoções em chips, duas marcadas com a intensidade e o calendário da data aberto) e da tela da entrada (visão geral em cartões, com o "Mais ações" aberto) do Diário nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com as rotas da feature registradas só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: identidade visual nos dois temas e layout funcional a partir de 360 px (RNF-08, RNF-10).
-  - Trecho: as quatro capturas legíveis, sem rolagem horizontal e sem cor de perigo nas emoções.
-  - Falha: texto cortado, rolagem horizontal em 360 px ou contraste baixo no tema escuro.
-- `journal-states-focus.png` (manual): prints da lista nos estados vazio, carregando e erro, e do formulário com o foco visível navegando só pelo teclado.
-  - Prova: todos os estados da tela e o foco por teclado ([project/frontend-10], [project/frontend-12], RNF-06).
-  - Trecho: o texto explicativo do estado vazio, o indicador de carregamento, a mensagem de erro e o anel de foco no controle ativo.
-  - Falha: estado sem texto, foco invisível ou controle que não recebe foco.
+- `journal-themes-widths.txt` (automática): `node apps/web/scripts/evidence-journal.mjs themes-widths`
+  - Prova: identidade visual nos dois temas e layout funcional a partir de 360 px, medidos no DOM e fotografados: a lista com o `PeriodField` aberto e com o menu "Relatórios" aberto, o formulário com as emoções em chips, duas marcadas com a intensidade e o calendário da data aberto, e a tela da entrada com a visão geral em cartões e o "Mais ações" aberto (RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado`, `ok ... tema escuro aplicado`, `ok ... PeriodField aberto · 5 presets`, `ok ... menu Relatórios aberto · item "Emoções no período"`, `ok ... duas emoções marcadas com intensidade`, `ok ... calendário da data dentro da janela`, `ok ... cartões Entrada, Emoções e Registro`, `ok ... Mais ações aberto · item "Excluir"`, `ok ... nenhuma emoção com a cor de perigo`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-27/journal-themes-widths.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (texto cortado, rolagem horizontal em 360 px, contraste baixo no tema escuro, emoção com a cor de perigo), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-27/journal-themes-widths.png`, a prancha com as capturas rotuladas da lista (PeriodField aberto e menu "Relatórios" aberto), do formulário (emoções em chips, duas marcadas com intensidade, calendário aberto) e da entrada (cartões e "Mais ações" aberto), nos temas claro e escuro, em 360 px e em 1440 px.
+- `journal-states-focus.txt` (automática): `node apps/web/scripts/evidence-journal.mjs states-focus`
+  - Prova: todos os estados da lista e o foco por teclado, com a API simulada (lista vazia, resposta lenta e `problem+json`) ([project/frontend-10], [project/frontend-12], RNF-06).
+  - Trecho: `ok ... estado vazio · texto explicativo visível`, `ok ... estado carregando · indicador visível`, `ok ... estado de erro · mensagem visível`, `ok ... formulário navegado por Tab · contorno de foco visível (≥ 2 px)`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-27/journal-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (estado sem texto, foco invisível ou controle que não recebe foco), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-27/journal-states-focus.png`, a prancha com a lista nos estados vazio, carregando e erro e o formulário com o anel de foco no controle ativo, nos temas claro e escuro, em 360 px e em 1440 px.
 
 ### Concluída quando
 
-- [ ] Dá para registrar várias entradas no mesmo dia, cada uma com data, hora e texto, em rota própria (RF-44, CT-27).
+- [x] Dá para registrar várias entradas no mesmo dia, cada uma com data, hora e texto, em rota própria (RF-44, CT-27).
 
   > Como comprovar: na saída `journal-tests.txt`, ver aprovados os casos `creates an entry with date, time, text and two emotions` e `allows a second entry on the same day`.
 
-- [ ] Cada entrada aceita uma ou mais emoções, com intensidade opcional (RF-45, CT-27).
+- [x] Cada entrada aceita uma ou mais emoções, com intensidade opcional (RF-45, CT-27).
 
   > Como comprovar: na saída `journal-tests.txt`, ver aprovados `selects more than one emotion` e `keeps intensity optional`.
 
-- [ ] A lista de emoções do usuário pode ser editada, e uma emoção nova aparece na seleção (RF-46, CT-27).
+- [x] A lista de emoções do usuário pode ser editada, e uma emoção nova aparece na seleção (RF-46, CT-27).
 
   > Como comprovar: na saída `journal-tests.txt`, ver aprovado `adds a new emotion that appears in the picker`.
 
-- [ ] A lista tem busca, filtros e modos de visualização guardados na URL, e mostra os estados vazio, carregando e erro (RF-44).
+- [x] A lista tem busca, filtros e modos de visualização guardados na URL, e mostra os estados vazio, carregando e erro (RF-44).
 
-  > Como comprovar: ver aprovados os casos da `journal-list-page.test.tsx` e conferir os estados no print `journal-states-focus.png`.
+  > Como comprovar: ver aprovados os casos da `journal-list-page.test.tsx`; em `journal-states-focus.txt`, ver `estado vazio`, `estado carregando` e `estado de erro` com `ok` e `ok  0 falha(s)`, e conferir os estados na prancha `journal-states-focus.png`.
 
-- [ ] As mudanças aparecem na hora e são desfeitas com aviso se o servidor recusar (RNF-09).
+- [x] As mudanças aparecem na hora e são desfeitas com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: ver aprovado `rolls back and shows the undo notice when the server rejects` na saída `journal-tests.txt`.
 
-- [ ] As telas não têm violações no axe e funcionam só pelo teclado, com foco visível (RNF-06).
+- [x] As telas não têm violações no axe e funcionam só pelo teclado, com foco visível (RNF-06).
 
-  > Como comprovar: ver aprovados os casos `has no axe violations` e `is operable by keyboard only`, e o anel de foco no print `journal-states-focus.png`.
+  > Como comprovar: ver aprovados os casos `has no axe violations` e `is operable by keyboard only`; em `journal-states-focus.txt`, ver `contorno de foco visível` e `axe sem violações` com `ok` e `ok  0 falha(s)`, e o anel de foco na prancha `journal-states-focus.png`.
 
-- [ ] As telas funcionam nos temas claro e escuro, em 360 px e desktop, sem vermelho para emoções (RNF-08, RNF-10).
+- [x] As telas funcionam nos temas claro e escuro, em 360 px e desktop, sem vermelho para emoções (RNF-08, RNF-10).
 
-  > Como comprovar: abrir o print `journal-themes-widths.png` e ver as quatro capturas legíveis, sem rolagem horizontal.
+  > Como comprovar: em `journal-themes-widths.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `nenhuma emoção com a cor de perigo` e `sem rolagem horizontal` com `ok` e `ok  0 falha(s)`, e abrir a prancha `journal-themes-widths.png` para ver as capturas legíveis nos dois temas e nas duas larguras.
 
-- [ ] As emoções aparecem em chips numa grade, e marcar uma emoção libera a intensidade de 1 a 5 em pontos, que continua opcional (RF-45, PD-62).
+- [x] As emoções aparecem em chips numa grade, e marcar uma emoção libera a intensidade de 1 a 5 em pontos, que continua opcional (RF-45, PD-62).
 
   > Como comprovar: em `journal-pd-tests.txt`, ver aprovados `pd62 shows the emotions as chips in a grid`, `pd62 enables the intensity from 1 to 5 only after the emotion is marked` e `pd62 sends the emotion without intensity when no dot is chosen`.
 
-- [ ] O formulário usa a base da TASK-05: grade numa coluna centralizada, data no calendário próprio e hora em 24 h, visibilidade em grupo segmentado e as ações à direita (PD-19, PD-57, PD-62).
+- [x] O formulário usa a base da TASK-05: grade numa coluna centralizada, data no calendário próprio e hora em 24 h, visibilidade em grupo segmentado e as ações à direita (PD-19, PD-57, PD-62).
 
   > Como comprovar: em `journal-pd-tests.txt`, ver aprovados `pd62 lays the form in the grid with text, emotions and visibility on the full row`, `pd57 picks the date in the custom calendar and types 2130 as 21:30` e `pd19 centers the header and the form in the form column`; o último comando da Verificação não encontra controle nativo.
 
-- [ ] A tela da entrada tem "Editar" com lápis, "Excluir" em vermelho só dentro de "Mais ações" e a visão geral em cartões, com as emoções num cartão próprio na lateral (PD-14, PD-59).
+- [x] A tela da entrada tem "Editar" com lápis, "Excluir" em vermelho só dentro de "Mais ações" e a visão geral em cartões, com as emoções num cartão próprio na lateral (PD-14, PD-59).
 
   > Como comprovar: em `journal-pd-tests.txt`, ver aprovados `pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações` e `pd59 shows the overview in cards with Entrada, Emoções and Registro`.
 
-- [ ] O filtro de período da lista usa o `PeriodField` da base, com os presets do diário e o intervalo personalizado, enviado como `from` e `to` (PD-55, PD-57).
+- [x] O filtro de período da lista usa o `PeriodField` da base, com os presets do diário e o intervalo personalizado, enviado como `from` e `to` (PD-55, PD-57).
 
   > Como comprovar: em `journal-pd-tests.txt`, ver aprovado `pd55 filters the period with the PeriodField and sends from and to`; a Verificação encontra `PeriodField` em `journal-list-page.tsx`.
 
-- [ ] O módulo emite o relatório "Emoções no período" pelo botão "Relatórios" do cabeçalho da lista (PD-61).
+- [x] O módulo emite o relatório "Emoções no período" pelo botão "Relatórios" do cabeçalho da lista (PD-61).
 
   > Como comprovar: em `journal-pd-tests.txt`, ver aprovado `pd61 lists the journal report in the Relatórios menu`; em `journal-tests.txt`, `builds the module report path`.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e do CT-27 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e do CT-27 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; o arquivo `journal.e2e.ts` aparece em `journal-files.txt`.
 
@@ -207,6 +218,7 @@ Libera a integração do frontend, que coloca o Diário no menu e roda o fluxo p
 - **Integração:** `routes.tsx` exporta `createJournalRoutes(parent_route)` e `nav.ts` exporta `journalNavItem`; a TASK-35 registra os dois e monta a aba Conexões na tela da entrada. A feature não altera `apps/web/src/app`.
 - **Riscos:** fuso horário na data e hora da entrada (mitigado com `Intl` no fuso do usuário e relógio fixo nos testes); o e2e só roda na TASK-35.
 - **Referências da spec:** RF-44, RF-45, RF-46, CT-27, RN-13, RNF-03, RNF-06, RNF-08, RNF-09, RNF-10, decisões 6, 13, 28 e 57; DEC-002; PD-14, PD-19, PD-55, PD-57, PD-59, PD-61 e PD-62 de `docs/decisoes-do-prototipo.md`.
+- **Evidências visuais.** As pranchas `journal-themes-widths.png` e `journal-states-focus.png` são geradas por `apps/web/scripts/evidence-journal.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG, e a prancha vai para a pasta de evidências da tarefa. Como as rotas da feature só são registradas no app pela TASK-35, o script sobe o Vite com uma página virtual que carrega `src/features/journal/evidence/harness.tsx`, que monta `createJournalRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app`; a API é simulada por `context.route('/api/**')` com fixtures no script, e cada captura passa pelo axe (inclusive `color-contrast`).
 - **Arquivos em comum na onda 7:** nenhum.
 
 ### Card
@@ -230,6 +242,15 @@ Libera a integração do frontend, que coloca o Diário no menu e roda o fluxo p
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | ajuste | in_progress | Evidências manuais journal-themes-widths.png e journal-states-focus.png trocadas por automáticas journal-themes-widths.txt e journal-states-focus.txt geradas por apps/web/scripts/evidence-journal.mjs, com a prancha PNG como Artefato; harness da feature em src/features/journal/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 6 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 7 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 8 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-27/ |
+| 9 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -237,3 +258,6 @@ Libera a integração do frontend, que coloca o Diário no menu e roda o fluxo p
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md, DEC-002 a DEC-004, TASK-05 (componentes) e TASK-12 (contrato); PD-62: seletor de emoções em chips numa grade com a intensidade de 1 a 5 em pontos liberada ao marcar, opcional, e testes pd62; PD-62, PD-57 e PD-19: FormGrid, FormActions, data e hora em FormDateTime, visibilidade em FormSegmented, coluna centralizada, filtro de emoção no SelectField e período no PeriodPicker; PD-14 e PD-59: tela da entrada com Editar, Mais ações com Excluir e visão geral em cartões Entrada, Emoções e Registro, com extra_tabs, journal-entry-overview.tsx e journal-entry-page.test.tsx; Verificação sem controles nativos; evidência journal-pd-tests.txt, Concluída quando, Detalhes técnicos e card atualizados; linha test -e da pasta da feature removida da Baseline, que a validação recusa |
 | 2 | 2026-10-30 | agente | PeriodPicker trocado pelo PeriodField de @atria/ui no filtro de período da lista, com os presets do diário, padrão Qualquer período, from e to por resolvePeriod, teste pd55 e checagem na Verificação (PD-55, PD-57); botão Relatórios na lista com journal-emo, journal-reports.ts e testes pd61 e builds the module report path (PD-61); Ler, Mudar, i18n, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
+| 3 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 4 | 2026-10-31 | agente | Evidências manuais journal-themes-widths.png e journal-states-focus.png trocadas por automáticas journal-themes-widths.txt e journal-states-focus.txt geradas por apps/web/scripts/evidence-journal.mjs, com a prancha PNG como Artefato; harness da feature em src/features/journal/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 5 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |

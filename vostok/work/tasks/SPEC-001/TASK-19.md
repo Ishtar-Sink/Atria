@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-03, RF-04, RF-06, RF-07, RF-08, RF-09, CT-03, CT-04, CT-06, CT-08, CT-09]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 2bf021d776b73330b5c3b0036644abf343b93ad5a9c79395f9103bc0797193c2
-adjustments: 3
-adjusted_at: 2026-10-30T21:57:57Z
+status: done
+content_hash: 1b58880620d64574e3982d5229091f7c123abf2e1139c6c3330d8bbed726c5ad
+adjustments: 5
+adjusted_at: 2026-10-31T09:46:27Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 2bf021d776b73330b5c3b0036644abf343b93ad5a9c79395f9103bc0797193c2
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-30T21:57:57Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T09:46:27Z
+model: sonnet
 ---
 
 # TASK-19: Telas de auth
@@ -44,6 +45,7 @@ updated_at: 2026-10-30T21:57:57Z
 - `vostok/rules/project/frontend.md`
 - `vostok/rules/project/code-style.md`
 - `vostok/rules/project/testing.md`
+- `apps/web/scripts/evidence-shots.mjs` (molde das evidências visuais, TASK-05)
 
 ### Mudar
 
@@ -70,6 +72,8 @@ updated_at: 2026-10-30T21:57:57Z
 - `apps/web/src/features/auth/screens/admin-password-reset-screen.tsx` (criar): o admin gera o link de uso único para um usuário e o copia (RF-09).
 - `apps/web/src/features/auth/screens/admin-password-reset-screen.test.tsx` (criar): testes da geração e da cópia do link (CT-09).
 - `apps/web/src/features/auth/auth.e2e.ts` (criar): fluxos ponta a ponta de assistente, convite, login com 2FA e redefinição de senha, rodados na TASK-35.
+- `apps/web/src/features/auth/evidence/harness.tsx` (criar): página de evidência que monta as rotas de `createAuthRoutes` num roteador em memória do TanStack Router com os providers do app (tema, TanStack Query, i18n, preferências), as públicas soltas e a do link do admin dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-auth.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-auth.mjs telas`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (inclusive respostas lentas para o carregando e `problem+json` para `totp_required`, `invite_invalid` e `validation_failed`), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal, sem erro de JS, axe sem violações, inclusive `color-contrast`, por `@axe-core/playwright`, e as verificações de cada estado), imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`, e sai com código diferente de 0 se algo falhar; a prancha vai para `vostok/work/tasks/SPEC-001/evidence/TASK-19/auth-telas.png`.
 
 ### Passos
 
@@ -90,6 +94,7 @@ updated_at: 2026-10-30T21:57:57Z
 14. Crie `apps/web/src/features/auth/routes.tsx` exportando `createAuthRoutes(publicParent: AnyRoute, adminParent: AnyRoute)` que devolve as rotas do TanStack Router: as públicas sob `publicParent` e `/admin/users/$userId/password-reset` sob `adminParent`. O loader de `/sign-in` consulta `GET /api/v1/setup` e redireciona para `/setup` quando `required` é verdadeiro; o de `/setup` redireciona para `/sign-in` quando é falso (CT-03, FA-01). Não altere `apps/web/src/app`.
 15. Crie `apps/web/src/features/auth/auth.e2e.ts` com Playwright: `first run creates the admin and requires two-factor`, `invite sign-up works once`, `sign-in requires the totp code after activation` e `admin reset link works once`, cada um em 360 px e desktop, com axe sem violações. Não rode: os e2e rodam na TASK-35.
 16. Rode o bloco de "Verificação" e corrija até passar sem warnings.
+17. Crie `apps/web/src/features/auth/evidence/harness.tsx` e `apps/web/scripts/evidence-auth.mjs` (veja "Mudar") e rode `node apps/web/scripts/evidence-auth.mjs telas`. Corrija o código da tarefa a cada linha `FALHA` e repita até a última linha ser `ok  0 falha(s)`; abra a prancha `auth-telas.png` para conferir os estados, os temas e as larguras.
 
 ### Baseline
 
@@ -112,11 +117,15 @@ test -s apps/web/src/features/auth/auth.e2e.ts
 # Telas de auth no cartão estreito, sem a grade de 880 px (DEC-006)
 ! grep -rn 'FormGrid' apps/web/src/features/auth --include=*.tsx
 grep -q 'calc(var(--space) \* 100)' apps/web/src/features/auth/components/auth-card.module.css
+# Harness e script das evidências visuais
+test -f apps/web/src/features/auth/evidence/harness.tsx
+test -f apps/web/scripts/evidence-auth.mjs
+node --check apps/web/scripts/evidence-auth.mjs
 ```
 
 ### Evidências
 
-- `auth-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/auth --reporter=verbose`
+- `auth-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/auth --reporter=verbose`
   - Prova: as telas e os hooks de autenticação passam nos testes, com axe sem violações (RF-03, RF-04, RF-06 a RF-09, CT-03, CT-04, CT-06, CT-08, CT-09, RNF-06).
   - Trecho: as linhas `✓` de `creates the admin and asks for two-factor`, `asks for the totp code and signs in with it`, `shows invalid invite for a used or expired invite`, `shows the same message for existing and unknown emails`, `resets the password once`, `AuthCard > renders the heading, the subtitle and the form inside the card` e `renders the form inside the narrow auth card` de cada tela (DEC-006, PD-62), e o resumo sem falhas.
   - Falha: `FAIL`, `✗` ou `×` em algum teste, ou a mensagem de que nenhum arquivo de teste foi encontrado.
@@ -124,46 +133,47 @@ grep -q 'calc(var(--space) \* 100)' apps/web/src/features/auth/components/auth-c
   - Prova: os fluxos ponta a ponta da feature estão escritos para a TASK-35 rodar (CT-03, CT-04, CT-06, CT-09).
   - Trecho: as linhas com `first run creates the admin and requires two-factor`, `invite sign-up works once`, `sign-in requires the totp code after activation` e `admin reset link works once`.
   - Falha: `No such file or directory` ou saída vazia.
-- `auth-telas.png` (manual): prints do assistente, do login (com o passo do TOTP), do cadastro com convite inválido, da ativação do 2FA e da redefinição de senha, nos temas claro e escuro, em 360 px e em desktop, mais um print do formulário com o erro em `role="alert"`, um do botão em estado de carregando, um com o foco visível pelo teclado e um da geração do link pelo admin, todos no cartão estreito (cerca de 400 px) centralizado, sem a grade de 880 px, com as ações à direita embaixo da linha (DEC-006, PD-62). Capture com `pnpm --filter @atria/web dev`, montando localmente as rotas de `createAuthRoutes` sem salvar mudança em `apps/web/src/app`.
-  - Prova: identidade visual, os dois temas, 360 px e desktop, estados de carregando e erro e foco por teclado (RNF-06, RNF-08, RNF-10).
-  - Trecho: as telas sem rolagem horizontal em 360 px, o cartão estreito e centralizado no desktop, contraste legível nos dois temas e o anel de foco visível no campo focado.
-  - Falha: texto cortado ou sobreposto em 360 px, formulário na largura de 880 px ou em duas colunas, cor fora da paleta, foco invisível ou erro mostrado num alerta do navegador.
+- `auth-telas.txt` (automática): `node apps/web/scripts/evidence-auth.mjs telas`
+  - Prova: identidade visual, os dois temas, 360 px e desktop, estados de carregando e erro e foco por teclado, medidos no DOM e fotografados nas telas montadas pelo harness da feature (RNF-06, RNF-08, RNF-10).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado` e `ok ... tema escuro aplicado`, `ok ... sem rolagem horizontal`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura, `ok ... cartão de ~400 px centralizado`, `ok ... nenhuma largura de 880 px`, `ok ... uma coluna só`, `ok ... campo do código TOTP visível` no login, `ok ... erro em role="alert" dentro do formulário` no cadastro com convite inválido e no formulário com erro de validação, `ok ... botão desabilitado com texto de carregando`, `ok ... contorno de foco visível depois de Tab (≥ 2 px)`, `ok ... ações à direita com "Cancelar" antes do primário` e `ok ... link gerado no campo só de leitura` na tela do admin; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-19/auth-telas.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (texto cortado ou rolagem horizontal em 360 px, formulário na largura de 880 px ou em duas colunas, violação do axe ou contraste insuficiente, foco invisível, erro fora de `role="alert"` ou num alerta do navegador), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-19/auth-telas.png`, a prancha com as capturas rotuladas, nos temas claro e escuro, em 360 px e em desktop: assistente, login (com o passo do TOTP), cadastro com convite inválido, ativação do 2FA, redefinição de senha e geração do link pelo admin, mais o formulário com o erro em `role="alert"`, o botão em estado de carregando e o foco visível pelo teclado, todos no cartão estreito (cerca de 400 px) centralizado, sem a grade de 880 px, com as ações à direita embaixo da linha (DEC-006, PD-62).
 
 ### Concluída quando
 
-- [ ] O assistente cria o admin numa instância vazia, leva à ativação do 2FA e não aparece mais depois (RF-03, RF-07, CT-03).
+- [x] O assistente cria o admin numa instância vazia, leva à ativação do 2FA e não aparece mais depois (RF-03, RF-07, CT-03).
 
   > Como comprovar: na saída de `auth-tests.txt`, ver aprovados `creates the admin and asks for two-factor` e `redirects to sign-in when the instance already has users`.
 
-- [ ] O cadastro usa o convite da URL, funciona sem convite quando ele não é exigido e mostra "convite inválido" para convite usado ou expirado (RF-04, CT-04).
+- [x] O cadastro usa o convite da URL, funciona sem convite quando ele não é exigido e mostra "convite inválido" para convite usado ou expirado (RF-04, CT-04).
 
   > Como comprovar: em `auth-tests.txt`, ver aprovados `signs up with an invite from the url`, `signs up without invite when not required` e `shows invalid invite for a used or expired invite`.
 
-- [ ] O login entra sem código para quem não tem 2FA, pede o código para quem tem, recusa código errado e manda o admin sem 2FA para a ativação (RF-06, RF-07, CT-06).
+- [x] O login entra sem código para quem não tem 2FA, pede o código para quem tem, recusa código errado e manda o admin sem 2FA para a ativação (RF-06, RF-07, CT-06).
 
   > Como comprovar: em `auth-tests.txt`, ver aprovados os quatro testes de `sign-in-screen` e os dois de `two-factor-screen`.
 
-- [ ] O pedido de redefinição mostra a mesma mensagem para qualquer e-mail, e a redefinição funciona uma única vez pelo link do e-mail ou do admin (RF-08, RF-09, CT-08, CT-09).
+- [x] O pedido de redefinição mostra a mesma mensagem para qualquer e-mail, e a redefinição funciona uma única vez pelo link do e-mail ou do admin (RF-08, RF-09, CT-08, CT-09).
 
   > Como comprovar: em `auth-tests.txt`, ver aprovados `shows the same message for existing and unknown emails`, `resets the password once`, `refuses a used token` e `generates and copies a single-use reset link`.
 
-- [ ] Todas as telas têm cabeçalho, erros dentro do formulário com `role="alert"`, estado de carregando, foco por teclado e zero violações no axe (RNF-06).
+- [x] Todas as telas têm cabeçalho, erros dentro do formulário com `role="alert"`, estado de carregando, foco por teclado e zero violações no axe (RNF-06).
 
   > Como comprovar: rodar `pnpm --filter @atria/web test -- src/features/auth` e ver "0 failed"; os testes de cada tela incluem as checagens de foco e axe.
 
-- [ ] As telas funcionam em 360 px e em desktop, nos temas claro e escuro, só com tokens do tema (RNF-08, RNF-10).
+- [x] As telas funcionam em 360 px e em desktop, nos temas claro e escuro, só com tokens do tema (RNF-08, RNF-10).
 
-  > Como comprovar: abrir os prints de `auth-telas.png` e ver as telas inteiras e legíveis nos dois temas e larguras; o último comando da Verificação não encontra cor literal.
+  > Como comprovar: em `auth-telas.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `sem rolagem horizontal` e `axe sem violações (inclusive color-contrast)` com `ok` e a última linha `ok  0 falha(s)`; abrir a prancha `auth-telas.png` e ver as telas inteiras e legíveis nos dois temas e larguras; a Verificação não encontra cor literal.
 
-- [ ] Os formulários usam a base da TASK-05: campos de `@atria/ui`, ações no `FormActions` à direita com o primário por último e código TOTP sem as setas do navegador (PD-62).
+- [x] Os formulários usam a base da TASK-05: campos de `@atria/ui`, ações no `FormActions` à direita com o primário por último e código TOTP sem as setas do navegador (PD-62).
 
-  > Como comprovar: a Verificação não encontra `<select`, `type="date"` nem `type="number"` na feature; nos prints, ver "Cancelar" antes do botão primário, à direita.
+  > Como comprovar: a Verificação não encontra `<select`, `type="date"` nem `type="number"` na feature; em `auth-telas.txt`, ver `ações à direita com "Cancelar" antes do primário` com `ok`, e na prancha `auth-telas.png`, ver "Cancelar" antes do botão primário, à direita.
 
-- [ ] Todas as telas da feature, inclusive a geração do link pelo admin, ficam num cartão estreito de cerca de 400 px, centralizado, sem a grade de 880 px (DEC-006).
+- [x] Todas as telas da feature, inclusive a geração do link pelo admin, ficam num cartão estreito de cerca de 400 px, centralizado, sem a grade de 880 px (DEC-006).
 
-  > Como comprovar: em `auth-tests.txt`, ver aprovados os testes de `AuthCard` e `renders the form inside the narrow auth card` de cada tela; a Verificação não encontra `FormGrid` na feature; nos prints de desktop, ver o cartão estreito no centro.
+  > Como comprovar: em `auth-tests.txt`, ver aprovados os testes de `AuthCard` e `renders the form inside the narrow auth card` de cada tela; a Verificação não encontra `FormGrid` na feature; em `auth-telas.txt`, ver `cartão de ~400 px centralizado` e `nenhuma largura de 880 px` com `ok`, e na prancha `auth-telas.png`, ver o cartão estreito no centro em desktop.
 
-- [ ] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
+- [x] Typecheck e lint passam sem warning, e o e2e da feature está escrito para a TASK-35.
 
   > Como comprovar: rodar o bloco de "Verificação" e ver que termina sem erro; `auth-e2e-specs.txt` lista os quatro fluxos.
 
@@ -194,6 +204,8 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 - Formulários com a base da TASK-05 (DEC-002, PD-62): `TextField`, `FormActions` com o primário à direita e campos numéricos sem setas. Descartado: campos e ações próprios da feature, que divergiriam do resto do app.
 - Cartão estreito (DEC-006, item 3): todas as telas da feature ficam no `AuthCard`, um `Card` de `@atria/ui` com `max-width: calc(var(--space) * 100)` (cerca de 400 px), centralizado, com o formulário em uma coluna só. A tela do link do admin continua no layout do app, mas usa o mesmo cartão. O `AuthCard` fica na feature, não em `packages/ui`, porque só as telas de auth o usam. Descartadas: a grade de 880 px do `FormGrid` (PD-19 e PD-62 valem para as telas de formulário do app, e a DEC-006 tira as telas de auth delas) e um cartão novo na base.
 
+**Evidências visuais.** A prancha `auth-telas.png` é gerada por `apps/web/scripts/evidence-auth.mjs`, como as da TASK-05: a evidência é um comando cuja saída (`auth-telas.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG. Como as rotas só são registradas no roteador pela TASK-35, o `pnpm dev` não mostra as telas; por isso o script sobe o Vite com uma página virtual que carrega `apps/web/src/features/auth/evidence/harness.tsx`, que monta `createAuthRoutes` num roteador em memória com os providers do app, sem tocar em `apps/web/src/app` e fora do build de produção. A API é simulada no navegador (`context.route('/api/**')`) com fixtures do próprio script, e cada captura passa pelo axe, inclusive o contraste.
+
 **Riscos.** Os códigos de erro do contexto auth são o contrato entre servidor e tela: se mudarem, o passo do TOTP e a mensagem de convite inválido quebram. Mitigação: usar os códigos de `apps/server/src/auth/interface` e testar cada um.
 
 **Referências.** RF-03, RF-04, RF-06, RF-07, RF-08, RF-09; CT-03, CT-04, CT-06, CT-07, CT-08, CT-09; FA-01, FA-02, FA-03, FA-06; CB-11; RN-11; RNF-01, RNF-06, RNF-08, RNF-10; decisões 10 e 24 da spec; DEC-002; DEC-006; PD-62 de `docs/decisoes-do-prototipo.md` (a PD-19 não vale para as telas de auth, pela DEC-006).
@@ -221,6 +233,20 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 2 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 4 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 5 | 2026-10-31 | evidências | pending | evidência manual sem arquivo |
+| 6 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 7 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 8 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 9 | 2026-10-31 | evidências | pending | evidência manual sem arquivo |
+| 10 | 2026-10-31 | ajuste | in_progress | Evidência manual auth-telas.png trocada por automática auth-telas.txt gerada por apps/web/scripts/evidence-auth.mjs, com a prancha PNG como Artefato; harness da feature em src/features/auth/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 17 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 11 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 12 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 13 | 2026-10-31 | evidências | passed | 3 evidência(s) em evidence/TASK-19/ |
+| 14 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -229,3 +255,5 @@ Depende da base do frontend e dos contratos do servidor; destrava a integração
 | 1 | 2026-10-30 | agente | Ler com docs/decisoes-do-prototipo.md (PD-19, PD-62), DEC-002 a DEC-004 e os componentes de formulário da TASK-05; Passos com TextField e FormActions da base, código TOTP sem type=number e sem controles nativos (PD-62); tela do link do admin com PageHeader e FormGrid na coluna centralizada e teste renders the header and the form in the centered form column (PD-19, PD-62); Verificação sem select, date e number nativos; Evidências, Concluída quando, Detalhes técnicos e card atualizados |
 | 2 | 2026-10-30 | agente | Linha test -e da pasta da feature removida da Baseline, recusada pela validação depois do ajuste 1 |
 | 3 | 2026-10-30 | agente | Telas de auth, inclusive o link do admin, no AuthCard estreito (cerca de 400 px) centralizado sobre o Card da base, sem o FormGrid de 880 px (DEC-006): Ler com DEC-006 e o Card, Mudar com auth-card.tsx, .module.css e .test.tsx, passo 3a, testes renders the form inside the narrow auth card em cada tela, passo 13 sem FormGrid, Verificação sem FormGrid na feature, Evidências, Concluída quando, Detalhes técnicos e card atualizados |
+| 4 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature>, sem o '--' que fazia o vitest ignorar o reporter e o filtro -t |
+| 5 | 2026-10-31 | agente | Evidência manual auth-telas.png trocada por automática auth-telas.txt gerada por apps/web/scripts/evidence-auth.mjs, com a prancha PNG como Artefato; harness da feature em src/features/auth/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo 17 novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |

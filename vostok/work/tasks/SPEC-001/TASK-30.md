@@ -9,17 +9,18 @@ wave: 7
 covers: [RF-54, RF-55, RF-56, RF-57, CT-30]
 type: historia
 labels: [SPEC-001, padrao]
-status: approved
-content_hash: 5c940acd52ce3f434ee91b7e8ba7cba43b7fc25234db21b4461a2096511c68f7
-adjustments: 2
-adjusted_at: 2026-10-31T00:18:43Z
+status: done
+content_hash: ea318978e9102b63d85af36883f13aa6ddb90b3bb58ad29c6feb390822d3ee72
+adjustments: 4
+adjusted_at: 2026-10-31T11:42:47Z
 approved_at: 2026-10-31T00:29:40Z
 approved_hash: 5c940acd52ce3f434ee91b7e8ba7cba43b7fc25234db21b4461a2096511c68f7
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
-updated_at: 2026-10-31T00:18:43Z
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+updated_at: 2026-10-31T11:42:47Z
+model: sonnet
 ---
 
 # TASK-30: Telas de Projetos
@@ -46,6 +47,7 @@ updated_at: 2026-10-31T00:18:43Z
 - `vostok/work/tasks/SPEC-001/TASK-14.md`: contrato de Projetos ajustado: raia com `color` HEX `#rrggbb` e `counts_as_done`; cartão com `priority`, `labels`, `due_date` e `checklist`; `POST /projects/{id}/cards` com `lane_id` obrigatório; `POST /projects/{id}/cards/{card_id}/move` com `lane_id` e `position`; `PUT /projects/{id}/lanes/order`; `GET /projects/{id}/summary?today=` com `progress`, `lanes`, `upcoming_due` e `in_progress`; `progress` também na listagem; erros `last_lane`, `lane_has_cards`, `invalid_target_lane` e `validation_failed`.
 - `vostok/work/tasks/SPEC-001/TASK-15.md`: contrato de `/links`: `GET /links?entity_type=&entity_id=&linked_type=` com `linked_type` e `linked_id`, `POST /links` e `DELETE /links/{id}`, tipo `project_card`, erro 409 `link_already_exists`.
 - `vostok/work/tasks/SPEC-001/TASK-09.md`: `GET /tasks` (com `status=open` e `q`) e `GET /tasks/{id}`, para escolher e mostrar a tarefa ligada.
+- `apps/web/scripts/evidence-shots.mjs`: molde das evidências visuais automáticas (TASK-05): Vite numa porta livre, Chromium do `@playwright/test`, temas claro e escuro, 1440 e 360 px, `check()` com `ok`/`FALHA`, prancha por `sheet()` e código de saída 1 em falha.
 
 ### Mudar
 
@@ -78,6 +80,8 @@ updated_at: 2026-10-31T00:18:43Z
 - `apps/web/src/features/projects/use-kanban.test.tsx` (criar): testes da interface otimista do quadro.
 - `apps/web/src/features/projects/use-card-task-link.test.tsx` (criar): testes da tarefa ligada pelas ligações (DEC-003).
 - `apps/web/src/features/projects/projects.e2e.ts` (criar): fluxo ponta a ponta do CT-30, rodado só na TASK-35.
+- `apps/web/src/features/projects/evidence/harness.tsx` (criar): página de evidência que monta `createProjectsRoutes` num roteador em memória do TanStack Router, com os providers do app (tema, TanStack Query, i18n, preferências) e dentro do layout do app; não é importada pelo app nem por `apps/web/src/app` (nada muda em `apps/web/src/app`) e por isso fica fora do build de produção; só tokens do tema; passa no typecheck e no lint.
+- `apps/web/scripts/evidence-projects.mjs` (criar): script das evidências visuais (`node apps/web/scripts/evidence-projects.mjs themes-widths|states-focus`), em Node sem dependências novas, no molde de `apps/web/scripts/evidence-shots.mjs` (código próprio, sem importar o da TASK-05): sobe o Vite numa porta livre por `createServer` da API do Vite com um plugin que serve uma página HTML virtual carregando o `harness.tsx` (encerra no fim, KNW-006), simula a API com `context.route('/api/**')` e fixtures em memória no próprio script (projetos, raias coloridas, cartões com prazo vencido, checklist e prioridade, `/summary`, `/links` e `/tasks`, respostas lentas para o carregando, lista vazia e `problem+json` para o erro), captura nos temas claro e escuro, em 1440 px e em 360 px, confere o estado no DOM antes de cada captura (tema aplicado, sem rolagem horizontal da página, sem erro de JS, axe sem violações, inclusive `color-contrast`, e as verificações de cada estado) e imprime `ok` ou `FALHA` por verificação, o caminho do PNG e a última linha `ok  0 falha(s)`; sai com código diferente de 0 se algo falhar; as pranchas vão para `vostok/work/tasks/SPEC-001/evidence/TASK-30/`.
 
 ### Passos
 
@@ -108,6 +112,7 @@ updated_at: 2026-10-31T00:18:43Z
 15. Criar `routes.tsx` com `createProjectsRoutes(parent_route)` e `nav.ts` com `projectsNavItem` (destino `/projects`, ícone SVG inline com `aria-hidden="true"`).
 16. Criar `projects.e2e.ts` (Playwright) com o CT-30: lista e grade, abrir um projeto na Visão geral com as raias padrão, criar raia com cor HEX em Configurações, reordenar pelo puxador, marcar uma raia como concluída e ver o Andamento mudar, criar cartão pelo "+ Adicionar cartão" com prazo, checklist e tarefa ligada, e movê-lo pelo seletor do pé, em 360 px e desktop, com axe. Não rodar: ele roda na TASK-35.
 17. Rodar a Verificação até passar sem nenhum warning de lint.
+18. Criar `apps/web/src/features/projects/evidence/harness.tsx` e `apps/web/scripts/evidence-projects.mjs` (veja "Mudar") e rodar `node apps/web/scripts/evidence-projects.mjs themes-widths` e `node apps/web/scripts/evidence-projects.mjs states-focus`. Corrigir o código da tarefa a cada linha `FALHA` e conferir as pranchas `projects-themes-widths.png` e `projects-states-focus.png` abrindo-as.
 
 ### Baseline
 
@@ -120,15 +125,19 @@ pnpm --filter @atria/web test -- src/features/projects
 pnpm --filter @atria/web typecheck
 pnpm --filter @atria/web lint
 test -f apps/web/src/features/projects/projects.e2e.ts
+# Evidências visuais automáticas
+test -f apps/web/src/features/projects/evidence/harness.tsx
+test -f apps/web/scripts/evidence-projects.mjs
+node --check apps/web/scripts/evidence-projects.mjs
 ```
 
 ### Evidências
 
-- `projects-tests.txt` (automática): `pnpm --filter @atria/web test -- src/features/projects`
+- `projects-tests.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/projects --reporter=verbose`
   - Prova: os testes de Projetos passam, cobrindo lista e grade, abas do projeto, Visão geral, raias padrão, raias customizáveis, cartões móveis por mouse e teclado, exclusão de raia, formulário do cartão, estados, axe e interface otimista (RF-54 a RF-57, CT-30, CB-07, CB-08, RNF-06, RNF-09).
   - Trecho: os arquivos `projects-list-page.test.tsx`, `project-page.test.tsx`, `project-overview-tab.test.tsx`, `kanban-board-page.test.tsx`, `project-settings-tab.test.tsx`, `lane-form-page.test.tsx`, `delete-lane-dialog.test.tsx`, `card-form-page.test.tsx`, `use-kanban.test.tsx` e `use-card-task-link.test.tsx` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests` ou `No test files found`.
-- `projects-prototype-decisions.txt` (automática): `pnpm --filter @atria/web test -- src/features/projects -t "pd|dec003"`
+- `projects-prototype-decisions.txt` (automática): `pnpm --filter @atria/web exec vitest run src/features/projects --reporter=verbose -t "pd|dec003"`
   - Prova: as decisões do protótipo de Projetos estão nas telas: cor HEX pelo seletor (PD-12), abas com a Visão geral primeiro (PD-41), Visão geral pelo `/summary` (PD-42), "conta como concluída" por raia (PD-43), raia tingida (PD-44), "+ Adicionar cartão" no pé (PD-45), cartão completo com formulário próprio, tarefa ligada pelas ligações e movimento pela rota `move` (PD-46, DEC-003), Raias em Configurações (PD-47), "Mais ações" (PD-14) e relatórios (PD-61) (DEC-002).
   - Trecho: os casos `pd12 saves the hex color chosen in the color picker`, `pd41 opens on the overview tab by default`, `pd42 shows a bar per lane and 2 of 5 cards done`, `pd43 toggles counts as done per lane`, `pd46 moves a card to another lane by drag and drop through the move route`, `pd46 links the chosen task after saving`, `pd47 reorders lanes by dragging the handle` e `dec003 reads the linked task from links with linked_type task` aprovados e a linha `Tests` sem falhas.
   - Falha: `FAIL`, `failed` na linha `Tests`, `No test files found` ou nenhum caso `pd` ou `dec003` executado.
@@ -136,54 +145,56 @@ test -f apps/web/src/features/projects/projects.e2e.ts
   - Prova: a feature tem rotas, item de menu, traduções, telas, abas, hooks, testes e o e2e do CT-30.
   - Trecho: `routes.tsx`, `nav.ts`, `i18n/pt-br.json`, `project-overview-tab.tsx`, `project-settings-tab.tsx`, `use-card-task-link.ts` e `projects.e2e.ts` na lista.
   - Falha: `No such file or directory` ou algum desses arquivos ausente.
-- `projects-themes-widths.png` (manual): prints da grade de projetos, da Visão geral, do Quadro e da seção Raias nos temas claro e escuro, em 360 px e em desktop, capturados no app local (`pnpm --filter @atria/web dev`) com as rotas da feature registradas só na cópia de trabalho, sem manter a alteração em `apps/web/src/app`.
-  - Prova: identidade visual nos dois temas, raias tingidas na cor HEX, Visão geral em duas zonas e layout funcional a partir de 360 px (RNF-08, RNF-10, PD-42, PD-44, PD-47).
-  - Trecho: as capturas com as raias tingidas e legíveis, o "+ Adicionar cartão" no pé, a barra do Andamento, o puxador das raias e, em 360 px, as raias empilhadas e as zonas numa coluna sem rolagem horizontal da página.
-  - Falha: rolagem horizontal da página em 360 px, nome da raia ilegível sobre a cor, prazo vencido em vermelho ou contraste baixo no tema escuro.
-- `projects-states-focus.png` (manual): prints da lista nos estados vazio, carregando e erro, do diálogo de exclusão pedindo a raia de destino, de um cartão com o foco visível sendo movido pelo seletor do pé só pelo teclado, do puxador de uma raia focado e do formulário do cartão com a tarefa ligada.
-  - Prova: todos os estados, a exclusão segura da raia, o mover e o reordenar por teclado e o formulário completo do cartão ([project/frontend-10], [project/frontend-12], CB-07, RNF-06, PD-46, PD-47).
-  - Trecho: o texto explicativo do estado vazio, o indicador de carregamento, a mensagem de erro, o seletor de raia de destino, o anel de foco no seletor do cartão e no puxador, e o campo "Ligar a uma tarefa" preenchido.
-  - Falha: estado sem texto, diálogo sem raia de destino, cartão ou raia que só se move com o mouse.
+- `projects-themes-widths.txt` (automática): `node apps/web/scripts/evidence-projects.mjs themes-widths`
+  - Prova: identidade visual nos dois temas, raias tingidas na cor HEX, Visão geral em duas zonas e layout funcional a partir de 360 px, medidos no DOM e fotografados na grade de projetos, na Visão geral, no Quadro e na seção Raias (RNF-08, RNF-10, PD-42, PD-44, PD-47).
+  - Trecho: uma linha `ok` por verificação, como `ok ... tema claro aplicado`, `ok ... tema escuro aplicado`, `ok ... raias tingidas na cor HEX · nome em --text`, `ok ... "+ Adicionar cartão" no pé da raia`, `ok ... barra do Andamento com um segmento por raia`, `ok ... prazo vencido sem a cor de perigo`, `ok ... puxador das raias visível`, `ok ... 360 px · raias empilhadas`, `ok ... 360 px · zonas numa coluna`, `ok ... sem rolagem horizontal da página`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)` em cada captura; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-30/projects-themes-widths.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (rolagem horizontal da página em 360 px, nome da raia ilegível sobre a cor, prazo vencido em vermelho, contraste baixo no tema escuro), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-30/projects-themes-widths.png`, a prancha com as capturas rotuladas da grade de projetos, da Visão geral, do Quadro e da seção Raias, nos temas claro e escuro, em 360 px e em 1440 px.
+- `projects-states-focus.txt` (automática): `node apps/web/scripts/evidence-projects.mjs states-focus`
+  - Prova: todos os estados, a exclusão segura da raia, o mover e o reordenar por teclado e o formulário completo do cartão, com a API simulada (lista vazia, resposta lenta e `problem+json`) ([project/frontend-10], [project/frontend-12], CB-07, RNF-06, PD-46, PD-47).
+  - Trecho: `ok ... estado vazio · texto explicativo visível`, `ok ... estado carregando · indicador visível`, `ok ... estado de erro · mensagem visível`, `ok ... diálogo de exclusão · seletor da raia de destino`, `ok ... seletor do pé do cartão focado por Tab · contorno de foco visível (≥ 2 px)`, `ok ... cartão movido pelo teclado`, `ok ... puxador da raia focado · contorno de foco visível (≥ 2 px)`, `ok ... formulário do cartão · "Ligar a uma tarefa" preenchido`, `ok ... sem rolagem horizontal da página`, `ok ... sem erro de JS` e `ok ... axe sem violações (inclusive color-contrast)`; a linha `png: vostok/work/tasks/SPEC-001/evidence/TASK-30/projects-states-focus.png (N capturas)` e a última linha `ok  0 falha(s)`.
+  - Falha: qualquer linha `FALHA` (estado sem texto, diálogo sem raia de destino, cartão ou raia que só se move com o mouse, foco invisível), a ausência da linha `png:`, código de saída diferente de 0 ou a prancha sem algum dos estados.
+  - Artefato: `vostok/work/tasks/SPEC-001/evidence/TASK-30/projects-states-focus.png`, a prancha com a lista nos estados vazio, carregando e erro, o diálogo de exclusão pedindo a raia de destino, o cartão com o foco no seletor do pé, o puxador de uma raia focado e o formulário do cartão com a tarefa ligada, nos temas claro e escuro, em 360 px e em 1440 px.
 
 ### Concluída quando
 
-- [ ] Os projetos aparecem em lista e em grade, com o progresso, busca e filtros na URL e os estados vazio, carregando e erro (RF-54, CT-30).
+- [x] Os projetos aparecem em lista e em grade, com o progresso, busca e filtros na URL e os estados vazio, carregando e erro (RF-54, CT-30).
 
   > Como comprovar: na saída `projects-tests.txt`, ver aprovados os casos da `projects-list-page.test.tsx`, entre eles `lists projects as a list and as a grid`.
 
-- [ ] O projeto abre na Visão geral, com as abas Visão geral, Quadro, Conexões e Configurações nessa ordem (PD-41).
+- [x] O projeto abre na Visão geral, com as abas Visão geral, Quadro, Conexões e Configurações nessa ordem (PD-41).
 
   > Como comprovar: em `projects-prototype-decisions.txt`, ver aprovados `pd41 opens on the overview tab by default` e `pd41 orders the tabs overview board extra tabs and settings last`.
 
-- [ ] A Visão geral mostra Andamento, Próximos prazos (14 dias, vencido em texto neutro) e Em andamento a partir do `/summary`, e Sobre, Prioridade alta e Ligações na lateral, com as tarefas ligadas aos cartões (PD-42, DEC-003).
+- [x] A Visão geral mostra Andamento, Próximos prazos (14 dias, vencido em texto neutro) e Em andamento a partir do `/summary`, e Sobre, Prioridade alta e Ligações na lateral, com as tarefas ligadas aos cartões (PD-42, DEC-003).
 
   > Como comprovar: em `projects-prototype-decisions.txt`, ver aprovados os casos `pd42` da `project-overview-tab.test.tsx`.
 
-- [ ] O Quadro tem as raias Aguardando, Em progresso e Pronto, tingidas na cor de cada uma, com "+ Adicionar cartão" no pé, que abre o formulário com a raia escolhida (RF-55, CT-30, PD-44, PD-45).
+- [x] O Quadro tem as raias Aguardando, Em progresso e Pronto, tingidas na cor de cada uma, com "+ Adicionar cartão" no pé, que abre o formulário com a raia escolhida (RF-55, CT-30, PD-44, PD-45).
 
   > Como comprovar: ver aprovados `shows the default lanes waiting, in progress and done for a new project`, `pd44 tints the lane with its color and shows only name and count` e `pd45 opens the card form with the chosen lane from the add card button`.
 
-- [ ] Em Configurações › Raias, as raias são criadas, renomeadas, coloridas com HEX pelo seletor de cor, marcadas como "conta como concluída", reordenadas pelo puxador (mouse e setas) e excluídas, pedindo a raia de destino e recusando a última (RF-56, CT-30, PD-12, PD-43, PD-47).
+- [x] Em Configurações › Raias, as raias são criadas, renomeadas, coloridas com HEX pelo seletor de cor, marcadas como "conta como concluída", reordenadas pelo puxador (mouse e setas) e excluídas, pedindo a raia de destino e recusando a última (RF-56, CT-30, PD-12, PD-43, PD-47).
 
   > Como comprovar: ver aprovados os casos da `project-settings-tab.test.tsx`, da `lane-form-page.test.tsx` e da `delete-lane-dialog.test.tsx`, entre eles `pd12 saves the hex color chosen in the color picker` e `pd43 toggles counts as done per lane`.
 
-- [ ] O cartão mostra título, descrição, prioridade, etiquetas, prazo, checklist e tarefa ligada, tem formulário próprio com "Excluir cartão" em "Mais ações" e é movido entre raias arrastando ou pelo seletor do pé, pela rota `move`; a tarefa ligada é uma ligação de `/links` (RF-57, CT-30, PD-46, DEC-003).
+- [x] O cartão mostra título, descrição, prioridade, etiquetas, prazo, checklist e tarefa ligada, tem formulário próprio com "Excluir cartão" em "Mais ações" e é movido entre raias arrastando ou pelo seletor do pé, pela rota `move`; a tarefa ligada é uma ligação de `/links` (RF-57, CT-30, PD-46, DEC-003).
 
   > Como comprovar: ver aprovados os casos `pd46` da `kanban-board-page.test.tsx` e da `card-form-page.test.tsx` e os casos `dec003` da `use-card-task-link.test.tsx`.
 
-- [ ] Mover e reordenar aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
+- [x] Mover e reordenar aparecem na hora e são desfeitos com aviso se o servidor recusar (RNF-09).
 
   > Como comprovar: ver aprovado `rolls back and shows the undo notice when the server rejects` na saída `projects-tests.txt`.
 
-- [ ] O projeto e a listagem têm "Editar", "Mais ações" com "Excluir" e os relatórios de cartões por raia, filtrados pelo projeto quando abertos dele (PD-14, PD-61).
+- [x] O projeto e a listagem têm "Editar", "Mais ações" com "Excluir" e os relatórios de cartões por raia, filtrados pelo projeto quando abertos dele (PD-14, PD-61).
 
   > Como comprovar: em `projects-prototype-decisions.txt`, ver aprovados `pd14 shows Editar and keeps Excluir inside Mais ações`, `pd61 opens the cards per lane report filtered by the project` e `pd61 lists the projects report in the Relatórios menu`.
 
-- [ ] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
+- [x] As telas não têm violações no axe, funcionam só pelo teclado e nos dois temas, a partir de 360 px (RNF-06, RNF-08, RNF-10).
 
-  > Como comprovar: ver aprovados os casos `has no axe violations` e conferir os prints `projects-themes-widths.png` e `projects-states-focus.png`.
+  > Como comprovar: ver aprovados os casos `has no axe violations`; em `projects-themes-widths.txt` e `projects-states-focus.txt`, ver `tema claro aplicado`, `tema escuro aplicado`, `contorno de foco visível`, `sem rolagem horizontal da página` e `axe sem violações` com `ok` e `ok  0 falha(s)`, e conferir as pranchas `projects-themes-widths.png` e `projects-states-focus.png`.
 
-- [ ] Testes, typecheck e lint passam sem warning, e o e2e do CT-30 está escrito para a TASK-35.
+- [x] Testes, typecheck e lint passam sem warning, e o e2e do CT-30 está escrito para a TASK-35.
 
   > Como comprovar: rodar a Verificação e ver que termina sem erro; `projects.e2e.ts` aparece em `projects-files.txt`.
 
@@ -210,6 +221,7 @@ Libera a integração do frontend, que coloca Projetos no menu, monta a aba Cone
   - Gerenciar raias só em Configurações › Raias, com reordenação pelo puxador e pelas setas (PD-47); descartados os botões de gerenciar dentro de cada raia. Criar e editar raia continuam em rota própria ([project/architecture-10]); descartada a edição em linha do protótipo.
 - **Decisões:** arrastar e soltar nativo do HTML com alternativa completa de teclado e anúncio em `aria-live`, descartada uma biblioteca de arrastar e soltar, que seria dependência nova ([project/stack-12]) sem ganho que justifique; modal só na confirmação da exclusão ([project/architecture-10]); prazo vencido em texto neutro ([project/frontend-14]); abaixo de 480 px as raias ficam empilhadas, descartada a rolagem horizontal da página, que quebraria [project/frontend-17].
 - **Regras:** a raia de destino dos cartões é pedida ao excluir uma raia com cartões (CB-07) e a última raia não é excluída (CB-08, RN-16); os cartões são próprios do projeto (RN-20).
+- **Evidências visuais.** As pranchas `projects-themes-widths.png` e `projects-states-focus.png` são geradas por `apps/web/scripts/evidence-projects.mjs`, no molde do `evidence-shots.mjs` da TASK-05: cada evidência é um comando cuja saída (`.txt`) lista as verificações com `ok` ou `FALHA` e o caminho do PNG, e a prancha vai para a pasta de evidências da tarefa. Como as rotas da feature só são registradas no app pela TASK-35, o script sobe o Vite com uma página virtual que carrega `src/features/projects/evidence/harness.tsx`, que monta `createProjectsRoutes` num roteador em memória com os providers e o layout do app, sem mudar `apps/web/src/app`; a API é simulada por `context.route('/api/**')` com fixtures no script, e cada captura passa pelo axe (inclusive `color-contrast`).
 - **Riscos:** posição dos cartões divergente após recusa do servidor (mitigado com o desfazer da mutação otimista e o recarregamento do quadro); a tarefa ligada exige uma leitura de `/links` por cartão, porque o contrato da TASK-15 lista ligações de uma entidade por vez (aceitável para quadros pessoais, com cache do TanStack Query); a Ligações da Visão geral depende da TASK-35 passar `links_slot`.
 - **Referências da spec:** RF-54 a RF-57, CT-30, RN-16, RN-20, CB-07, CB-08, RNF-06, RNF-08 a RNF-10, decisão 5; PD-07, PD-11, PD-12, PD-14, PD-19, PD-41 a PD-47, PD-57, PD-61 e PD-62 de `docs/decisoes-do-prototipo.md`; DEC-002 e DEC-003 da memória; contratos da TASK-14 e da TASK-15.
 - **Arquivos em comum na onda 7:** nenhum.
@@ -232,6 +244,14 @@ Libera a integração do frontend, que coloca Projetos no menu, monta a aba Cone
 
 | # | Data | Etapa | Resultado | Detalhe |
 |---|---|---|---|---|
+| 1 | 2026-10-31 | início | in_progress | aprovada em 2026-10-31T00:29:40Z; modelo: sonnet |
+| 2 | 2026-10-31 | baseline | coletado | 1 comando(s); códigos de saída: 0; 3 evidência(s) automática(s) gravada(s) para comparação |
+| 3 | 2026-10-31 | ajuste | in_progress | Evidências manuais projects-themes-widths.png e projects-states-focus.png trocadas por automáticas projects-themes-widths.txt e projects-states-focus.txt geradas por apps/web/scripts/evidence-projects.mjs, com a prancha PNG como Artefato; harness da feature em src/features/projects/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | ajuste | in_progress | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
+| 5 | 2026-10-31 | testes | passed | Verificação sem falhas; saída em validation/tests.out |
+| 6 | 2026-10-31 | regressão | passed | 1 comando(s) iguais ao baseline |
+| 7 | 2026-10-31 | evidências | passed | 5 evidência(s) em evidence/TASK-30/ |
+| 8 | 2026-10-31 | conclusão | done | testes, regressão e evidências passed; critérios de conclusão marcados |
 
 ## Histórico de ajustes
 
@@ -239,3 +259,5 @@ Libera a integração do frontend, que coloca Projetos no menu, monta a aba Cone
 |---|---|---|---|
 | 1 | 2026-10-30 | agente | Ler: decisoes-do-prototipo, DEC-002 a DEC-004 e contratos das TASK-14, TASK-15 e TASK-09; PD-41: abas Visao geral (padrao), Quadro, extras (Conexoes) e Configuracoes; PD-42: Visao geral a partir do /summary com Ligacoes e links_slot; PD-12: cor HEX pelo seletor de cor da TASK-05, sem cria-lo na tela; PD-43: conta como concluida por raia; PD-44 e PD-45: raia tingida e Adicionar cartao muted no pe; PD-46 e DEC-003: cartao completo com formulario proprio, tarefa ligada pelas ligacoes e movimento pela rota move, card-page removida; PD-47: Raias em Configuracoes com puxador; PD-14, PD-11, PD-57, PD-61 e PD-62 aplicados; testes pd e dec003, evidencia projects-prototype-decisions.txt, Concluida quando, Detalhes tecnicos e card |
 | 2 | 2026-10-31 | agente | Linha da Baseline que conferia a pasta criada pela própria tarefa removida (recusada pela validação do vostok 0.2.3; defeito da issue 6) |
+| 3 | 2026-10-31 | agente | Evidências manuais projects-themes-widths.png e projects-states-focus.png trocadas por automáticas projects-themes-widths.txt e projects-states-focus.txt geradas por apps/web/scripts/evidence-projects.mjs, com a prancha PNG como Artefato; harness da feature em src/features/projects/evidence/harness.tsx montando as rotas sem mudar apps/web/src/app; Ler, Mudar, passo novo, Verificação, Como comprovar dos critérios e Detalhes técnicos atualizados |
+| 4 | 2026-10-31 | agente | Comando das evidências automáticas de testes trocado para pnpm --filter @atria/web exec vitest run src/features/<feature> --reporter=verbose, sem o '--' que fazia o vitest ignorar a pasta, o reporter e o filtro -t |
