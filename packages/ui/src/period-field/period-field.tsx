@@ -85,7 +85,6 @@ export function PeriodField({
   const [draft, setDraft] = useState<CalendarValue>({ from: '' });
   const [month, setMonth] = useState(today.slice(0, 7));
   const [error, setError] = useState(false);
-  const [shift, setShift] = useState(0);
 
   const fmt = new Intl.DateTimeFormat(locale);
   const show = (iso: string) => {
@@ -114,20 +113,39 @@ export function PeriodField({
     );
     setMonth(base.slice(0, 7));
     setError(false);
-    setShift(0);
     setOpen(true);
   }
 
-  // Mantém o popover dentro da janela, com 8 px de margem.
+  // Como no protótipo: popover fixo, preso à janela com 8 px de margem. No formulário fica
+  // centrado no campo; na barra, alinhado à direita. Se não cabe, rola por dentro.
   useLayoutEffect(() => {
-    if (!open || !popover.current) return;
-    const box = popover.current.getBoundingClientRect();
-    const width = window.innerWidth;
-    let delta = 0;
-    if (box.left + shift < MARGIN) delta = MARGIN - box.left;
-    else if (box.right + shift > width - MARGIN) delta = width - MARGIN - box.right;
-    if (delta !== 0 && Math.abs(delta - shift) > 0.5) setShift(delta);
-  }, [open, shift, draft, month]);
+    if (!open) return;
+    const place = () => {
+      const pop = popover.current;
+      const anchor = trigger.current;
+      if (!pop || !anchor) return;
+      const b = anchor.getBoundingClientRect();
+      pop.style.maxHeight = `${String(window.innerHeight - MARGIN * 2)}px`;
+      const width = pop.offsetWidth;
+      const height = pop.offsetHeight;
+      const wanted = placement === 'form' ? b.left + (b.width - width) / 2 : b.right - width;
+      const left = Math.max(MARGIN, Math.min(wanted, window.innerWidth - width - MARGIN));
+      const below = b.bottom + 6;
+      const top =
+        below + height <= window.innerHeight - MARGIN
+          ? below
+          : Math.max(MARGIN, window.innerHeight - MARGIN - height);
+      pop.style.left = `${String(left)}px`;
+      pop.style.top = `${String(top)}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    document.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      document.removeEventListener('scroll', place, true);
+    };
+  }, [open, placement]);
 
   useEffect(() => {
     if (!open) return;
@@ -195,15 +213,7 @@ export function PeriodField({
           <span id={`${generated}-value`}>{text}</span>
         </button>
         {open ? (
-          <div
-            ref={popover}
-            role="dialog"
-            aria-label={labels.title}
-            className={[styles.popover, placement === 'form' ? styles.form : styles.toolbar].join(
-              ' ',
-            )}
-            {...(shift ? { style: { translate: `${String(shift)}px 0` } } : {})}
-          >
+          <div ref={popover} role="dialog" aria-label={labels.title} className={styles.popover}>
             <div className={styles.presets}>
               {presets.map((preset) => (
                 <Button

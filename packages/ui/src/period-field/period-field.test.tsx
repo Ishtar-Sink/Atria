@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { axe } from 'vitest-axe';
@@ -137,10 +137,43 @@ describe('PeriodField', () => {
   it('centers the popover under the field in form placement', async () => {
     render(<Harness placement="form" name="range" />);
     await userEvent.click(trigger());
-    expect(screen.getByRole('dialog').className).toMatch(/form/);
     expect(document.querySelector('input[type="hidden"][name="period"]')).toHaveValue('this_month');
     expect(document.querySelector('input[type="hidden"][name="from"]')).toHaveValue('2026-10-01');
     expect(document.querySelector('input[type="hidden"][name="to"]')).toHaveValue('2026-10-31');
+  });
+
+  it('keeps the popover inside a small window, scrolling inside when taller', async () => {
+    const proto = HTMLElement.prototype;
+    const rect = vi.spyOn(proto, 'getBoundingClientRect').mockReturnValue({
+      left: 20,
+      right: 340,
+      top: 500,
+      bottom: 540,
+      width: 320,
+      height: 40,
+      x: 20,
+      y: 500,
+      toJSON: () => ({}),
+    });
+    const width = vi.spyOn(proto, 'offsetWidth', 'get').mockReturnValue(500);
+    const height = vi.spyOn(proto, 'offsetHeight', 'get').mockReturnValue(900);
+    vi.stubGlobal('innerWidth', 360);
+    vi.stubGlobal('innerHeight', 640);
+    try {
+      render(<Harness placement="form" />);
+      await userEvent.click(trigger());
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.style.left).toBe('8px');
+      expect(Number.parseFloat(dialog.style.top)).toBeGreaterThanOrEqual(8);
+      expect(dialog.style.maxHeight).toBe('624px');
+      fireEvent(window, new Event('resize'));
+      expect(Number.parseFloat(dialog.style.left)).toBeGreaterThanOrEqual(8);
+    } finally {
+      rect.mockRestore();
+      width.mockRestore();
+      height.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('closes on Escape and on outside click', async () => {
