@@ -1,0 +1,33 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-bottom: var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.link {
+  margin-bottom: -1px;
+  padding: var(--s2) var(--s3);
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--text);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
