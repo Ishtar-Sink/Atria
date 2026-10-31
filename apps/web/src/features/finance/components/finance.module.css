@@ -1,0 +1,603 @@
+/* Estilos comuns do Financeiro, só com tokens do tema ([project/code-style-10]). */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== Cabeçalho e abas do módulo ===== */
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.tabList {
+  display: flex;
+  gap: var(--space);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tab {
+  display: inline-block;
+  margin-bottom: -1px;
+  padding: calc(var(--space) * 2) calc(var(--space) * 4);
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--motion-ease-standard);
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-current='page'] {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ===== Barra de ferramentas das listas ===== */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.filters > * {
+  min-width: calc(var(--space) * 40);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.chipsLegend {
+  margin-bottom: var(--s1);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.chip {
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.chip:hover {
+  background: var(--surface-hover);
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s4);
+}
+
+/* ===== Linhas e grade ===== */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space) * 60), 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--elevation-1);
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.row:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.grid .row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.rowTitle {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O link cobre a linha inteira; o foco aparece na linha. */
+.rowTitle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.rowTitle:focus-visible {
+  outline: none;
+}
+
+.rowSub {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+  flex-shrink: 0;
+}
+
+.grid .rowMeta {
+  align-items: flex-start;
+}
+
+.rowEnd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s1);
+}
+
+.swatch {
+  flex-shrink: 0;
+  width: calc(var(--space) * 8);
+  height: calc(var(--space) * 8);
+  border-radius: var(--radius-md);
+}
+
+.dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: calc(var(--space) * 3);
+  height: calc(var(--space) * 3);
+  border-radius: var(--radius-pill);
+}
+
+.tone_primary {
+  background: var(--primary);
+}
+
+.tone_accent {
+  background: var(--accent);
+}
+
+.tone_success {
+  background: var(--success);
+}
+
+.tone_warning {
+  background: var(--warning);
+}
+
+.tone_danger {
+  background: var(--danger);
+}
+
+.tone_info {
+  background: var(--info);
+}
+
+/* ===== Detalhes em cartões (PD-59) ===== */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--space) * 80);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.cardHelp {
+  margin: 0 0 var(--s3);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s2) var(--s5);
+  margin: 0;
+}
+
+.factRow {
+  display: contents;
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.callout {
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius-md);
+  background: var(--info-soft);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.notice {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--text);
+}
+
+.noticeInfo {
+  background: var(--info-soft);
+}
+
+.noticeSuccess {
+  background: var(--success-soft);
+}
+
+.formError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+
+.settleForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+  align-items: end;
+}
+
+.settleForm > [data-span='full'] {
+  grid-column: 1 / -1;
+}
+
+.settleActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settledFacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.inlineLink {
+  color: var(--primary);
+}
+
+.inlineLink:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ===== Diálogo do Financeiro (confirmação com escolha) ===== */
+.dialog {
+  max-width: min(calc(var(--space) * 120), calc(100vw - calc(var(--space) * 8)));
+  padding: calc(var(--space) * 6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--elevation-3);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.dialogTitle {
+  margin: 0 0 calc(var(--space) * 2);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  color: var(--text-muted);
+}
+
+.dialogBody p {
+  margin: 0;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-top: calc(var(--space) * 6);
+}
+
+/* ===== Gráficos do Painel ===== */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: var(--s1) var(--s3);
+  align-items: center;
+}
+
+.barLabel {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.barLabel {
+  color: var(--primary);
+}
+
+.barTrack {
+  grid-column: 1 / -1;
+  height: calc(var(--space) * 2);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.columns {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  gap: var(--s5);
+  height: calc(var(--space) * 40);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--border);
+}
+
+.columnGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  height: 100%;
+  min-width: 0;
+}
+
+.columnBars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s1);
+  flex: 1;
+}
+
+.columnBar {
+  width: calc(var(--space) * 6);
+  min-height: 2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.columnLabel {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.legendValues {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.legendValues dt {
+  color: var(--text-muted);
+}
+
+.legendValues dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 960px) {
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .row {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .settleForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filters > * {
+    min-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .chip,
+  .row {
+    transition: none;
+  }
+}
+
+.figure {
+  margin: 0;
+}
+
+.spread {
+  justify-content: space-between;
+}

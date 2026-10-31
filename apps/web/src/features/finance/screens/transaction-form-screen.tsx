@@ -1,0 +1,569 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Card,
+  Checkbox,
+  DateField,
+  ErrorState,
+  FormActions,
+  FormGrid,
+  LoadingState,
+  SelectField,
+  TextField,
+} from '@atria/ui';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { z } from 'zod';
+import { formatMoney } from '../../../shared/format/intl';
+import { FormDate, FormSelect, useDateLabels } from '../../../shared/forms/form-fields';
+import {
+  defaultRecurrenceRule,
+  FormRecurrence,
+  type RecurrenceRule,
+} from '../../../shared/forms/recurrence-fields';
+import { useT } from '../../../shared/i18n/i18n';
+import { FormScreen } from '../../../shared/layout/form-screen';
+import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
+import { BackLink } from '../../../shared/navigation/back-link';
+import { usePreferences } from '../../../shared/preferences/preferences-context';
+import styles from '../components/finance.module.css';
+import { MoneyField } from '../components/money-field';
+import { VisibilityField } from '../components/visibility-field';
+import {
+  errorMessageKey,
+  problemCode,
+  useIdempotencyKey,
+  type Transaction,
+  type TransactionKind,
+} from '../hooks/finance-cache';
+import { useAccounts, type Account } from '../hooks/use-accounts';
+import { useCategories, type Category } from '../hooks/use-categories';
+import {
+  toContractRule,
+  toFormRule,
+  useCreateRecurringTransaction,
+  useRecurringTransaction,
+  useUpdateRecurringTransaction,
+  type RecurringTransaction,
+} from '../hooks/use-recurring-transactions';
+import {
+  changedFields,
+  editableFields,
+  useCreateTransaction,
+  useTransaction,
+  useUpdateTransaction,
+  type EditableField,
+} from '../hooks/use-transactions';
+import { todayInTimeZone } from '../lib/finance-period';
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const INSTALLMENTS = /^(?:[1-9]|[1-3]\d|4[0-8])$/;
+
+const form_schema = z
+  .object({
+    description: z.string().max(200),
+    account_id: z.string().min(1, 'finance.transaction_form.account_required'),
+    category_id: z.string(),
+    expected_amount: z
+      .number()
+      .int()
+      .positive('finance.transaction_form.amount_invalid')
+      .nullable(),
+    expected_date: z.string(),
+    installments: z.string(),
+    repeat: z.boolean(),
+    rule: z.custom<RecurrenceRule>(),
+    visibility: z.enum(['personal', 'shared']),
+  })
+  .superRefine((values, context) => {
+    if (values.expected_amount === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['expected_amount'],
+        message: 'finance.transaction_form.amount_invalid',
+      });
+    }
+    if (!values.repeat && !ISO_DAY.test(values.expected_date)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['expected_date'],
+        message: 'finance.transaction_form.date_required',
+      });
+    }
+    if (values.repeat && !ISO_DAY.test(values.rule.starts_on)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['rule', 'starts_on'],
+        message: 'finance.transaction_form.date_required',
+      });
+    }
+    if (values.installments.trim() !== '' && !INSTALLMENTS.test(values.installments.trim())) {
+      context.addIssue({
+        code: 'custom',
+        path: ['installments'],
+        message: 'finance.transaction_form.installments_invalid',
+      });
+    }
+  });
+
+type FormValues = z.input<typeof form_schema>;
+
+type Mode =
+  | { type: 'create'; kind: TransactionKind }
+  | { type: 'edit'; transaction: Transaction }
+  | { type: 'recurrence'; recurrence: RecurringTransaction };
+
+function kindOf(mode: Mode): TransactionKind {
+  if (mode.type === 'create') return mode.kind;
+  if (mode.type === 'edit') return mode.transaction.kind;
+  return mode.recurrence.kind;
+}
+
+function titleKey(mode: Mode): string {
+  const kind = kindOf(mode);
+  if (mode.type === 'recurrence') return 'finance.transaction_form.edit_recurrence';
+  if (mode.type === 'edit') return `finance.transaction_form.edit_${kind}`;
+  return `finance.transaction_form.new_${kind}`;
+}
+
+function initialValues(
+  mode: Mode,
+  categories: readonly Category[],
+  time_zone: string,
+  today: string,
+): FormValues {
+  if (mode.type === 'edit') {
+    const item = mode.transaction;
+    return {
+      description: item.description ?? '',
+      account_id: item.account_id,
+      category_id: item.category_id ?? '',
+      expected_amount: item.expected_amount,
+      expected_date: item.expected_date,
+      installments: '',
+      repeat: false,
+      rule: defaultRecurrenceRule(time_zone, item.expected_date),
+      visibility: item.visibility,
+    };
+  }
+  if (mode.type === 'recurrence') {
+    const item = mode.recurrence;
+    return {
+      description: item.description ?? '',
+      account_id: item.account_id,
+      category_id: item.category_id ?? '',
+      expected_amount: item.expected_amount,
+      expected_date: item.rule.starts_on,
+      installments: '',
+      repeat: true,
+      rule: toFormRule(item.rule),
+      visibility: item.visibility,
+    };
+  }
+  return {
+    description: '',
+    account_id: '',
+    category_id: categories[0]?.id ?? '',
+    expected_amount: null,
+    expected_date: today,
+    installments: '',
+    repeat: false,
+    rule: { ...defaultRecurrenceRule(time_zone, today), frequency: 'monthly' },
+    visibility: 'personal',
+  };
+}
+
+interface CreatedParts {
+  items: Transaction[];
+}
+
+function InstallmentsResult({ created }: { created: CreatedParts }) {
+  const t = useT();
+  const { locale } = usePreferences();
+  const first = created.items[0];
+  return (
+    <Card as="section" aria-labelledby="installments-title" data-span="full">
+      <h2 id="installments-title" className={styles.cardTitle}>
+        {t('finance.transaction_form.created_installments', { count: created.items.length })}
+      </h2>
+      <ul className={styles.list}>
+        {created.items.map((part) => (
+          <li key={part.id} className={styles.rowSub}>
+            {t('finance.transaction_form.installment_line', {
+              number: part.installment?.number ?? 1,
+              total: part.installment?.total ?? created.items.length,
+              statement: part.statement_period ?? '–',
+              value: formatMoney(part.expected_amount, part.currency, locale),
+            })}
+          </li>
+        ))}
+      </ul>
+      {first ? (
+        <p>
+          <Link
+            to="/finance/transactions/$transactionId"
+            params={{ transactionId: first.id }}
+            className={styles.inlineLink}
+          >
+            {t('finance.transaction_form.view_transaction')}
+          </Link>
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+interface TransactionFormProps {
+  mode: Mode;
+  accounts: readonly Account[];
+  categories: readonly Category[];
+}
+
+function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
+  const t = useT();
+  const navigate = useNavigate();
+  const { locale, time_zone } = usePreferences();
+  const date_labels = useDateLabels();
+  const today = todayInTimeZone(new Date(), time_zone);
+  const kind = kindOf(mode);
+  const idempotency = useIdempotencyKey();
+  const create = useCreateTransaction();
+  const create_recurring = useCreateRecurringTransaction();
+  const update = useUpdateTransaction(mode.type === 'edit' ? mode.transaction.id : '');
+  const update_recurring = useUpdateRecurringTransaction(
+    mode.type === 'recurrence' ? mode.recurrence.id : '',
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<CreatedParts | null>(null);
+  const {
+    control,
+    register,
+    handleSubmit,
+    formState,
+    setError: setFieldError,
+  } = useForm<FormValues>({
+    resolver: zodResolver(form_schema),
+    defaultValues: initialValues(mode, categories, time_zone, today),
+  });
+  const account_id = useWatch({ control, name: 'account_id' });
+  const repeat = useWatch({ control, name: 'repeat' });
+  const account = accounts.find((item) => item.id === account_id);
+  const is_card = account?.kind === 'credit_card';
+  const editable: readonly EditableField[] =
+    mode.type === 'edit' ? editableFields(mode.transaction) : [];
+  const locked = (field: EditableField) => mode.type === 'edit' && !editable.includes(field);
+  const lock_help =
+    mode.type === 'edit'
+      ? mode.transaction.status === 'settled'
+        ? t('finance.transaction_form.settled_locked')
+        : mode.transaction.installment
+          ? t('finance.transaction_form.installment_locked')
+          : undefined
+      : undefined;
+  const message = (value: string | undefined) => (value ? t(value) : undefined);
+  const account_options = accounts.map((item) => ({ value: item.id, label: item.name }));
+  const category_options = categories.map((item) => ({ value: item.id, label: item.name }));
+
+  function onRefused(failure: unknown) {
+    const code = problemCode(failure);
+    if (code === 'category_kind_mismatch') {
+      setFieldError('category_id', { message: 'finance.errors.category_kind_mismatch' });
+      return;
+    }
+    setError(errorMessageKey(failure));
+  }
+
+  async function submitCreate(values: FormValues) {
+    const base = {
+      kind,
+      account_id: values.account_id,
+      category_id: values.category_id || null,
+      description: values.description.trim() || null,
+      expected_amount: values.expected_amount ?? 0,
+      visibility: values.visibility,
+    };
+    if (values.repeat) {
+      const recurrence = await create_recurring.mutateAsync({
+        idempotency_key: idempotency.key,
+        input: { ...base, rule: toContractRule({ ...values.rule, timezone: time_zone }) },
+      });
+      idempotency.renew();
+      await navigate({
+        to: '/finance/recurring-transactions/$recurrenceId',
+        params: { recurrenceId: recurrence.id },
+      });
+      return;
+    }
+    const installments = is_card ? Number(values.installments.trim() || '1') : 1;
+    const items = await create.mutateAsync({
+      idempotency_key: idempotency.key,
+      input: {
+        ...base,
+        expected_date: values.expected_date,
+        ...(installments > 1 ? { installments } : {}),
+      },
+    });
+    idempotency.renew();
+    if (items.length > 1) {
+      setCreated({ items });
+      return;
+    }
+    const first = items[0];
+    if (first) {
+      await navigate({
+        to: '/finance/transactions/$transactionId',
+        params: { transactionId: first.id },
+      });
+    }
+  }
+
+  async function onSubmit(values: FormValues) {
+    setError(null);
+    try {
+      if (mode.type === 'create') {
+        await submitCreate(values);
+        return;
+      }
+      if (mode.type === 'edit') {
+        const patch = changedFields(mode.transaction, {
+          description: values.description.trim() || null,
+          account_id: values.account_id,
+          category_id: values.category_id || null,
+          expected_amount: values.expected_amount,
+          expected_date: values.expected_date,
+          visibility: values.visibility,
+        });
+        if (Object.keys(patch).length > 0) await update.mutateAsync(patch);
+        await navigate({
+          to: '/finance/transactions/$transactionId',
+          params: { transactionId: mode.transaction.id },
+        });
+        return;
+      }
+      await update_recurring.mutateAsync({
+        description: values.description.trim() || null,
+        account_id: values.account_id,
+        category_id: values.category_id || null,
+        expected_amount: values.expected_amount,
+        rule: toContractRule({ ...values.rule, timezone: time_zone }),
+      });
+      await navigate({
+        to: '/finance/recurring-transactions/$recurrenceId',
+        params: { recurrenceId: mode.recurrence.id },
+      });
+    } catch (failure) {
+      onRefused(failure);
+    }
+  }
+
+  const back_to =
+    mode.type === 'edit'
+      ? `/finance/transactions/${mode.transaction.id}`
+      : mode.type === 'recurrence'
+        ? `/finance/recurring-transactions/${mode.recurrence.id}`
+        : undefined;
+  const fallback = kind === 'income' ? '/finance/income' : '/finance/expenses';
+
+  return (
+    <FormScreen>
+      <StickyPageHeader
+        back={
+          <BackLink module="finance" fallback_to={fallback} {...(back_to ? { to: back_to } : {})} />
+        }
+        eyebrow={t('finance.shell.title')}
+        title={t(titleKey(mode))}
+        subtitle={
+          mode.type === 'recurrence'
+            ? t('finance.transaction_form.rule_scope')
+            : t('finance.transaction_form.subtitle')
+        }
+      />
+      <form
+        noValidate
+        onSubmit={(event) => {
+          void handleSubmit(onSubmit)(event);
+        }}
+      >
+        <FormGrid>
+          {lock_help ? (
+            <p data-span="full" className={styles.notice}>
+              {lock_help}
+            </p>
+          ) : null}
+          <div data-span="full">
+            <TextField
+              label={t('finance.transaction_form.description')}
+              autoComplete="off"
+              maxLength={200}
+              {...register('description')}
+            />
+          </div>
+          {locked('account_id') ? (
+            <SelectField
+              label={t('finance.transaction_form.account')}
+              options={account_options}
+              value={mode.type === 'edit' ? mode.transaction.account_id : ''}
+              onChange={() => undefined}
+              disabled
+              {...(lock_help ? { help: lock_help } : {})}
+            />
+          ) : (
+            <FormSelect
+              control={control}
+              name="account_id"
+              label={t('finance.transaction_form.account')}
+              options={account_options}
+            />
+          )}
+          <FormSelect
+            control={control}
+            name="category_id"
+            label={t('finance.transaction_form.category')}
+            options={category_options}
+          />
+          {locked('expected_amount') ? (
+            <TextField
+              label={t('finance.transaction_form.expected_amount')}
+              value={formatMoney(
+                mode.type === 'edit' ? mode.transaction.expected_amount : 0,
+                mode.type === 'edit' ? mode.transaction.currency : 'BRL',
+                locale,
+              )}
+              disabled
+              readOnly
+              {...(lock_help ? { help: lock_help } : {})}
+            />
+          ) : (
+            <MoneyField
+              control={control}
+              name="expected_amount"
+              label={t(
+                mode.type === 'recurrence'
+                  ? 'finance.transaction_form.amount'
+                  : 'finance.transaction_form.expected_amount',
+              )}
+            />
+          )}
+          {repeat ? null : locked('expected_date') ? (
+            <Controller
+              control={control}
+              name="expected_date"
+              render={({ field }) => (
+                <DateField
+                  label={t('finance.transaction_form.expected_date')}
+                  value={field.value}
+                  onChange={() => undefined}
+                  locale={locale}
+                  labels={date_labels}
+                  disabled
+                  {...(lock_help ? { help: lock_help } : {})}
+                />
+              )}
+            />
+          ) : (
+            <FormDate
+              control={control}
+              name="expected_date"
+              label={t('finance.transaction_form.expected_date')}
+            />
+          )}
+          {mode.type === 'create' && is_card && !repeat ? (
+            <TextField
+              label={t('finance.transaction_form.installments')}
+              help={t('finance.transaction_form.installments_help')}
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={2}
+              placeholder="1"
+              {...register('installments')}
+              {...(formState.errors.installments
+                ? { error: message(formState.errors.installments.message) }
+                : {})}
+            />
+          ) : null}
+          {mode.type === 'create' ? (
+            <div data-span="full">
+              <Checkbox label={t('finance.transaction_form.repeat')} {...register('repeat')} />
+            </div>
+          ) : null}
+          {repeat ? (
+            <div data-span="full">
+              <FormRecurrence control={control} name="rule" with_time={false} show_summary />
+              {mode.type === 'recurrence' ? (
+                <p className={styles.cardHelp}>{t('finance.transaction_form.rule_scope')}</p>
+              ) : null}
+            </div>
+          ) : null}
+          {mode.type === 'recurrence' ? null : (
+            <VisibilityField control={control} name="visibility" />
+          )}
+          {error ? (
+            <p role="alert" data-span="full" className={styles.formError}>
+              {t(error)}
+            </p>
+          ) : null}
+          {created ? <InstallmentsResult created={created} /> : null}
+          <FormActions
+            cancel_label={t('common.cancel')}
+            submit_label={t('common.save')}
+            loading={formState.isSubmitting}
+            onCancel={() => {
+              void navigate({ to: back_to ?? fallback });
+            }}
+          />
+        </FormGrid>
+      </form>
+    </FormScreen>
+  );
+}
+
+export type TransactionFormScreenProps =
+  | { mode: 'create'; kind: TransactionKind }
+  | { mode: 'edit'; transaction_id: string }
+  | { mode: 'recurrence'; recurrence_id: string };
+
+/** Criar entrada ou saída, editar uma movimentação ou a regra de uma recorrente (DEC-005). */
+export function TransactionFormScreen(props: TransactionFormScreenProps) {
+  const t = useT();
+  const transaction = useTransaction(props.mode === 'edit' ? props.transaction_id : undefined);
+  const recurrence = useRecurringTransaction(
+    props.mode === 'recurrence' ? props.recurrence_id : undefined,
+  );
+  const kind: TransactionKind | undefined =
+    props.mode === 'create'
+      ? props.kind
+      : props.mode === 'edit'
+        ? transaction.data?.kind
+        : recurrence.data?.kind;
+  const accounts = useAccounts();
+  const categories = useCategories(kind);
+  const pending_entity =
+    (props.mode === 'edit' && transaction.isError) ||
+    (props.mode === 'recurrence' && recurrence.isError);
+
+  if (accounts.isError || categories.isError || pending_entity) {
+    return (
+      <ErrorState
+        title={t('finance.detail.error_title')}
+        description={t('finance.form.load_error')}
+        retryLabel={t('common.retry')}
+        onRetry={() => {
+          void accounts.refetch();
+          void categories.refetch();
+          void transaction.refetch();
+          void recurrence.refetch();
+        }}
+      />
+    );
+  }
+  const mode: Mode | undefined =
+    props.mode === 'create'
+      ? { type: 'create', kind: props.kind }
+      : props.mode === 'edit'
+        ? transaction.data && { type: 'edit', transaction: transaction.data }
+        : recurrence.data && { type: 'recurrence', recurrence: recurrence.data };
+  if (!mode || !accounts.data || !categories.data || kind === undefined) {
+    return <LoadingState label={t('common.loading')} />;
+  }
+  return <TransactionForm mode={mode} accounts={accounts.data} categories={categories.data} />;
+}
