@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+
+# Builds
+target/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Testes e relatórios gerados
+coverage/
+test-results/
+playwright-report/
+.lighthouseci/
+
+# Configuração local e segredos
+.env
+.env.*
+!.env.example
+secrets/
+.claude/settings.local.json
+
+# Sistema e editores
+.DS_Store
+*.log
+.idea/
+.vscode/
