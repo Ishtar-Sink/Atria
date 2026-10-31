@@ -201,6 +201,7 @@ export function Calendar({
                   <button
                     type="button"
                     data-day={iso}
+                    data-outside={outside ? '' : undefined}
                     className={classes}
                     tabIndex={iso === roving ? 0 : -1}
                     aria-pressed={edge}

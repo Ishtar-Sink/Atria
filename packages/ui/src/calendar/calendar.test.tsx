@@ -35,6 +35,12 @@ function Harness({
 }
 
 describe('Calendar', () => {
+  it('marks days outside the month with data-outside', () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelector('[data-day="2026-10-15"]')).not.toHaveAttribute('data-outside');
+    expect(container.querySelector('[data-day="2026-09-30"]')).toHaveAttribute('data-outside');
+  });
+
   it('renders the month grid with weekday headers in the locale', () => {
     render(<Harness />);
     expect(screen.getByRole('grid', { name: 'outubro de 2026' })).toBeInTheDocument();
