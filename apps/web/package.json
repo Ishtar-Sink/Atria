@@ -18,6 +18,7 @@
     "printWidth": 100
   },
   "dependencies": {
+    "@atria/contracts": "workspace:*",
     "@atria/theme": "workspace:*",
     "@atria/ui": "workspace:*",
     "@hookform/resolvers": "^6.0.2",
