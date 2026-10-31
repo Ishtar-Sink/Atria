@@ -1,0 +1,32 @@
+.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: 0 calc(var(--space) * -6);
+  padding: var(--s2) calc(var(--space) * 6) 0;
+  isolation: isolate;
+}
+
+/* Desfoque sem cor e sem linha, que some em degradê embaixo (PD-20). */
+.sticky::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 calc(var(--space) * -4);
+  z-index: -1;
+  backdrop-filter: blur(12px);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space) * 5), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--motion-ease-standard);
+}
+
+.sticky:has([data-stuck])::before {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .sticky {
+    margin: 0 calc(var(--space) * -3);
+    padding: var(--s2) calc(var(--space) * 3) 0;
+  }
+}

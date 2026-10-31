@@ -1,0 +1,18 @@
+/* "Voltar" do protótipo (`.back-link`): chevron, 14 px, recuado para alinhar o ícone à borda do título. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-left: calc(-1 * var(--s2));
+  padding: var(--s1) var(--s2);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}

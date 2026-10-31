@@ -1,0 +1,6 @@
+/* Tela de formulário do protótipo (`.screen-form`): cabeçalho e cartão com até 880 px, centralizados. */
+.screen {
+  width: 100%;
+  max-width: calc(var(--space) * 220);
+  margin-inline: auto;
+}
