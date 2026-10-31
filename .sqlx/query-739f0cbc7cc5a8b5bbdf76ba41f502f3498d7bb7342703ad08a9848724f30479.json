@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::uuid IS NULL OR id > $2) AND ($3::date IS NULL OR transferred_on >= $3) AND ($4::date IS NULL OR transferred_on <= $4) AND ($5::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($5)) || '%' ESCAPE '\\') ORDER BY id LIMIT $6",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "from_account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "to_account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "transferred_on: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "statement_period",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Date",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "739f0cbc7cc5a8b5bbdf76ba41f502f3498d7bb7342703ad08a9848724f30479"
+}

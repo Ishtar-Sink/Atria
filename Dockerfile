@@ -23,6 +23,7 @@ FROM rust:1.99.1-bookworm AS server
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY apps/server apps/server
+COPY .sqlx .sqlx
 COPY --from=web /src/apps/web/dist apps/web/dist
 ENV SQLX_OFFLINE=true
 # O OpenSSL do web-push é compilado junto (feature `vendored`, KNW-003): perl, make e cc

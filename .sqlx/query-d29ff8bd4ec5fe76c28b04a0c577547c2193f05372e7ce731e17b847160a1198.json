@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks SET visibility = $3, title = $4, description = $5, due_on = $6, completed_at = $7, labels = $8, updated_at = $9 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Timestamptz",
+        "TextArray",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d29ff8bd4ec5fe76c28b04a0c577547c2193f05372e7ce731e17b847160a1198"
+}

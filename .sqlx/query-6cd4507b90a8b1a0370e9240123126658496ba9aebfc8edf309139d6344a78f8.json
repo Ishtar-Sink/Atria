@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.task_id, s.rule AS \"rule: _\", s.effective_from AS \"effective_from: _\", s.effective_until AS \"effective_until: _\" FROM task_recurrence_segments s JOIN tasks t ON t.id = s.task_id WHERE s.owner_id = $1 AND t.owner_id = $1 AND t.deleted_at IS NULL ORDER BY s.task_id, s.effective_from",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "task_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "rule: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "effective_from: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "effective_until: _",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "6cd4507b90a8b1a0370e9240123126658496ba9aebfc8edf309139d6344a78f8"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE emotions SET deleted_at = $3, updated_at = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eaebd0b768655e485428ef01b0c2344ac7daccf5a4ae2f9704af403a9a4af40d"
+}

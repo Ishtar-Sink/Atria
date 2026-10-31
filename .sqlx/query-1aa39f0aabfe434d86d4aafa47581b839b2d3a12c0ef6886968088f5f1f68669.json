@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM reading_sessions WHERE owner_id = $1 AND book_id = $2 AND id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1aa39f0aabfe434d86d4aafa47581b839b2d3a12c0ef6886968088f5f1f68669"
+}

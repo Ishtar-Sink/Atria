@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT next_fire_at AS \"next_fire_at: DateTime<Utc>\" FROM reminder_schedule WHERE reminder_id = $1 AND owner_id = $2 AND next_fire_at <= $3 FOR UPDATE SKIP LOCKED",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next_fire_at: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "feb9cb813629effb8eb0d18d26b76d2c2f61b2bdf4f1e630101f6743aa4527c6"
+}

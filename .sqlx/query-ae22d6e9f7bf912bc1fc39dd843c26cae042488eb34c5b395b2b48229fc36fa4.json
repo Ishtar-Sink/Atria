@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM links WHERE owner_id = $1 AND ((source_type = $2 AND source_id = $3) OR (target_type = $2 AND target_id = $3))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ae22d6e9f7bf912bc1fc39dd843c26cae042488eb34c5b395b2b48229fc36fa4"
+}

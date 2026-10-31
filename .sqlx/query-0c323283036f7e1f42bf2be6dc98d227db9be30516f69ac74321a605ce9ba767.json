@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE categories SET name = $1, color = $2, visibility = $3, updated_at = $4 WHERE id = $5 AND owner_id = $6 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c323283036f7e1f42bf2be6dc98d227db9be30516f69ac74321a605ce9ba767"
+}

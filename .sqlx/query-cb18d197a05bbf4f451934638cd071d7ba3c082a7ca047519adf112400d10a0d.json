@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE recurring_transactions SET account_id = $1, category_id = $2, expected_amount = $3, currency = $4, rule = $5, description = $6, updated_at = $7 WHERE id = $8 AND owner_id = $9 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Bpchar",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cb18d197a05bbf4f451934638cd071d7ba3c082a7ca047519adf112400d10a0d"
+}

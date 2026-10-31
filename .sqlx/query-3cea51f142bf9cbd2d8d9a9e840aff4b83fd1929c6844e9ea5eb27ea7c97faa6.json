@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_card_checklist_items (id, owner_id, visibility, card_id, text, done, position, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3cea51f142bf9cbd2d8d9a9e840aff4b83fd1929c6844e9ea5eb27ea7c97faa6"
+}

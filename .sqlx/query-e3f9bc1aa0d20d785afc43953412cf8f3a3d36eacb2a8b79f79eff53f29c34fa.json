@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT entity_type AS \"entity_type!\", id AS \"id!\", project_id AS \"project_id!\",\n                          title AS \"title!\", rank AS \"rank!\" FROM (\n                     SELECT 'project'::text AS entity_type, p.id, p.id AS project_id, p.name AS title,\n                            ts_rank(p.search_vector, q.query)::float8 AS rank\n                       FROM projects p, websearch_to_tsquery('portuguese', projects_unaccent($2)) AS q(query)\n                      WHERE p.owner_id = $1 AND p.deleted_at IS NULL AND p.search_vector @@ q.query\n                     UNION ALL\n                     SELECT 'project_card'::text, c.id, c.project_id, c.title,\n                            ts_rank(c.search_vector, q.query)::float8\n                       FROM project_cards c\n                       JOIN projects p ON p.id = c.project_id AND p.deleted_at IS NULL,\n                            websearch_to_tsquery('portuguese', projects_unaccent($2)) AS q(query)\n                      WHERE c.owner_id = $1 AND c.deleted_at IS NULL AND c.search_vector @@ q.query\n                   ) hits ORDER BY rank DESC, title, id LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "entity_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "rank!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "e3f9bc1aa0d20d785afc43953412cf8f3a3d36eacb2a8b79f79eff53f29c34fa"
+}

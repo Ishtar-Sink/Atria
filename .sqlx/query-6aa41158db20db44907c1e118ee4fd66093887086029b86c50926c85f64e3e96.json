@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO milestones (id, owner_id, visibility, goal_id, title, position, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, COALESCE($6, (SELECT COALESCE(MAX(position) + 1, 0) FROM milestones WHERE goal_id = $4 AND owner_id = $2 AND deleted_at IS NULL)), $7, $7) RETURNING id, owner_id, visibility AS \"visibility: _\", goal_id, title, position, completed_at AS \"completed_at: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", deleted_at AS \"deleted_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "goal_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "completed_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "deleted_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "6aa41158db20db44907c1e118ee4fd66093887086029b86c50926c85f64e3e96"
+}

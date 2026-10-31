@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO reminder_deliveries (id, owner_id, reminder_id, fire_at, delivered_at, push_status) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (reminder_id, fire_at) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe39a2a97c1f941737af5f5771c1bb78d0c73f8f2483894c955de0aac812e6db"
+}

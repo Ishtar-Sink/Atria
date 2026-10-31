@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM tower_sessions.session WHERE position(convert_to($1, 'UTF8') IN data) > 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0050f00e8694bcd25ab5608648439e282972efe25b4379d9f89c3f5389912870"
+}

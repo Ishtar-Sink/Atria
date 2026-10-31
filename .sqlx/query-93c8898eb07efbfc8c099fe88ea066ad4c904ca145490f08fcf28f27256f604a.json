@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE reminder_deliveries SET push_status = $4 WHERE reminder_id = $1 AND owner_id = $2 AND fire_at = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "93c8898eb07efbfc8c099fe88ea066ad4c904ca145490f08fcf28f27256f604a"
+}

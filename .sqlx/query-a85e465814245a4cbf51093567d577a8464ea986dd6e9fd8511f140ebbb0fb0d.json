@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.id, g.owner_id, g.visibility AS \"visibility: _\", g.title, g.description, g.deadline AS \"deadline: _\", g.status AS \"status: _\", g.labels, g.created_at AS \"created_at: _\", g.updated_at AS \"updated_at: _\", m.total AS \"milestone_count!\", m.done AS \"completed_milestone_count!\" FROM goals g CROSS JOIN LATERAL (SELECT count(*) AS total, count(completed_at) AS done FROM milestones WHERE goal_id = g.id AND owner_id = $1 AND deleted_at IS NULL) m WHERE g.id = $2 AND g.owner_id = $1 AND g.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "deadline: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "status: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "labels",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "milestone_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "completed_milestone_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "a85e465814245a4cbf51093567d577a8464ea986dd6e9fd8511f140ebbb0fb0d"
+}

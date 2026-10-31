@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET totp_secret_encrypted = totp_pending_secret_encrypted, totp_pending_secret_encrypted = NULL, totp_enabled_at = $2, updated_at = $2 WHERE id = $1 AND totp_pending_secret_encrypted IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e5c2442f855e0edd823e842e0b6a12d7bc8bf949a35a37380c15960fb2e2739a"
+}

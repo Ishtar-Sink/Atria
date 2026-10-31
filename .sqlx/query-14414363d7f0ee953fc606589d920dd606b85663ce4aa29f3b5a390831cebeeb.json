@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE library_files SET deleted_at = $3, updated_at = $3 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL RETURNING storage_key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "storage_key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "14414363d7f0ee953fc606589d920dd606b85663ce4aa29f3b5a390831cebeeb"
+}

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_preferences (user_id, theme, locale, timezone, currency, palette_shortcut, search_contexts, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (user_id) DO UPDATE SET theme = EXCLUDED.theme, locale = EXCLUDED.locale, timezone = EXCLUDED.timezone, currency = EXCLUDED.currency, palette_shortcut = EXCLUDED.palette_shortcut, search_contexts = EXCLUDED.search_contexts, updated_at = EXCLUDED.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bpchar",
+        "Text",
+        "TextArray",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca269292acfb1da524802da23f0f9ffdb6be5556f9d7e978a4aabda472a104c9"
+}

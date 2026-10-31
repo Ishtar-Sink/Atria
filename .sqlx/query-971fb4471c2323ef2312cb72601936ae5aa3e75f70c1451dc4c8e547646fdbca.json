@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM task_completions WHERE owner_id = $1 AND task_id = $2 AND occurrence_date = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "971fb4471c2323ef2312cb72601936ae5aa3e75f70c1451dc4c8e547646fdbca"
+}

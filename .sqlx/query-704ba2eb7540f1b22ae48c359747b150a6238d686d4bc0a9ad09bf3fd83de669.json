@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE project_cards SET lane_id = $3 WHERE lane_id = ANY($1) AND owner_id = $2 AND deleted_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "704ba2eb7540f1b22ae48c359747b150a6238d686d4bc0a9ad09bf3fd83de669"
+}

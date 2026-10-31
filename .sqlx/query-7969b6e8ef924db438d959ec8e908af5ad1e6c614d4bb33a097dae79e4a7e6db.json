@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, due_on AS \"due_on!: NaiveDate\", completed_at IS NOT NULL AS \"completed!\"\n               FROM tasks\n               WHERE owner_id = $1 AND deleted_at IS NULL AND NOT is_recurring\n               AND due_on BETWEEN $2 AND $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "due_on!: NaiveDate",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "completed!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "7969b6e8ef924db438d959ec8e908af5ad1e6c614d4bb33a097dae79e4a7e6db"
+}

@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, project_id, lane_id, owner_id, visibility AS \"visibility: _\", title, description, priority, labels, due_date AS \"due_date: _\", position, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM project_cards WHERE project_id = $1 AND owner_id = $2 AND deleted_at IS NULL ORDER BY lane_id, position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "lane_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "priority",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "labels",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "due_date: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 10,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cfc098c09c0a6d3609359efd1f4da4f0534b5c84f6838d212556b07c795bda81"
+}

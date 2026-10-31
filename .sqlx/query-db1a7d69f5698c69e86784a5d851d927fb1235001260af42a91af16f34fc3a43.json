@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO accounts (id, owner_id, visibility, name, kind, is_default, balance_amount, currency, credit_limit_amount, closing_day, due_day, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, false, 0, $6, $7, $8, $9, $10, $11)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bpchar",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "db1a7d69f5698c69e86784a5d851d927fb1235001260af42a91af16f34fc3a43"
+}

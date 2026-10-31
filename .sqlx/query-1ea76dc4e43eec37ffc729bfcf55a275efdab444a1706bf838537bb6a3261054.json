@@ -1,0 +1,107 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id, b.owner_id, b.visibility AS \"visibility: _\", b.title, b.author, b.publisher, b.page_count, b.tags, b.reading_status, b.cover_file_id, b.pdf_file_id, b.created_at AS \"created_at: _\", b.updated_at AS \"updated_at: _\", COALESCE((SELECT SUM(s.pages_read) FROM reading_sessions s WHERE s.book_id = b.id AND s.owner_id = b.owner_id), 0)::bigint AS \"pages_read_total!\" FROM books b WHERE b.owner_id = $1 AND b.deleted_at IS NULL AND ($2::text IS NULL OR b.visibility = $2) AND ($3::text IS NULL OR $3 = ANY(b.tags)) AND ($4::text IS NULL OR b.search_vector @@ websearch_to_tsquery('portuguese', library_unaccent($4))) AND ($5::timestamptz IS NULL OR (b.created_at, b.id) < ($5, $6)) AND ($8::text IS NULL OR b.reading_status = $8) ORDER BY b.created_at DESC, b.id DESC LIMIT $7",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "author",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "publisher",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "page_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "reading_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "cover_file_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "pdf_file_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "pages_read_total!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "1ea76dc4e43eec37ffc729bfcf55a275efdab444a1706bf838537bb6a3261054"
+}

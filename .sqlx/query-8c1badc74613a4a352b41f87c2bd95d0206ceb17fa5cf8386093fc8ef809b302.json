@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT entity_type AS \"entity_type!\", id AS \"id!\", title AS \"title!\",\n                          rank AS \"rank!\" FROM (\n                     SELECT 'book'::text AS entity_type, b.id, b.title,\n                            ts_rank(b.search_vector, q.query)::float8 AS rank\n                       FROM books b, websearch_to_tsquery('portuguese', library_unaccent($2)) AS q(query)\n                      WHERE b.owner_id = $1 AND b.deleted_at IS NULL AND b.search_vector @@ q.query\n                     UNION ALL\n                     SELECT 'article'::text, a.id, a.title, ts_rank(a.search_vector, q.query)::float8\n                       FROM articles a, websearch_to_tsquery('portuguese', library_unaccent($2)) AS q(query)\n                      WHERE a.owner_id = $1 AND a.deleted_at IS NULL AND a.search_vector @@ q.query\n                     UNION ALL\n                     SELECT 'video'::text, v.id, COALESCE(v.title, v.url),\n                            ts_rank(v.search_vector, q.query)::float8\n                       FROM videos v, websearch_to_tsquery('portuguese', library_unaccent($2)) AS q(query)\n                      WHERE v.owner_id = $1 AND v.deleted_at IS NULL AND v.search_vector @@ q.query\n                   ) hits ORDER BY rank DESC, title, id LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "entity_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "rank!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "8c1badc74613a4a352b41f87c2bd95d0206ceb17fa5cf8386093fc8ef809b302"
+}

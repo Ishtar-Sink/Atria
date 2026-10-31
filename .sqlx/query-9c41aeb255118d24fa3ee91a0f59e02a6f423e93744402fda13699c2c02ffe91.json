@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM journal_entry_emotions WHERE owner_id = $1 AND entry_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9c41aeb255118d24fa3ee91a0f59e02a6f423e93744402fda13699c2c02ffe91"
+}

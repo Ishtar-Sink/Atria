@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT occurrence_date AS \"occurrence_date: NaiveDate\" FROM task_completions WHERE owner_id = $1 AND task_id = $2 AND occurrence_date >= $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "occurrence_date: NaiveDate",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "63839c4774b0749f433b28ba30ece61a349f258c26b3d2fffb25c0c6741335b9"
+}

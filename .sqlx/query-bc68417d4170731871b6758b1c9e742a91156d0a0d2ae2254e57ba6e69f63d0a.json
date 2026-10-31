@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT invite_required, web_push_enabled, smtp_host, smtp_port, smtp_user, smtp_from FROM instance_settings WHERE id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "invite_required",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "web_push_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "smtp_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "smtp_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "smtp_user",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "smtp_from",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "bc68417d4170731871b6758b1c9e742a91156d0a0d2ae2254e57ba6e69f63d0a"
+}

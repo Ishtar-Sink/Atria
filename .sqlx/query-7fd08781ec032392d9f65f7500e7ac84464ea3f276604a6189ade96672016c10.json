@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET visibility = $3, url = $4, title = $5, tags = $6, thumbnail_file_id = $7, updated_at = $8, channel = $9, watch_status = $10 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Uuid",
+        "Timestamptz",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7fd08781ec032392d9f65f7500e7ac84464ea3f276604a6189ade96672016c10"
+}

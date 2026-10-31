@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE articles SET visibility = $3, title = $4, url = $5, author = $6, source = $7, tags = $8, reading_status = $9, cover_file_id = $10, pdf_file_id = $11, updated_at = $12 WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64714a13dc2fed06808b3d11802cba132a9b891d14dc18ed28d2664424bd1a06"
+}

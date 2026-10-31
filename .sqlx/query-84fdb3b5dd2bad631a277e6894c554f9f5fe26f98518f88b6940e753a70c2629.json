@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE milestones SET deleted_at = $4, updated_at = $4 WHERE id = $1 AND goal_id = $2 AND owner_id = $3 AND deleted_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "84fdb3b5dd2bad631a277e6894c554f9f5fe26f98518f88b6940e753a70c2629"
+}

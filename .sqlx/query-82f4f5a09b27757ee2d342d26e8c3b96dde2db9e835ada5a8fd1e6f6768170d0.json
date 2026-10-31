@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", title, description, due_on AS \"due_on: _\", is_recurring, completed_at AS \"completed_at: _\", labels, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM tasks WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::boolean IS NULL OR (completed_at IS NOT NULL) = $2) AND ($3::boolean IS NULL OR is_recurring = $3) AND ($4::date IS NULL OR due_on >= $4) AND ($5::date IS NULL OR due_on <= $5) AND ($6::text IS NULL OR labels @> ARRAY[$6]::text[]) AND ($7::text IS NULL OR strpos(lower(title), lower($7)) > 0) AND ($8::timestamptz IS NULL OR (created_at, id) < ($8, $9)) ORDER BY created_at DESC, id DESC LIMIT $10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "due_on: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_recurring",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "completed_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "labels",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Bool",
+        "Date",
+        "Date",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "82f4f5a09b27757ee2d342d26e8c3b96dde2db9e835ada5a8fd1e6f6768170d0"
+}

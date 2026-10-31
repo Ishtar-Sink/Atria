@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT request_hash, response_status, response_body FROM finance_idempotency_keys WHERE owner_id = $1 AND key = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "request_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "response_status",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "response_body",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7d1bbd8427c0ea02e66f3e9c7dc4caaeda88fccbe768a931a9b4422cda693dfc"
+}

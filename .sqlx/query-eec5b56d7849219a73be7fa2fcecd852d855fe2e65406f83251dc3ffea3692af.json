@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE instance_settings SET invite_required = $1, web_push_enabled = $2, smtp_host = $3, smtp_port = $4, smtp_user = $5, smtp_from = $6, updated_at = $7 WHERE id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Bool",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eec5b56d7849219a73be7fa2fcecd852d855fe2e65406f83251dc3ffea3692af"
+}

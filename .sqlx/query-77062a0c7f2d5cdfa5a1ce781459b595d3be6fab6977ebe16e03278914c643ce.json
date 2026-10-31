@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE reading_sessions SET read_on = $4, pages_read = $5, from_page = $6, to_page = $7, observation = $8, updated_at = $9 WHERE owner_id = $1 AND book_id = $2 AND id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77062a0c7f2d5cdfa5a1ce781459b595d3be6fab6977ebe16e03278914c643ce"
+}

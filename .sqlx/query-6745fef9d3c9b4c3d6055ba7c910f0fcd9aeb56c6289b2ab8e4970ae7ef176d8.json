@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO reminder_schedule (reminder_id, owner_id, next_fire_at) VALUES ($1, $2, $3) ON CONFLICT (reminder_id) DO UPDATE SET next_fire_at = EXCLUDED.next_fire_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6745fef9d3c9b4c3d6055ba7c910f0fcd9aeb56c6289b2ab8e4970ae7ef176d8"
+}

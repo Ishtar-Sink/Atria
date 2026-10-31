@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE project_lanes SET visibility = $3, name = $4, color = $5, counts_as_done = $6, position = $7, updated_at = $8 WHERE id = $1 AND owner_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14af8602de22e3c9c51f4d21a0c5c3427a656e9e769380bc951fee260234f896"
+}

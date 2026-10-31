@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO push_subscriptions (id, owner_id, endpoint, p256dh, auth, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (owner_id, endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth RETURNING id, owner_id, endpoint, p256dh, auth, created_at AS \"created_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "endpoint",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "p256dh",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "auth",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "330c24fb2ac1c27ef57e406b9ecd9964975ef04c4a5c2851134092a7c9860481"
+}

@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE projects SET visibility = $3, name = $4, description = $5, updated_at = $6 WHERE id = $1 AND owner_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a35ae5de39d94d9282c8c41fc240dd3c349a02ed5b71cd84a40e70bfabb3ec45"
+}

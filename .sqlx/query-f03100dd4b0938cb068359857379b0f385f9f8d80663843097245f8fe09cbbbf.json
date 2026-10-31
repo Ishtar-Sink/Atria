@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE goals SET title = COALESCE($3, title), description = CASE WHEN $4 THEN $5 ELSE description END, deadline = CASE WHEN $6 THEN $7 ELSE deadline END, status = COALESCE($8, status), labels = COALESCE($9::text[], labels), visibility = COALESCE($10, visibility), updated_at = $11 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Date",
+        "Text",
+        "TextArray",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f03100dd4b0938cb068359857379b0f385f9f8d80663843097245f8fe09cbbbf"
+}

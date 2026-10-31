@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM item_notes WHERE owner_id = $1 AND id = $2 AND book_id IS NOT DISTINCT FROM $3 AND article_id IS NOT DISTINCT FROM $4 AND video_id IS NOT DISTINCT FROM $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "793d6fb05addeb6bea5106371004de23ae07dd766053ba6fd3606d1d9bc3a969"
+}

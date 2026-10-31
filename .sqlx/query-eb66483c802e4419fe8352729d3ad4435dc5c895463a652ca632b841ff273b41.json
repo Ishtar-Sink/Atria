@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pc.project_id FROM project_cards pc JOIN projects p ON p.id = pc.project_id WHERE pc.id = $1 AND pc.owner_id = $2 AND pc.deleted_at IS NULL AND p.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "project_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eb66483c802e4419fe8352729d3ad4435dc5c895463a652ca632b841ff273b41"
+}

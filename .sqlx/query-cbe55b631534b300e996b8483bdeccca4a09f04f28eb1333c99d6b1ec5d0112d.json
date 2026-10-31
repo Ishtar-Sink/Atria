@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth_attempts (key, failures, locked_until, updated_at) VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO UPDATE SET failures = EXCLUDED.failures, locked_until = EXCLUDED.locked_until, updated_at = EXCLUDED.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cbe55b631534b300e996b8483bdeccca4a09f04f28eb1333c99d6b1ec5d0112d"
+}

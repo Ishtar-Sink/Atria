@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.id, g.owner_id, g.visibility AS \"visibility: _\", g.title, g.description, g.deadline AS \"deadline: _\", g.status AS \"status: _\", g.labels, g.created_at AS \"created_at: _\", g.updated_at AS \"updated_at: _\", m.total AS \"milestone_count!\", m.done AS \"completed_milestone_count!\" FROM goals g CROSS JOIN LATERAL (SELECT count(*) AS total, count(completed_at) AS done FROM milestones WHERE goal_id = g.id AND owner_id = $1 AND deleted_at IS NULL) m WHERE g.owner_id = $1 AND g.deleted_at IS NULL AND ($2::text IS NULL OR g.status = $2) AND ($3::text IS NULL OR g.title ILIKE $3) AND ($4::text IS NULL OR g.labels @> ARRAY[$4::text]) AND ($5::boolean IS NULL OR (g.deadline IS NOT NULL) = $5) AND ($6::timestamptz IS NULL OR (g.created_at, g.id) < ($6::timestamptz, $7::uuid)) ORDER BY g.created_at DESC, g.id DESC LIMIT $8",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "deadline: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "status: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "labels",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "milestone_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "completed_milestone_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "8a52f66ba44b8e87a7e9f96a424318db667e47bd7b725040150809f216c5ca27"
+}

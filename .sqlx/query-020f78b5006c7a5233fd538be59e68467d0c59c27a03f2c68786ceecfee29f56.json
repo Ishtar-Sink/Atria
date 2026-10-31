@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transactions (id, owner_id, visibility, kind, account_id, category_id, description, expected_amount, expected_date, currency, generated_from, occurrence_date, installment_number, installment_total, installment_group_id, statement_period, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Date",
+        "Bpchar",
+        "Uuid",
+        "Date",
+        "Int2",
+        "Int2",
+        "Uuid",
+        "Bpchar",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "020f78b5006c7a5233fd538be59e68467d0c59c27a03f2c68786ceecfee29f56"
+}

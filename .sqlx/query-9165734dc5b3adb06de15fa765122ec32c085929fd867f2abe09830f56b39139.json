@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (SELECT 1 FROM transactions WHERE account_id = $1 AND deleted_at IS NULL) OR EXISTS (SELECT 1 FROM transfers WHERE (from_account_id = $1 OR to_account_id = $1) AND deleted_at IS NULL) OR EXISTS (SELECT 1 FROM recurring_transactions WHERE account_id = $1 AND deleted_at IS NULL) AS \"in_use!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "in_use!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9165734dc5b3adb06de15fa765122ec32c085929fd867f2abe09830f56b39139"
+}

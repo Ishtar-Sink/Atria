@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE project_cards SET deleted_at = $3, updated_at = $3 WHERE id = ANY($1) AND owner_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "946fdb49e75de75e688b0f7ee83c38fda3457e66f0eb3ba76f498bf6096d34ca"
+}

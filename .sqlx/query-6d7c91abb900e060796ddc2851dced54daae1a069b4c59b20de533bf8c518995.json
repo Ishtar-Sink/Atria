@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, book_id, read_on AS \"read_on: _\", pages_read, from_page, to_page, observation, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM reading_sessions WHERE owner_id = $1 AND book_id = $2 AND id = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "read_on: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "pages_read",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "from_page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "to_page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "observation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6d7c91abb900e060796ddc2851dced54daae1a069b4c59b20de533bf8c518995"
+}

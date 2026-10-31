@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE accounts SET balance_amount = balance_amount + $1, updated_at = $2 WHERE id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6513a4bf3830c374913705f7129fd5c7ee6755abf2852ebe0859a7d3658d96d0"
+}

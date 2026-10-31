@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT ON (task_id) task_id, rule AS \"rule: _\", effective_from AS \"effective_from: _\", effective_until AS \"effective_until: _\" FROM task_recurrence_segments WHERE owner_id = $1 AND task_id = ANY($2) ORDER BY task_id, effective_from DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "task_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "rule: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "effective_from: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "effective_until: _",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "54c8564a844f9d36e895fccff8b43d4a693dd87c73a3320ff00e0a5538d6d0e6"
+}

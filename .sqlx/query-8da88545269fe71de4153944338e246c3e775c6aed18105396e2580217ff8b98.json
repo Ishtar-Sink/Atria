@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, book_id, article_id, video_id, quote, page, comment, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM item_notes WHERE owner_id = $1 AND id = $2 AND book_id IS NOT DISTINCT FROM $3 AND article_id IS NOT DISTINCT FROM $4 AND video_id IS NOT DISTINCT FROM $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "article_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "video_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "quote",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "comment",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8da88545269fe71de4153944338e246c3e775c6aed18105396e2580217ff8b98"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE project_cards SET position = position + $3 WHERE id = ANY($1) AND owner_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "82cd4d0503b1bd8ffadcec652be342c64feaa695ce5bac83eaf31a73156351ed"
+}

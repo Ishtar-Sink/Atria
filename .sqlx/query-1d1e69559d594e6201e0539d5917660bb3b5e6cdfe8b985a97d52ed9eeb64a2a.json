@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT marked.entry_id, marked.emotion_id, marked.intensity, emotion.system_key, emotion.name, emotion.deleted_at IS NOT NULL AS \"deleted!\" FROM journal_entry_emotions AS marked JOIN emotions AS emotion ON emotion.id = marked.emotion_id WHERE marked.owner_id = $1 AND marked.entry_id = ANY($2) ORDER BY emotion.created_at, emotion.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "entry_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "emotion_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "intensity",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "system_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "deleted!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "1d1e69559d594e6201e0539d5917660bb3b5e6cdfe8b985a97d52ed9eeb64a2a"
+}

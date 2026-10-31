@@ -1,0 +1,150 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", installment_number, installment_total, installment_group_id, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE owner_id = $1 AND account_id = $2 AND statement_period = $3 AND settled_at IS NULL AND deleted_at IS NULL ORDER BY expected_date, id FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "category_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "expected_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "expected_date: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "settled_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "settled_at: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "difference_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "difference_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 14,
+        "name": "generated_from",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "occurrence_date: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "installment_number",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 17,
+        "name": "installment_total",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 18,
+        "name": "installment_group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 19,
+        "name": "statement_period",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 20,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bpchar"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4037c431963aed15fb3737ea1075d3a409eb43043b8d47b9670b955f1a1a88a3"
+}

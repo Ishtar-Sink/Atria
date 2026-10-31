@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE accounts SET name = $1, visibility = $2, credit_limit_amount = $3, closing_day = $4, due_day = $5, updated_at = $6 WHERE id = $7 AND owner_id = $8 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee9578b88e6e36a8487efa7cbbe2304e19ced5812f5f5408e16ad40ddb24cb75"
+}
