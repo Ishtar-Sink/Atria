@@ -11217,7 +11217,8 @@
         "description": "Configurações da instância. A senha do SMTP não existe aqui: vem só de\n`ATRIA_SMTP_PASSWORD_FILE`.",
         "required": [
           "invite_required",
-          "web_push_enabled"
+          "web_push_enabled",
+          "web_push_configured"
         ],
         "properties": {
           "invite_required": {
@@ -11248,6 +11249,10 @@
               "string",
               "null"
             ]
+          },
+          "web_push_configured": {
+            "type": "boolean",
+            "description": "A chave VAPID está configurada (`ATRIA_WEB_PUSH_VAPID_KEY_FILE`): sem ela, o Web Push\nnão pode ser ligado."
           },
           "web_push_enabled": {
             "type": "boolean"

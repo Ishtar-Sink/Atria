@@ -198,17 +198,21 @@ impl From<InstanceState> for InstanceStateResponse {
 pub struct InstanceSettingsResponse {
     pub invite_required: bool,
     pub web_push_enabled: bool,
+    /// A chave VAPID está configurada (`ATRIA_WEB_PUSH_VAPID_KEY_FILE`): sem ela, o Web Push
+    /// não pode ser ligado.
+    pub web_push_configured: bool,
     pub smtp_host: Option<String>,
     pub smtp_port: Option<u16>,
     pub smtp_user: Option<String>,
     pub smtp_from: Option<String>,
 }
 
-impl From<InstanceSettings> for InstanceSettingsResponse {
-    fn from(settings: InstanceSettings) -> Self {
+impl InstanceSettingsResponse {
+    pub fn new(settings: InstanceSettings, web_push_configured: bool) -> Self {
         Self {
             invite_required: settings.invite_required,
             web_push_enabled: settings.web_push_enabled,
+            web_push_configured,
             smtp_host: settings.smtp_host,
             smtp_port: settings.smtp_port,
             smtp_user: settings.smtp_user,

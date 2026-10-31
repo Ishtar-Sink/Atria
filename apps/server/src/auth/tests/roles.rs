@@ -283,3 +283,29 @@ async fn deactivated_user_cannot_sign_in() {
         "a sessão aberta também cai"
     );
 }
+
+#[tokio::test]
+async fn instance_settings_report_web_push_configured() {
+    // Com o Web Push desligado, a chave pública responde 404: a tela só sabe se a chave VAPID
+    // existe por este campo, para habilitar o interruptor.
+    let h = Harness::new().await;
+    let (_, admin) = h.admin_session().await;
+    let (status, _, body) = h.get(&admin, "/api/v1/admin/instance/settings").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["web_push_configured"], false);
+
+    let h = Harness::with_vapid_key_file().await;
+    let (_, admin) = h.admin_session().await;
+    let (_, _, body) = h.get(&admin, "/api/v1/admin/instance/settings").await;
+    assert_eq!(body["web_push_enabled"], false);
+    assert_eq!(body["web_push_configured"], true);
+    let (status, _, body) = h
+        .patch(
+            &admin,
+            "/api/v1/admin/instance/settings",
+            &json!({"web_push_enabled": true}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["web_push_configured"], true);
+}

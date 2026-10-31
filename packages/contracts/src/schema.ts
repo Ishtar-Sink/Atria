@@ -2164,6 +2164,11 @@ export interface components {
             /** Format: int32 */
             smtp_port?: number | null;
             smtp_user?: string | null;
+            /**
+             * @description A chave VAPID está configurada (`ATRIA_WEB_PUSH_VAPID_KEY_FILE`): sem ela, o Web Push
+             *     não pode ser ligado.
+             */
+            web_push_configured: boolean;
             web_push_enabled: boolean;
         };
         InstanceStateResponse: {

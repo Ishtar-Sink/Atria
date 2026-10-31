@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request};
+use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use serde::de::DeserializeOwned;
@@ -478,10 +478,20 @@ pub async fn instance_state(
     responses((status = 200, body = InstanceSettingsResponse), (status = 403, body = ProblemDetails))
 )]
 pub async fn get_instance_settings(
+    State(state): State<AppState>,
     Auth(auth): Auth,
     current: CurrentUser,
 ) -> Result<Json<InstanceSettingsResponse>, ApiError> {
-    Ok(Json(auth.instance_settings(current.user_id).await?.into()))
+    let settings = auth.instance_settings(current.user_id).await?;
+    Ok(Json(InstanceSettingsResponse::new(
+        settings,
+        web_push_configured(&state),
+    )))
+}
+
+/// Como em `reminders::interface::handlers::web_push_available`: basta a chave estar definida.
+fn web_push_configured(state: &AppState) -> bool {
+    state.config.web_push_vapid_key_file.is_some()
 }
 
 #[utoipa::path(
@@ -494,6 +504,7 @@ pub async fn get_instance_settings(
     )
 )]
 pub async fn update_instance_settings(
+    State(state): State<AppState>,
     Auth(auth): Auth,
     current: CurrentUser,
     ValidJson(body): ValidJson<UpdateInstanceSettingsRequest>,
@@ -509,5 +520,8 @@ pub async fn update_instance_settings(
     let settings = auth
         .update_instance_settings(current.user_id, patch)
         .await?;
-    Ok(Json(settings.into()))
+    Ok(Json(InstanceSettingsResponse::new(
+        settings,
+        web_push_configured(&state),
+    )))
 }

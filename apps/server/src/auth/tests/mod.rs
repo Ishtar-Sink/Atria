@@ -67,7 +67,19 @@ pub type Reply = (StatusCode, HeaderMap, Value);
 
 impl Harness {
     pub async fn new() -> Self {
-        let ctx = TestContext::new().await;
+        Self::build(TestContext::new().await).await
+    }
+
+    /// Com `ATRIA_WEB_PUSH_VAPID_KEY_FILE` definido (o arquivo em si não é lido aqui).
+    pub async fn with_vapid_key_file() -> Self {
+        let mut ctx = TestContext::new().await;
+        let mut config = (*ctx.state.config).clone();
+        config.web_push_vapid_key_file = Some("/run/secrets/vapid_key".into());
+        ctx.state.config = Arc::new(config);
+        Self::build(ctx).await
+    }
+
+    async fn build(ctx: TestContext) -> Self {
         super::migrator().run(&ctx.state.pool).await.unwrap();
         let mailer = Arc::new(MemoryMailer::default());
         let hasher = Arc::new(Argon2Hasher::cheap());
