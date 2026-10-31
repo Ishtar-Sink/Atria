@@ -47,6 +47,11 @@
   right: 0;
 }
 
+.alignStart {
+  right: auto;
+  left: 0;
+}
+
 .right {
   bottom: 0;
   left: calc(100% + var(--space) * 2);

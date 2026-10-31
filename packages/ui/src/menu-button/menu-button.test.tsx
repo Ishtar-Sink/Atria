@@ -17,6 +17,39 @@ function Harness() {
 }
 
 describe('MenuButton', () => {
+  it('aligns the menu to the trigger start when it would leave the window', async () => {
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const left =
+          this.getAttribute('role') === 'menu' && !this.className.includes('alignStart') ? -60 : 8;
+        return {
+          left,
+          right: left + 176,
+          top: 0,
+          bottom: 0,
+          width: 176,
+          height: 0,
+          x: left,
+          y: 0,
+          toJSON: () => ({}),
+        };
+      });
+    try {
+      render(<Harness />);
+      await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+      expect(screen.getByRole('menu').className).toContain('alignStart');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps the end alignment when the menu fits', async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    expect(screen.getByRole('menu').className).not.toContain('alignStart');
+  });
+
   it('opens the menu and focuses the first item', async () => {
     render(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Mais ações' });
@@ -51,5 +84,35 @@ describe('MenuButton', () => {
     const { container } = render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('names the button by its content and the menu by menuLabel when label is omitted', async () => {
+    render(
+      <MenuButton
+        menuLabel="Conta"
+        trigger="Ana Souza"
+        items={[{ id: 'a', label: 'Sair', onSelect: vi.fn() }]}
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Ana Souza' });
+    expect(trigger).not.toHaveAttribute('aria-label');
+    await userEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: 'Conta' })).toBeInTheDocument();
+  });
+
+  it('adds menuClassName to the open menu only, leaving the default classes', async () => {
+    render(
+      <MenuButton
+        label="Conta"
+        trigger="Ana"
+        menuClassName="extra-menu"
+        items={[{ id: 'a', label: 'Sair', onSelect: vi.fn() }]}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Conta' }));
+    const menu = screen.getByRole('menu');
+    expect(menu).toHaveClass('extra-menu');
+    expect(menu.className).toMatch(/menu/);
+    expect(screen.getByRole('button', { name: 'Conta' })).not.toHaveClass('extra-menu');
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import styles from './menu-button.module.css';
 
@@ -12,23 +12,29 @@ export interface MenuItem {
 }
 
 export interface MenuButtonProps {
-  /** Nome acessível do botão. */
-  label: string;
+  /** Nome acessível do botão. Sem ele, o botão é nomeado pelo próprio conteúdo visível. */
+  label?: string;
+  /** Rótulo do menu aberto. Padrão: `label`. */
+  menuLabel?: string;
   /** Conteúdo visível do botão. */
   trigger: ReactNode;
   items: readonly MenuItem[];
   placement?: 'bottom-end' | 'right-end';
   className?: string;
+  /** Classe extra do menu aberto, para quem precisa de um visual próprio (ex.: menu da conta). */
+  menuClassName?: string;
   /** Classe do botão. */
   triggerClassName?: string;
 }
 
 export function MenuButton({
   label,
+  menuLabel,
   trigger,
   items,
   placement = 'bottom-end',
   className,
+  menuClassName,
   triggerClassName,
 }: MenuButtonProps) {
   const menuId = useId();
@@ -36,6 +42,18 @@ export function MenuButton({
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [alignStart, setAlignStart] = useState(false);
+
+  // Ancorado à direita do gatilho; se vazar pela borda esquerda da janela, alinha à esquerda.
+  useLayoutEffect(() => {
+    if (!open) {
+      setAlignStart(false);
+      return;
+    }
+    if (placement === 'bottom-end' && (menu.current?.getBoundingClientRect().left ?? 0) < 0) {
+      setAlignStart(true);
+    }
+  }, [open, placement]);
 
   const entries = () =>
     Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
@@ -114,10 +132,15 @@ export function MenuButton({
           id={menuId}
           role="menu"
           tabIndex={-1}
-          aria-label={label}
-          className={[styles.menu, placement === 'right-end' ? styles.right : styles.bottom].join(
-            ' ',
-          )}
+          aria-label={menuLabel ?? label}
+          className={[
+            styles.menu,
+            placement === 'right-end' ? styles.right : styles.bottom,
+            alignStart ? styles.alignStart : '',
+            menuClassName,
+          ]
+            .filter(Boolean)
+            .join(' ')}
           onKeyDown={onKeyDown}
         >
           {items.map((item) => {
