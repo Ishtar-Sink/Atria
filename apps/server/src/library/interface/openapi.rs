@@ -1,0 +1,111 @@
+//! Documento OpenAPI do Acervo, gerado do código ([project/api-02]).
+
+use utoipa::OpenApi;
+
+use super::dto::{
+    ArticlePage, ArticleResponse, BookPage, BookResponse, CreateArticleRequest, CreateBookRequest,
+    CreateHighlightRequest, CreateItemNoteRequest, CreateReadingSessionRequest, CreateVideoRequest,
+    HighlightList, HighlightResponse, ItemNoteList, ItemNoteResponse, ReadingPositionRequest,
+    ReadingPositionResponse, ReadingSessionList, ReadingSessionResponse, UpdateArticleRequest,
+    UpdateBookRequest, UpdateItemNoteRequest, UpdateReadingSessionRequest, UpdateVideoRequest,
+    VideoPage, VideoResponse,
+};
+use super::{articles, books, files, videos};
+use crate::library::domain::article::ReadingStatus;
+use crate::library::domain::book::BookStatus;
+use crate::library::domain::highlight::{HighlightColor, HighlightRect};
+use crate::library::domain::video::VideoStatus;
+use crate::shared::error::{FieldError, ProblemDetails};
+use crate::shared::visibility::Visibility;
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        books::list_books,
+        books::create_book,
+        books::get_book,
+        books::update_book,
+        books::delete_book,
+        books::get_book_cover,
+        books::put_book_cover,
+        books::delete_book_cover,
+        books::put_book_pdf,
+        books::list_reading_sessions,
+        books::create_reading_session,
+        books::update_reading_session,
+        books::delete_reading_session,
+        books::list_book_notes,
+        books::create_book_note,
+        books::update_book_note,
+        books::delete_book_note,
+        books::get_book_position,
+        books::put_book_position,
+        books::list_book_highlights,
+        books::create_book_highlight,
+        articles::list_articles,
+        articles::create_article,
+        articles::get_article,
+        articles::update_article,
+        articles::delete_article,
+        articles::get_article_cover,
+        articles::put_article_cover,
+        articles::delete_article_cover,
+        articles::put_article_pdf,
+        articles::list_article_notes,
+        articles::create_article_note,
+        articles::update_article_note,
+        articles::delete_article_note,
+        articles::get_article_position,
+        articles::put_article_position,
+        articles::list_article_highlights,
+        articles::create_article_highlight,
+        videos::list_videos,
+        videos::create_video,
+        videos::get_video,
+        videos::update_video,
+        videos::delete_video,
+        videos::put_video_thumbnail,
+        videos::list_video_notes,
+        videos::create_video_note,
+        videos::update_video_note,
+        videos::delete_video_note,
+        files::get_file,
+    ),
+    components(schemas(
+        ArticlePage,
+        ArticleResponse,
+        BookPage,
+        BookStatus,
+        BookResponse,
+        CreateArticleRequest,
+        CreateBookRequest,
+        CreateHighlightRequest,
+        CreateItemNoteRequest,
+        CreateReadingSessionRequest,
+        CreateVideoRequest,
+        FieldError,
+        HighlightColor,
+        HighlightList,
+        HighlightRect,
+        HighlightResponse,
+        ItemNoteList,
+        ItemNoteResponse,
+        ProblemDetails,
+        ReadingPositionRequest,
+        ReadingPositionResponse,
+        ReadingSessionList,
+        ReadingSessionResponse,
+        ReadingStatus,
+        UpdateArticleRequest,
+        UpdateBookRequest,
+        UpdateItemNoteRequest,
+        UpdateReadingSessionRequest,
+        UpdateVideoRequest,
+        VideoPage,
+        VideoResponse,
+        VideoStatus,
+        Visibility,
+    )),
+    tags((name = "library", description = "Acervo: livros, artigos, vídeos, leitura de PDF e arquivos"))
+)]
+pub struct LibraryApi;
