@@ -1,0 +1,22 @@
+# Atria — exemplo de proxy reverso com Caddy ([project/self-hosting-04]).
+# O app escuta só em 127.0.0.1:8080 (ATRIA_HOST_PORT no .env); o acesso de fora passa por aqui,
+# em HTTPS. O TLS termina no Caddy, nunca no app.
+#
+# O Caddy envia X-Forwarded-For e X-Forwarded-Proto. O app só aceita esses cabeçalhos do
+# endereço de onde o proxy conecta, que precisa estar em ATRIA_TRUSTED_PROXIES. Com o Caddy
+# no host e o app no Docker, a conexão chega pelo gateway da rede do Docker: use a faixa
+# dele, por exemplo ATRIA_TRUSTED_PROXIES=172.16.0.0/12.
+#
+# Troque atria.example.com pelo domínio de ATRIA_PUBLIC_URL; o Caddy obtém o certificado sozinho.
+atria.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Rede interna sem domínio público: o Caddy emite o certificado com a própria CA
+# (`tls internal`), que precisa ser confiada nos navegadores. Use ATRIA_PUBLIC_URL=https://atria.local.
+# atria.local {
+# 	tls internal
+# 	encode zstd gzip
+# 	reverse_proxy 127.0.0.1:8080
+# }

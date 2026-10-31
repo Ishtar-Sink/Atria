@@ -1,0 +1,76 @@
+# Instalação de referência do Atria: só o app e o PostgreSQL ([project/self-hosting-01]).
+# Copie `.env.example` para `.env`, gere a chave em `secrets/atria_key` e rode
+# `docker compose up -d`. O app aplica as migrações sozinho ao subir
+# ([project/self-hosting-06]); o guia completo está em `docs/self-hosting.md`.
+
+services:
+  db:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-atria}
+      POSTGRES_USER: ${POSTGRES_USER:-atria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: atria:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ATRIA_DATABASE_URL: ${ATRIA_DATABASE_URL:?defina ATRIA_DATABASE_URL no .env}
+      ATRIA_PUBLIC_URL: ${ATRIA_PUBLIC_URL:?defina ATRIA_PUBLIC_URL no .env}
+      ATRIA_ENCRYPTION_KEY_FILE: /run/secrets/atria_key
+      ATRIA_STORAGE_PATH: /data/files
+      ATRIA_TRUSTED_PROXIES: ${ATRIA_TRUSTED_PROXIES:-}
+      ATRIA_LOG_LEVEL: ${ATRIA_LOG_LEVEL:-info}
+      ATRIA_SMTP_HOST: ${ATRIA_SMTP_HOST:-}
+      ATRIA_SMTP_PORT: ${ATRIA_SMTP_PORT:-587}
+      ATRIA_SMTP_USER: ${ATRIA_SMTP_USER:-}
+      ATRIA_SMTP_PASSWORD_FILE: ${ATRIA_SMTP_PASSWORD_FILE:-}
+      ATRIA_SMTP_FROM: ${ATRIA_SMTP_FROM:-}
+      ATRIA_WEB_PUSH_VAPID_KEY_FILE: ${ATRIA_WEB_PUSH_VAPID_KEY_FILE:-}
+    # A chave fica num arquivo fora do banco e do repositório ([project/security-18]).
+    secrets:
+      - atria_key
+    volumes:
+      - files:/data/files
+    # Só no host local: o acesso de fora passa pelo proxy reverso ([project/self-hosting-04]).
+    ports:
+      - "127.0.0.1:${ATRIA_HOST_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+      - edge
+    restart: unless-stopped
+
+secrets:
+  atria_key:
+    file: ${ATRIA_KEY_PATH:-./secrets/atria_key}
+
+volumes:
+  db-data:
+  files:
+
+networks:
+  # O banco nunca fala com fora.
+  backend:
+    internal: true
+  # Publica a porta do app para o proxy no host.
+  edge:
