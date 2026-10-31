@@ -38,7 +38,11 @@ for (const size of SIZES) {
         await page.getByLabel('Novo marco').press('Enter');
         await expect(page.getByLabel(title, { exact: true })).toBeVisible();
       }
-      await page.getByLabel('Três livros', { exact: true }).check();
+      // O marco muda pela mutação otimista, um instante depois do clique: `check()` exige a
+      // troca síncrona, então clica e espera o estado marcado.
+      const first = page.getByLabel('Três livros', { exact: true });
+      await first.click();
+      await expect(first).toBeChecked();
       await expect(page.getByRole('progressbar', { name: 'Progresso' })).toHaveAttribute(
         'aria-valuenow',
         '25',

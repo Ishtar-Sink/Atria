@@ -1,5 +1,10 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import {
+  api,
+  expectNoAxeViolations,
+  expectNoHorizontalScroll,
+  signIn,
+} from '../../app/e2e-session';
 
 // Fluxos ponta a ponta de CT-33 e CT-34. Rodam na TASK-35, com o servidor e as rotas de Relatórios
 // registradas: a pessoa gera cada relatório com os seus filtros, abre a versão interativa, exporta o
@@ -27,23 +32,21 @@ const REPORTS = [
   { id: 'proj-cards', title: 'Cartões por projeto', period: false, filters: ['Projeto'] },
 ];
 
+/**
+ * O axe só com a tela parada: a transição de cor do botão (hover do ponteiro, ou a volta de
+ * desabilitado) dava contraste falso no meio do caminho.
+ */
+async function expectAccessible(page: Page) {
+  await page.mouse.move(0, 0);
+  // "Gerar relatório" fica desabilitado enquanto o resultado carrega e volta com transição de cor.
+  await page.waitForLoadState('networkidle');
+  const generate = page.getByRole('button', { name: 'Gerar relatório' });
+  if ((await generate.count()) > 0) await expect(generate).toBeEnabled();
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await expectNoAxeViolations(page);
+}
+
 const PERIOD_REPORTS = REPORTS.filter((report) => report.period);
-
-async function signIn(page: Page) {
-  await page.goto('/__test__/sign-in?role=user');
-}
-
-async function expectNoAxeViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations).toEqual([]);
-}
-
-async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
-  expect(overflow).toBe(false);
-}
 
 for (const size of SIZES) {
   test.describe(`relatorios em ${size.name}`, () => {
@@ -67,7 +70,7 @@ for (const size of SIZES) {
         await expect(page.getByText('Escolha os filtros')).toBeVisible();
       }
       await expectNoHorizontalScroll(page);
-      await expectNoAxeViolations(page);
+      await expectAccessible(page);
     });
 
     test('period reports generate in a custom range and export the pdf', async ({ page }) => {
@@ -75,8 +78,8 @@ for (const size of SIZES) {
       for (const report of PERIOD_REPORTS) {
         await page.goto(`/reports/${report.id}`);
         await page.getByRole('button', { name: /Período/ }).click();
+        // O intervalo personalizado fica no próprio diálogo, no calendário abaixo dos atalhos.
         const dialog = page.getByRole('dialog', { name: 'Escolher período' });
-        await dialog.getByRole('button', { name: 'Personalizado' }).click();
         await dialog.getByRole('button', { name: /^1 de/ }).first().click();
         await dialog
           .getByRole('button', { name: /^10 de/ })
@@ -96,7 +99,7 @@ for (const size of SIZES) {
         expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
       }
       await expectNoHorizontalScroll(page);
-      await expectNoAxeViolations(page);
+      await expectAccessible(page);
     });
 
     test('a period report generates in any period', async ({ page }) => {
@@ -106,20 +109,23 @@ for (const size of SIZES) {
       await page.getByRole('dialog').getByRole('button', { name: 'Qualquer período' }).click();
       await page.getByRole('button', { name: 'Gerar relatório' }).click();
       await expect(page.getByText(/Qualquer período · /)).toBeVisible();
-      await expectNoAxeViolations(page);
+      await expectAccessible(page);
     });
 
     test('a link from an entity opens filtered, generated and in any period', async ({ page }) => {
       await signIn(page);
+      // A pessoa nova não tem categoria: a do filtro é preparada pela API.
+      const category = `Mercado ${String(Date.now())}`;
+      await api(page, 'POST', '/categories', { name: category, kind: 'expense', color: 'primary' });
       await page.goto('/reports/fin-cat');
       await page.getByRole('button', { name: /^Categoria / }).click();
-      await page.getByRole('option').nth(1).click();
+      await page.getByRole('option', { name: category }).click();
       await page.getByRole('button', { name: 'Gerar relatório' }).click();
       const entity_link = page.url().replace(/period=[^&]*&?/, '');
       await page.goto(entity_link);
       await expect(page.getByRole('button', { name: /Período/ })).toContainText('Qualquer período');
       await expect(page.getByText('Escolha os filtros')).toHaveCount(0);
-      await expectNoAxeViolations(page);
+      await expectAccessible(page);
     });
 
     test('exports all user data as json and csv', async ({ page }) => {
@@ -139,7 +145,7 @@ for (const size of SIZES) {
       const chunks: Buffer[] = [];
       for await (const chunk of body) chunks.push(Buffer.from(chunk as Uint8Array));
       expect(Buffer.concat(chunks).toString('utf8')).not.toContain('outra-pessoa@exemplo.test');
-      await expectNoAxeViolations(page);
+      await expectAccessible(page);
     });
   });
 }

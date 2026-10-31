@@ -73,7 +73,10 @@ for (const size of SIZES) {
         .getByRole('group', { name: 'Visualização' })
         .getByRole('button', { name: 'Data' })
         .click();
-      await expect(page.getByRole('heading', { level: 3 })).toHaveCount(1);
+      // Os grupos são títulos de nível 2 dentro do painel da aba (o h1 é o da meta).
+      await expect(
+        page.getByRole('tabpanel', { name: 'Conexões' }).getByRole('heading', { level: 2 }),
+      ).toHaveCount(1);
       await page.getByRole('searchbox', { name: 'Busca' }).fill('zzz');
       await expect(page.getByText('Nenhuma conexão encontrada')).toBeVisible();
       await page.getByRole('searchbox', { name: 'Busca' }).fill('');
@@ -83,8 +86,15 @@ for (const size of SIZES) {
 
       // Remove pela meta: some dos dois lados.
       await page.getByRole('button', { name: 'Remover ligação com Ideias de viagem' }).click();
+      // A ligação some na hora (otimista); o `goto` seguinte recarrega a página e cancelaria o
+      // DELETE ainda em andamento.
+      const removed = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'DELETE' && response.url().includes('/api/v1/links/'),
+      );
       await page.getByRole('alertdialog').getByRole('button', { name: 'Remover ligação' }).click();
       await expect(page.getByRole('link', { name: 'Ideias de viagem' })).toHaveCount(0);
+      expect((await removed).ok()).toBe(true);
 
       await page.goto(`${note_url}?tab=connections`);
       await expect(page.getByRole('link', { name: 'Viajar para Portugal' })).toHaveCount(0);

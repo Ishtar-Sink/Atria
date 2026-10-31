@@ -1,7 +1,6 @@
 import type { Schemas } from '@atria/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../shared/api/client';
-import { ApiProblem } from '../../shared/api/problem';
 import { useOptimisticMutation } from '../../shared/optimistic/use-optimistic-mutation';
 
 export type InstanceSettings = Schemas['InstanceSettingsResponse'];
@@ -46,24 +45,8 @@ export function useUpdateInstanceSettings() {
       ...change,
       invite_required: change.invite_required ?? current?.invite_required ?? true,
       web_push_enabled: change.web_push_enabled ?? current?.web_push_enabled ?? false,
+      web_push_configured: current?.web_push_configured ?? false,
     }),
     error_message_key: 'settings.undo_notice',
-  });
-}
-
-/** `GET /web-push/public-key`: sem chave VAPID o servidor responde 404 e o Web Push fica indisponível. */
-export function useWebPushAvailable(enabled: boolean) {
-  return useQuery({
-    queryKey: ['web-push', 'public-key'],
-    queryFn: async ({ signal }) => {
-      try {
-        await api.get<Schemas['PublicKeyResponse']>('/web-push/public-key', { signal });
-        return true;
-      } catch (error) {
-        if (error instanceof ApiProblem && error.status === 404) return false;
-        throw error;
-      }
-    },
-    enabled,
   });
 }

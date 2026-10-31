@@ -104,46 +104,6 @@
   background: var(--bg-elevated);
 }
 
-.searchTrigger {
-  display: flex;
-  flex: 0 1 280px;
-  align-items: center;
-  gap: calc(var(--space) * 2);
-  min-width: 0;
-  padding: calc(var(--space) * 2) calc(var(--space) * 3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: var(--font-size-base);
-  text-align: left;
-  cursor: pointer;
-}
-
-.searchTrigger:hover {
-  background: var(--surface-hover);
-}
-
-.searchIcon {
-  display: inline-flex;
-}
-
-.searchText {
-  flex: 1;
-}
-
-.shortcut {
-  padding: 1px var(--s2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: var(--font-size-xs);
-}
-
 .breadcrumbs {
   min-width: 0;
 }
@@ -253,12 +213,6 @@
   .screenInfo {
     width: 100%;
     margin-left: 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .shortcut {
-    display: none;
   }
 }
 

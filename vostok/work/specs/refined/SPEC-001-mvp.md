@@ -1,10 +1,10 @@
 ---
 id: SPEC-001
 title: "MVP"
-status: planned
+status: implemented
 author: "Victor Batalha"
 created_at: 2026-10-27T22:14:28Z
-updated_at: 2026-10-30T14:35:13Z
+updated_at: 2026-10-31T21:45:28Z
 tags: []
 type: feature
 source: "draft/SPEC-001-mvp.md"

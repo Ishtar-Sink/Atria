@@ -9,8 +9,10 @@ import {
 import { z } from 'zod';
 import { registerMessages } from '../../shared/i18n/i18n';
 import { FINANCE_TABS, FinanceShell, type FinanceTab } from './components/finance-shell';
+import type { Account } from './hooks/use-accounts';
+import type { Transaction } from './hooks/use-transactions';
 import messages from './i18n/pt-br.json';
-import { AccountDetailScreen } from './screens/account-detail-screen';
+import { AccountDetailScreen, type FinanceExtraTab } from './screens/account-detail-screen';
 import { AccountFormScreen } from './screens/account-form-screen';
 import { accountsSearchSchema, AccountsScreen } from './screens/accounts-screen';
 import { CategoryDetailScreen } from './screens/category-detail-screen';
@@ -45,9 +47,8 @@ function lenient<T extends Schema>(schema: T) {
 }
 
 const kind_search = z.object({ kind: z.enum(['income', 'expense']).catch('expense') });
-const account_tab_search = z.object({
-  tab: z.enum(['overview', 'transactions']).catch('overview'),
-});
+// A aba da conta aceita também os ids das abas extras; a tela volta para a visão geral se não existir.
+const account_tab_search = z.object({ tab: z.string().catch('overview') });
 const recurrence_tab_search = z.object({
   tab: z.enum(['overview', 'settlements']).catch('overview'),
 });
@@ -68,8 +69,17 @@ function FinanceTabsLayout() {
   );
 }
 
-/** Rotas do Financeiro; a TASK-35 as registra em `app/routes.ts`. */
-export function createFinanceRoutes(parent: AnyRoute): AnyRoute[] {
+export interface FinanceRoutesOptions {
+  /** Abas depois das próprias de cada tela (Conexões, TASK-35). */
+  account_extra_tabs?: readonly FinanceExtraTab<Account>[];
+  transaction_extra_tabs?: readonly FinanceExtraTab<Transaction>[];
+}
+
+/** Rotas do Financeiro; o registro do app (TASK-35) passa as abas extras. */
+export function createFinanceRoutes(
+  parent: AnyRoute,
+  options: FinanceRoutesOptions = {},
+): AnyRoute[] {
   const tabs = createRoute({
     getParentRoute: () => parent,
     id: 'finance-tabs',
@@ -137,6 +147,7 @@ export function createFinanceRoutes(parent: AnyRoute): AnyRoute[] {
         <AccountDetailScreen
           account_id={accountId}
           tab={current}
+          {...(options.account_extra_tabs ? { extra_tabs: options.account_extra_tabs } : {})}
           on_tab_change={(next) => {
             void navigate({ to: '.', replace: true, search: { tab: next } });
           }}
@@ -172,7 +183,14 @@ export function createFinanceRoutes(parent: AnyRoute): AnyRoute[] {
       const { transactionId } = transaction_detail.useParams() as unknown as {
         transactionId: string;
       };
-      return <TransactionDetailScreen transaction_id={transactionId} />;
+      return (
+        <TransactionDetailScreen
+          transaction_id={transactionId}
+          {...(options.transaction_extra_tabs
+            ? { extra_tabs: options.transaction_extra_tabs }
+            : {})}
+        />
+      );
     },
   });
   const transaction_edit = createRoute({

@@ -577,6 +577,7 @@ describe('task form', () => {
     const { state } = open('/tasks/new');
     await user.type(await screen.findByRole('textbox', { name: 'Título' }), 'Beber água');
     await user.click(screen.getByRole('radio', { name: 'Recorrente' }));
+    await user.type(screen.getByRole('textbox', { name: /Horário/ }), '0800');
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
     const complete = await screen.findByRole('button', { name: 'Concluir hoje' });
@@ -584,7 +585,7 @@ describe('task form', () => {
       (call) => call.method === 'POST' && call.url.pathname.endsWith('/tasks'),
     );
     expect(post?.body).toMatchObject({
-      recurrence: { frequency: 'daily', interval: 1, starts_on: TODAY },
+      recurrence: { frequency: 'daily', interval: 1, time: '08:00', starts_on: TODAY },
     });
 
     await user.click(complete);
@@ -594,6 +595,17 @@ describe('task form', () => {
     expect(
       state.occurrences.filter((item) => item.task_id === 'new-1' && item.completed),
     ).toHaveLength(1);
+  });
+
+  it('requires the rule time for a recurring task, as the recurrence rule of the spec', async () => {
+    const user = userEvent.setup();
+    const { state } = open('/tasks/new');
+    await user.type(await screen.findByRole('textbox', { name: 'Título' }), 'Beber água');
+    await user.click(screen.getByRole('radio', { name: 'Recorrente' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Informe o horário.');
+    expect(state.calls.some((call) => call.method === 'POST')).toBe(false);
   });
 
   it('changes a recurring task from an occurrence on', async () => {
@@ -742,6 +754,7 @@ describe('task form', () => {
     await user.type(interval, '2');
     await user.click(screen.getByRole('checkbox', { name: 'segunda-feira' }));
     await user.click(screen.getByRole('checkbox', { name: 'quarta-feira' }));
+    await user.type(screen.getByRole('textbox', { name: /Horário/ }), '0700');
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {

@@ -8,14 +8,21 @@ import {
   type AnyRoute,
   type RouterHistory,
 } from '@tanstack/react-router';
+import type { ComponentType, ReactNode } from 'react';
 import type { NavItem } from '../shared/navigation/nav-item';
 import { AppLayout } from './layout/app-layout';
 import { NotFoundPage } from './layout/not-found-page';
-import { navItems } from './nav';
-import { featureRoutes } from './routes';
+
+/** Serviços do app inteiro, montados uma vez no layout (paleta e aviso de lembretes, TASK-35). */
+export interface AppShell {
+  Services: ComponentType<{ children: ReactNode }>;
+  SearchTrigger: ComponentType<{ className?: string }>;
+}
 
 export interface RouterContext {
   nav_items: NavItem[];
+  /** Sem `shell`, o layout fica sem esses serviços, como no render isolado das features. */
+  shell?: AppShell;
 }
 
 function RootComponent() {
@@ -43,12 +50,15 @@ function devRoutes(): AnyRoute[] {
 }
 
 export function createAppRouter(
-  routes: AnyRoute[] = featureRoutes,
-  options: { history?: RouterHistory; nav_items?: NavItem[] } = {},
+  routes: AnyRoute[],
+  options: { history?: RouterHistory; nav_items?: NavItem[]; shell?: AppShell } = {},
 ) {
   return createRouter({
     routeTree: rootRoute.addChildren([...routes, ...devRoutes()]),
-    context: { nav_items: options.nav_items ?? navItems },
+    context: {
+      nav_items: options.nav_items ?? [],
+      ...(options.shell ? { shell: options.shell } : {}),
+    },
     ...(options.history ? { history: options.history } : {}),
   });
 }

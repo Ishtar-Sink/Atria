@@ -37,7 +37,8 @@ const rule_schema = z.object({
   interval: z.number().int().min(1, 'tasks.form.interval_invalid'),
   weekdays: z.array(z.enum(RECURRENCE_WEEKDAYS)),
   month_day: z.number().int().min(1).max(31).nullable(),
-  // O horário é opcional nas Tarefas (nos Lembretes ele é obrigatório).
+  // A regra de recorrência da spec tem sempre o horário; ele é exigido no superRefine, só na
+  // tarefa recorrente (a pontual não usa a regra).
   time: z
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'tasks.form.time_invalid')
@@ -69,6 +70,13 @@ const form_schema = z
         code: 'custom',
         path: ['labels'],
         message: 'tasks.form.labels_duplicate',
+      });
+    }
+    if (values.kind === 'recurring' && (values.rule.time ?? '') === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['rule', 'time'],
+        message: 'tasks.form.time_required',
       });
     }
     if (
@@ -211,7 +219,7 @@ function TaskForm({ task, from }: TaskFormProps) {
               <FormDate control={control} name="due_on" label={t('tasks.form.due_on')} />
             ) : (
               <div data-span="full">
-                <FormRecurrence control={control} name="rule" />
+                <FormRecurrence control={control} name="rule" time_required />
                 {editing && from ? (
                   <p className={styles.note}>{t('tasks.form.from_occurrence')}</p>
                 ) : null}

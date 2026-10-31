@@ -47,6 +47,18 @@ describe('InstanceSettingsPage', () => {
     });
   });
 
+  it('enables the web push switch from web_push_configured while web push is off', async () => {
+    // Regressão: desligado, a chave pública responde 404 mesmo com a chave VAPID configurada, e a
+    // tela deduzia "sem chave" por isso, sem deixar o admin ligar o Web Push.
+    const calls = stubApi({ vapid_key: true });
+    renderSettings('/settings/instance');
+    const push = await screen.findByRole('checkbox', { name: 'Notificações Web Push' });
+    expect(push).not.toBeChecked();
+    expect(push).toBeEnabled();
+    expect(screen.queryByText(/ATRIA_WEB_PUSH_VAPID_KEY_FILE/)).not.toBeInTheDocument();
+    expect(calls.some((call) => call.path === '/web-push/public-key')).toBe(false);
+  });
+
   it('disables web push with an explanation when the key is missing', async () => {
     const calls = stubApi({ vapid_key: false });
     renderSettings('/settings/instance');

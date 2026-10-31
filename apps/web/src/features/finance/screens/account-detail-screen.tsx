@@ -9,13 +9,15 @@ import {
   type MenuItem,
 } from '@atria/ui';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { z } from 'zod';
 import { formatMoney } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { pushToast } from '../../../shared/toast/toast-store';
+import { useListSearch } from '../../../shared/url-state/use-list-search';
 import { FinanceDialog } from '../components/finance-dialog';
 import { FINANCE_REPORTS, reportKey } from '../components/finance-shell';
 import styles from '../components/finance.module.css';
@@ -27,7 +29,56 @@ import { canDelete, useAccount, useDeleteAccount, type Account } from '../hooks/
 import { useCategories } from '../hooks/use-categories';
 import { listItemKey, useTransactions } from '../hooks/use-transactions';
 
-export type AccountDetailTab = 'overview' | 'transactions';
+/** Aba que o app acrescenta depois das abas próprias da tela (Conexões, TASK-35). */
+export interface FinanceExtraTab<T> {
+  id: string;
+  label: string;
+  render: (entity: T) => ReactNode;
+}
+
+/** `overview`, `transactions` ou o id de uma aba extra. */
+export type AccountDetailTab = string;
+
+const detail_tab_search = z.object({ tab: z.string().catch('overview') });
+
+export interface DetailTabsProps<T> {
+  label: string;
+  overview_label: string;
+  overview: ReactNode;
+  entity: T;
+  extra_tabs: readonly FinanceExtraTab<T>[];
+}
+
+/** Sem abas extras, a visão geral aparece sozinha; com elas, ganha a barra de abas na URL (PD-59). */
+export function DetailTabs<T>({
+  label,
+  overview_label,
+  overview,
+  entity,
+  extra_tabs,
+}: DetailTabsProps<T>) {
+  const { search, setSearch } = useListSearch(detail_tab_search);
+  if (extra_tabs.length === 0) return <>{overview}</>;
+  const tabs = [
+    { id: 'overview', label: overview_label, panel: overview },
+    ...extra_tabs.map((extra) => ({
+      id: extra.id,
+      label: extra.label,
+      panel: extra.render(entity),
+    })),
+  ];
+  const current = tabs.some((tab) => tab.id === search.tab) ? search.tab : 'overview';
+  return (
+    <Tabs
+      label={label}
+      tabs={tabs}
+      value={current}
+      onChange={(tab) => {
+        setSearch({ tab });
+      }}
+    />
+  );
+}
 
 /** Relatório do módulo já filtrado pela conta, em "Qualquer período" (PD-61). */
 export function accountReportHref(report: string, account_id: string): string {
@@ -138,10 +189,16 @@ export interface AccountDetailScreenProps {
   account_id: string;
   tab: AccountDetailTab;
   on_tab_change: (tab: AccountDetailTab) => void;
+  extra_tabs?: readonly FinanceExtraTab<Account>[];
 }
 
 /** Detalhe da conta: "Editar", "Ver fatura" no cartão e "Mais ações" (PD-14, PD-59, PD-61). */
-export function AccountDetailScreen({ account_id, tab, on_tab_change }: AccountDetailScreenProps) {
+export function AccountDetailScreen({
+  account_id,
+  tab,
+  on_tab_change,
+  extra_tabs = [],
+}: AccountDetailScreenProps) {
   const t = useT();
   const navigate = useNavigate();
   const account = useAccount(account_id);
@@ -176,6 +233,7 @@ export function AccountDetailScreen({ account_id, tab, on_tab_change }: AccountD
     }
   }
 
+  const tab_ids = ['overview', 'transactions', ...extra_tabs.map((extra) => extra.id)];
   const items: MenuItem[] = [
     ...FINANCE_REPORTS.map((report) => ({
       id: report,
@@ -236,10 +294,8 @@ export function AccountDetailScreen({ account_id, tab, on_tab_change }: AccountD
       />
       <Tabs
         label={t('finance.account_detail.tabs_label')}
-        value={tab}
-        onChange={(next) => {
-          on_tab_change(next === 'transactions' ? 'transactions' : 'overview');
-        }}
+        value={tab_ids.includes(tab) ? tab : 'overview'}
+        onChange={on_tab_change}
         tabs={[
           {
             id: 'overview',
@@ -251,6 +307,11 @@ export function AccountDetailScreen({ account_id, tab, on_tab_change }: AccountD
             label: t('finance.account_detail.transactions'),
             panel: <AccountTransactions account={data} />,
           },
+          ...extra_tabs.map((extra) => ({
+            id: extra.id,
+            label: extra.label,
+            panel: extra.render(data),
+          })),
         ]}
       />
       <ConfirmDialog

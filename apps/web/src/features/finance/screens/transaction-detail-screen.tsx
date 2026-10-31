@@ -8,6 +8,7 @@ import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { pushToast } from '../../../shared/toast/toast-store';
 import styles from '../components/finance.module.css';
+import { DetailTabs, type FinanceExtraTab } from './account-detail-screen';
 import { MoreIcon, PencilIcon } from '../components/icons';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
 import { SettlementCard } from '../components/settlement-card';
@@ -18,6 +19,7 @@ import { useCategory } from '../hooks/use-categories';
 import { useRecurringTransaction } from '../hooks/use-recurring-transactions';
 import {
   useDeleteTransaction,
+  type Transaction,
   useSettleTransaction,
   useTransaction,
   useUndoSettlement,
@@ -26,10 +28,14 @@ import { todayInTimeZone } from '../lib/finance-period';
 
 export interface TransactionDetailScreenProps {
   transaction_id: string;
+  extra_tabs?: readonly FinanceExtraTab<Transaction>[];
 }
 
 /** Detalhe da movimentação, com "Editar", "Desfazer liquidação" e a liquidação (PD-14, PD-59). */
-export function TransactionDetailScreen({ transaction_id }: TransactionDetailScreenProps) {
+export function TransactionDetailScreen({
+  transaction_id,
+  extra_tabs = [],
+}: TransactionDetailScreenProps) {
   const t = useT();
   const navigate = useNavigate();
   const { locale, time_zone } = usePreferences();
@@ -150,109 +156,117 @@ export function TransactionDetailScreen({ transaction_id }: TransactionDetailScr
           {t('finance.transaction_detail.statement_paid')}
         </p>
       ) : null}
-      <DetailGrid
-        main={
-          <>
-            <DataCard title={t('finance.transaction_detail.data')}>
-              <Facts
-                items={[
+      <DetailTabs
+        label={t('finance.transaction_detail.tabs_label')}
+        overview_label={t('finance.account_detail.overview')}
+        entity={item}
+        extra_tabs={extra_tabs}
+        overview={
+          <DetailGrid
+            main={
+              <>
+                <DataCard title={t('finance.transaction_detail.data')}>
+                  <Facts
+                    items={[
+                      {
+                        label: t('finance.transaction_detail.kind'),
+                        value: t(`finance.kind.${item.kind}`),
+                      },
+                      {
+                        label: t('finance.transaction_detail.account'),
+                        value: account.data ? (
+                          <Link
+                            to="/finance/accounts/$accountId"
+                            params={{ accountId: item.account_id }}
+                            className={styles.inlineLink}
+                          >
+                            {account.data.name}
+                          </Link>
+                        ) : (
+                          '–'
+                        ),
+                      },
+                      {
+                        label: t('finance.transaction_detail.category'),
+                        value: category.data?.name ?? t('finance.transactions.no_category'),
+                      },
+                      {
+                        label: t('finance.transaction_detail.expected_amount'),
+                        value: money(item.expected_amount),
+                      },
+                      {
+                        label: t('finance.transaction_detail.expected_date'),
+                        value: formatDate(item.expected_date, locale, 'UTC'),
+                      },
+                      item.installment
+                        ? {
+                            label: t('finance.transaction_detail.installment'),
+                            value: t('finance.transaction_detail.installment_value', {
+                              number: item.installment.number,
+                              total: item.installment.total,
+                            }),
+                          }
+                        : null,
+                    ]}
+                  />
+                </DataCard>
+                <SettlementCard
+                  kind={item.kind}
+                  currency={item.currency}
+                  expected_amount={item.expected_amount}
+                  today={today}
+                  pending={settle.isPending}
+                  settled={
+                    settled
+                      ? {
+                          settled_amount: item.settled_amount ?? 0,
+                          settled_at: item.settled_at ?? item.effective_date,
+                          difference_kind: item.difference_kind,
+                          difference_amount: item.difference_amount,
+                        }
+                      : null
+                  }
+                  onSettle={(values) => {
+                    settle.mutate(
+                      { transaction: item, ...values, idempotency_key: idempotency.key },
+                      {
+                        onSuccess: () => {
+                          idempotency.renew();
+                        },
+                      },
+                    );
+                  }}
+                />
+              </>
+            }
+            aside={
+              <RecordCard
+                visibility={item.visibility}
+                created_at={item.created_at}
+                updated_at={item.updated_at}
+                extra={[
                   {
-                    label: t('finance.transaction_detail.kind'),
-                    value: t(`finance.kind.${item.kind}`),
+                    label: t('finance.record.date'),
+                    value: formatDate(item.effective_date, locale, 'UTC'),
                   },
-                  {
-                    label: t('finance.transaction_detail.account'),
-                    value: account.data ? (
-                      <Link
-                        to="/finance/accounts/$accountId"
-                        params={{ accountId: item.account_id }}
-                        className={styles.inlineLink}
-                      >
-                        {account.data.name}
-                      </Link>
-                    ) : (
-                      '–'
-                    ),
-                  },
-                  {
-                    label: t('finance.transaction_detail.category'),
-                    value: category.data?.name ?? t('finance.transactions.no_category'),
-                  },
-                  {
-                    label: t('finance.transaction_detail.expected_amount'),
-                    value: money(item.expected_amount),
-                  },
-                  {
-                    label: t('finance.transaction_detail.expected_date'),
-                    value: formatDate(item.expected_date, locale, 'UTC'),
-                  },
-                  item.installment
-                    ? {
-                        label: t('finance.transaction_detail.installment'),
-                        value: t('finance.transaction_detail.installment_value', {
-                          number: item.installment.number,
-                          total: item.installment.total,
-                        }),
-                      }
-                    : null,
                 ]}
-              />
-            </DataCard>
-            <SettlementCard
-              kind={item.kind}
-              currency={item.currency}
-              expected_amount={item.expected_amount}
-              today={today}
-              pending={settle.isPending}
-              settled={
-                settled
-                  ? {
-                      settled_amount: item.settled_amount ?? 0,
-                      settled_at: item.settled_at ?? item.effective_date,
-                      difference_kind: item.difference_kind,
-                      difference_amount: item.difference_amount,
-                    }
-                  : null
-              }
-              onSettle={(values) => {
-                settle.mutate(
-                  { transaction: item, ...values, idempotency_key: idempotency.key },
-                  {
-                    onSuccess: () => {
-                      idempotency.renew();
-                    },
-                  },
-                );
-              }}
-            />
-          </>
-        }
-        aside={
-          <RecordCard
-            visibility={item.visibility}
-            created_at={item.created_at}
-            updated_at={item.updated_at}
-            extra={[
-              {
-                label: t('finance.record.date'),
-                value: formatDate(item.effective_date, locale, 'UTC'),
-              },
-            ]}
-          >
-            {item.generated_from ? (
-              <p className={styles.cardHelp}>
-                <Link
-                  to="/finance/recurring-transactions/$recurrenceId"
-                  params={{ recurrenceId: item.generated_from }}
-                  className={styles.inlineLink}
-                >
-                  {t('finance.record.generated_from', {
-                    description: recurrence.data?.description ?? '',
-                  })}
-                </Link>
-              </p>
-            ) : null}
-          </RecordCard>
+              >
+                {item.generated_from ? (
+                  <p className={styles.cardHelp}>
+                    <Link
+                      to="/finance/recurring-transactions/$recurrenceId"
+                      params={{ recurrenceId: item.generated_from }}
+                      className={styles.inlineLink}
+                    >
+                      {t('finance.record.generated_from', {
+                        description: recurrence.data?.description ?? '',
+                      })}
+                    </Link>
+                  </p>
+                ) : null}
+              </RecordCard>
+            }
+          />
         }
       />
       <ConfirmDialog

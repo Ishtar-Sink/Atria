@@ -30,6 +30,7 @@ export function useInviteRequired(enabled: boolean) {
       api.patch<InstanceSettings>('/admin/instance/settings', { invite_required }),
     apply: (current, invite_required) => ({
       web_push_enabled: false,
+      web_push_configured: false,
       ...current,
       invite_required,
     }),

@@ -1,0 +1,17 @@
+# Sobreposição só para os e2e e o Lighthouse (TASK-35): o servidor sobe com a chave VAPID,
+# para o Web Push dos lembretes rodar nos testes. A chave de teste fica em `secrets/`,
+# ignorada pelo Git:
+#   openssl ecparam -name prime256v1 -genkey -noout -out secrets/vapid_key.pem
+# Uso: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+
+services:
+  app:
+    environment:
+      ATRIA_WEB_PUSH_VAPID_KEY_FILE: /run/secrets/vapid_key
+    secrets:
+      - atria_key
+      - vapid_key
+
+secrets:
+  vapid_key:
+    file: ./secrets/vapid_key.pem

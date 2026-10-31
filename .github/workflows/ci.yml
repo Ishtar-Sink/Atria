@@ -65,8 +65,33 @@ jobs:
     needs: [web]
     if: hashFiles('apps/web/package.json') != ''
     runs-on: ubuntu-latest
+    # As telas principais são auditadas já logadas: o preview repassa /api ao servidor (TASK-35).
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_DB: atria
+          POSTGRES_USER: atria
+          POSTGRES_PASSWORD: atria-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atria -d atria"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      ATRIA_DATABASE_URL: postgres://atria:atria-ci@localhost:5432/atria
+      ATRIA_PUBLIC_URL: http://localhost:4173
+      ATRIA_ENCRYPTION_KEY_FILE: ${{ runner.temp }}/atria_key
+      ATRIA_STORAGE_PATH: ${{ runner.temp }}/atria-files
+      ATRIA_LHCI_EMAIL: lhci@atria.test
+      ATRIA_LHCI_PASSWORD: lhci-audit-password
+      SQLX_OFFLINE: 'true'
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -74,4 +99,15 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @atria/web build
+      # Chave de criptografia só deste job, gerada na hora e descartada com o runner.
+      - run: openssl rand -base64 32 > "$ATRIA_ENCRYPTION_KEY_FILE" && mkdir -p "$ATRIA_STORAGE_PATH"
+      - run: cargo build --release -p atria-server
+      - run: |
+          cargo run --release -p atria-server > "$RUNNER_TEMP/atria-server.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            curl -fsS http://localhost:8080/healthz && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/atria-server.log"
+          exit 1
       - run: pnpm lhci

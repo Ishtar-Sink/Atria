@@ -195,6 +195,7 @@
   "transaction_detail.undo_copy_description": "A liquidação de {date} será desfeita e esta cópia, apagada. Se for a última liquidação da recorrência, a ocorrência volta a ficar aberta.",
   "transaction_detail.statement_paid": "A fatura desta movimentação já foi paga. A liquidação não pode ser desfeita.",
   "transaction_detail.data": "Movimentação",
+  "transaction_detail.tabs_label": "Seções da movimentação",
   "transaction_detail.kind": "Tipo",
   "transaction_detail.account": "Conta",
   "transaction_detail.category": "Categoria",

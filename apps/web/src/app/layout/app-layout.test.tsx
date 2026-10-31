@@ -1,5 +1,6 @@
-import { createRoute } from '@tanstack/react-router';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import { createMemoryHistory, createRoute, RouterProvider } from '@tanstack/react-router';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PageHeader } from '@atria/ui';
 import { axe } from 'vitest-axe';
@@ -13,7 +14,9 @@ import { useScreenInfo } from '../../shared/layout/screen-info';
 import type { NavItem } from '../../shared/navigation/nav-item';
 import { setViewportWidth } from '../../shared/test/setup';
 import { renderWithProviders } from '../../shared/test/render';
-import { rootRoute } from '../router';
+import { APP_SHELL } from '../app-shell';
+import { AppProviders } from '../providers';
+import { createAppRouter, rootRoute } from '../router';
 import { useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 
@@ -69,6 +72,20 @@ function stubMe(body: Record<string, unknown>) {
   );
 }
 
+/** Layout com os serviços do app (paleta e lembretes), como o `main.tsx` monta. */
+function renderWithShell() {
+  const router = createAppRouter([page('$', PaletteProbe)], {
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+    shell: APP_SHELL,
+  });
+  const query_client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <AppProviders query_client={query_client}>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   closeCommandPalette();
@@ -92,8 +109,8 @@ describe('AppLayout', () => {
     expect(links.map((link) => link.textContent)).toEqual(['Primeiro', 'Segundo']);
   });
 
-  it('renders the topbar search trigger with the shortcut hint', async () => {
-    renderWithProviders(<PaletteProbe />);
+  it('renders the PaletteTrigger in the topbar with the shortcut hint', async () => {
+    renderWithShell();
     expect(await screen.findByRole('button', { name: /buscar ou criar/i })).toHaveTextContent(
       'Ctrl K',
     );
@@ -101,14 +118,14 @@ describe('AppLayout', () => {
 
   it('shows the macOS hint on macOS', async () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
-    renderWithProviders(<PaletteProbe />);
+    renderWithShell();
     expect(await screen.findByRole('button', { name: /buscar ou criar/i })).toHaveTextContent(
       '⌘ K',
     );
   });
 
   it('opens the command palette from the topbar trigger', async () => {
-    renderWithProviders(<PaletteProbe />);
+    renderWithShell();
     expect(await screen.findByText('palette-closed')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /buscar ou criar/i }));
     expect(screen.getByText('palette-open')).toBeInTheDocument();

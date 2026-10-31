@@ -18,8 +18,10 @@
         "http://localhost:4173/settings"
       ],
       "settings": {
-        "preset": "desktop"
-      }
+        "preset": "desktop",
+        "disableStorageReset": true
+      },
+      "puppeteerScript": "./apps/web/src/app/lighthouse-login.cjs"
     },
     "assert": {
       "assertions": {

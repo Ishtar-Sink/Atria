@@ -6,6 +6,7 @@ import { closeCommandPalette } from '../../shared/command-palette/palette-store'
 import { renderWithProviders } from '../../shared/test/render';
 import { CommandPaletteProvider } from './command-palette-provider';
 import { PaletteTrigger } from './palette-trigger';
+import palette_css from './command-palette.css?raw';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -255,6 +256,14 @@ describe('CommandPalette', () => {
     await setup();
     await openFromTrigger();
     expect(document.querySelector('.command-palette-overlay')).not.toBeNull();
+  });
+
+  // Regressão (TASK-35): a `-webkit-backdrop-filter` escrita depois da forma sem prefixo fazia o
+  // Lightning CSS do build apagar a `backdrop-filter`, e o Chrome mostrava o fundo sem desfoque.
+  it('keeps the unprefixed backdrop blur for the build to prefix', () => {
+    const overlay = /\.command-palette-overlay \{([^}]*)\}/.exec(palette_css)?.[1] ?? '';
+    expect(overlay).toMatch(/(^|[^-])backdrop-filter: blur\(/);
+    expect(overlay).not.toContain('-webkit-backdrop-filter');
   });
 
   it('has no axe violations', async () => {

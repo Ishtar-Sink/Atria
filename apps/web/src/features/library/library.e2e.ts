@@ -70,9 +70,13 @@ for (const size of SIZES) {
 
       await registerSession(page, '20');
       await registerSession(page, '30');
+      // Salvar a sessão volta à visão geral do livro: a edição fica no histórico.
+      await page.getByRole('tab', { name: 'Histórico de leitura' }).click();
+      // O histórico vem do mais recente: a primeira sessão registrada é a de 20 páginas.
       await page
+        .getByRole('listitem')
+        .filter({ hasText: /^20 páginas · / })
         .getByRole('link', { name: /^Editar sessão de/ })
-        .first()
         .click();
       await page.getByLabel('Páginas lidas').fill('25');
       await page.getByRole('button', { name: 'Salvar' }).click();
@@ -124,6 +128,8 @@ for (const size of SIZES) {
       await page.getByRole('link', { name: /Vídeo/ }).click();
       await page.getByLabel('Endereço').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
       await page.getByRole('button', { name: 'Salvar' }).click();
+      // Espera o vídeo gravado (a tela do vídeo) antes de sair para a estante.
+      await expect(page).toHaveURL(/\/library\/videos\/(?!new)[^/?]+(\?.*)?$/);
       await page.goto('/library?tab=videos');
       await expect(page.locator('img[src^="/api/v1/files/"]').first()).toBeVisible();
       await expectNoHorizontalScroll(page);

@@ -12,5 +12,7 @@ export default tseslint.config(
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
   },
-  { files: ['eslint.config.js'], ...tseslint.configs.disableTypeChecked },
+  // Scripts CommonJS (login do Lighthouse CI) ficam fora do tsconfig: sem regras com tipos.
+  { files: ['eslint.config.js', '**/*.cjs'], ...tseslint.configs.disableTypeChecked },
+  { files: ['**/*.cjs'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
 );

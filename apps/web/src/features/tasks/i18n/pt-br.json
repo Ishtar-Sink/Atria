@@ -106,6 +106,7 @@
   "form.interval_invalid": "Use um número inteiro maior que zero.",
   "form.weekdays_required": "Escolha ao menos um dia da semana.",
   "form.time_invalid": "Use o formato hh:mm.",
+  "form.time_required": "Informe o horário.",
   "form.save_error": "Não foi possível salvar a tarefa.",
   "form.cancel": "Cancelar",
   "form.save": "Salvar"

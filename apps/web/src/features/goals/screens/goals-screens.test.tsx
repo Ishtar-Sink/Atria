@@ -452,6 +452,51 @@ describe('goal screen', () => {
     await expectNoViolations(container);
   });
 
+  it('ct15 shows the not found screen when the goal answers 404', async () => {
+    stubServer({ goals: [] });
+    renderAt('/goals/g-1');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Página não encontrada' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível carregar a meta')).not.toBeInTheDocument();
+  });
+
+  it('ct15 shows the not found screen when editing a goal that answers 404', async () => {
+    stubServer({ goals: [] });
+    renderAt('/goals/g-1/edit');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Página não encontrada' }),
+    ).toBeInTheDocument();
+  });
+
+  it('completes a just created milestone by its saved id, before the list is read again', async () => {
+    const server = stubServer({ goals: [goalOf()] });
+    renderAt('/goals/g-1?tab=milestones');
+    const field = await screen.findByLabelText('Novo marco');
+    // Depois da primeira leitura, a lista de marcos não responde mais: só a resposta do POST
+    // pode dar ao marco o id gravado.
+    const stubbed = vi.mocked(fetch).getMockImplementation();
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input, 'http://localhost');
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && url.pathname.endsWith('/milestones'))
+        return new Promise<Response>(() => undefined);
+      return stubbed ? stubbed(input, init) : Promise.reject(new Error('sem fetch'));
+    });
+    await userEvent.type(field, 'Marco 1{Enter}');
+    const checkbox = await screen.findByLabelText('Marco 1');
+    await waitFor(() => {
+      expect(checkbox).toBeEnabled();
+    });
+    await userEvent.click(checkbox);
+    await waitFor(() => {
+      expect(server.calls.some((call) => call.method === 'PATCH')).toBe(true);
+    });
+    const patch = server.calls.find((call) => call.method === 'PATCH');
+    expect(patch?.url.pathname).toBe('/api/v1/goals/g-1/milestones/m-1');
+    expect(checkbox).toBeChecked();
+  });
+
   it('deletes a milestone after confirmation', async () => {
     const server = stubServer({ goals: [goalOf()], milestones: four });
     renderAt('/goals/g-1?tab=milestones');

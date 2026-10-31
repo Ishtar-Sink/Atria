@@ -81,8 +81,9 @@ describe('useTodayTasks', () => {
       expect(result.current.tasks.data?.items.map((item) => item.task_id)).not.toContain('late');
     });
     expect(result.current.tasks.data?.total_today).toBe(4);
+    // Regressão (TASK-35): sem corpo JSON o servidor responde 422 e a tarefa voltava.
     const post = api.to('POST', '/tasks/late/completion')[0];
-    expect(post?.body).toBeUndefined();
+    expect(post?.body).toEqual({});
   });
 
   it('sends today as the occurrence date of a daily task', async () => {

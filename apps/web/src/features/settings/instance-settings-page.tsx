@@ -19,7 +19,6 @@ import {
   useInstanceSettings,
   useUpdateInstanceSettings,
   useViewerRole,
-  useWebPushAvailable,
   type InstanceSettings,
 } from './use-instance-settings';
 import { notifySaved } from './use-user-preferences';
@@ -59,7 +58,6 @@ export function InstanceSettingsPage() {
   const router = useRouter();
   const viewer = useViewerRole();
   const settings = useInstanceSettings(viewer.is_admin);
-  const web_push_key = useWebPushAvailable(viewer.is_admin);
   const update = useUpdateInstanceSettings();
   const data = settings.data;
 
@@ -100,8 +98,8 @@ export function InstanceSettingsPage() {
   }
 
   const current = settings.data;
-  // Sem a chave VAPID o servidor responde 404; com o Web Push já ligado, a chave existe.
-  const web_push_available = current.web_push_enabled || web_push_key.data !== false;
+  // Sem a chave VAPID o Web Push não pode ser ligado; já ligado, ele sempre pode ser desligado.
+  const web_push_available = current.web_push_enabled || current.web_push_configured;
   const invalid = update.error instanceof ApiProblem && update.error.code === 'validation_failed';
 
   const onSubmit = handleSubmit((values) => {

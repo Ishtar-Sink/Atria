@@ -12,6 +12,8 @@ import {
 import { Link, useParams } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
 import { z } from 'zod';
+import { NotFoundPage } from '../../../app/layout/not-found-page';
+import { ApiProblem } from '../../../shared/api/problem';
 import { useT } from '../../../shared/i18n/i18n';
 import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
@@ -22,6 +24,7 @@ import {
   useCreateMilestone,
   useDeleteMilestone,
   useMilestones,
+  isPendingMilestone,
   useToggleMilestone,
 } from '../hooks/use-milestones';
 import { goalReportHref } from '../lib/goal-reports';
@@ -100,6 +103,8 @@ function MilestonesPanel({
               <Checkbox
                 label={milestone.title}
                 checked={milestone.completed}
+                // O marco provisório só ganha id quando o servidor responde.
+                disabled={isPendingMilestone(milestone)}
                 onChange={(event) => {
                   toggle.mutate({ id: milestone.id, completed: event.target.checked });
                 }}
@@ -188,6 +193,8 @@ export function GoalScreen({ extra_tabs = [] }: GoalScreenProps) {
 
   if (goal.isPending) return <LoadingState label={t('goals.detail.loading')} />;
   if (goal.isError) {
+    // A meta de outra pessoa (ou excluída) responde 404: é a tela de não encontrado.
+    if (goal.error instanceof ApiProblem && goal.error.status === 404) return <NotFoundPage />;
     return (
       <ErrorState
         title={t('goals.detail.error_title')}

@@ -1,11 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import type { Schemas } from '@atria/contracts';
+import { api, signIn } from '../../app/e2e-session';
 
 // Fluxos de CT-17 a CT-22, da ocorrência aberta e do período global. Rodam na TASK-35, com as
 // rotas de `createFinanceRoutes` já registradas no app, em 360 px e em desktop (projetos do
 // `playwright.config.ts`), contra um servidor com a conta padrão já criada.
 
-const SUFFIX = () => String(Date.now());
+// Único entre as larguras que rodam juntas com a mesma pessoa (o milissegundo sozinho repetia).
+const SUFFIX = () => `${String(Date.now())}-${crypto.randomUUID().slice(0, 8)}`;
 
 async function checkPage(page: Page) {
   const scan = await new AxeBuilder({ page }).analyze();
@@ -16,9 +19,26 @@ async function checkPage(page: Page) {
   expect(overflow).toBe(false);
 }
 
-async function choose(page: Page, label: string, option: string | RegExp) {
+/**
+ * Escolhe pelo teclado (setas até a opção e Enter): o seletor fecha quando a página rola, e o
+ * clique do Playwright rola até a opção antes de clicar (em 360 px a lista pode abrir sob o
+ * cabeçalho fixo). A busca por digitação não serve: o espaço do nome escolhe a opção ativa.
+ */
+async function choose(page: Page, label: string, option: string) {
   await page.getByLabel(label, { exact: true }).click();
-  await page.getByRole('option', { name: option }).click();
+  const list = page.getByRole('listbox');
+  await expect(list.getByRole('option', { name: option, exact: true })).toBeAttached();
+  const total = await list.getByRole('option').count();
+  await page.keyboard.press('Home');
+  for (let index = 0; index < total; index += 1) {
+    const active = await list.getAttribute('aria-activedescendant');
+    const text = await page.locator(`[id="${active ?? ''}"]`).textContent();
+    if (text?.trim() === option) break;
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('Enter');
+  await expect(list).toHaveCount(0);
+  await expect(page.getByLabel(label, { exact: true })).toContainText(option);
 }
 
 async function createAccount(page: Page, name: string, card = false) {
@@ -34,6 +54,19 @@ async function createAccount(page: Page, name: string, card = false) {
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 }
 
+/**
+ * Liquida a movimentação aberta. O resultado aparece na hora (otimista); espera a resposta, porque
+ * o `goto` seguinte recarrega a página e cancelaria a liquidação ainda em andamento.
+ */
+async function settle(page: Page, amount: string) {
+  await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill(amount);
+  const settled = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/settlement'),
+  );
+  await page.getByRole('button', { name: 'Liquidar' }).click();
+  expect((await settled).ok()).toBe(true);
+}
+
 async function createExpense(page: Page, description: string, account: string, amount: string) {
   await page.goto('/finance/transactions/new?kind=expense');
   await page.getByRole('textbox', { name: 'Descrição' }).fill(description);
@@ -43,10 +76,16 @@ async function createExpense(page: Page, description: string, account: string, a
   await expect(page.getByRole('heading', { level: 1, name: description })).toBeVisible();
 }
 
-async function balanceOf(page: Page, account: string): Promise<string> {
-  await page.goto('/finance/accounts');
-  const row = page.getByRole('listitem').filter({ hasText: account });
-  return (await row.locator('span').last().textContent()) ?? '';
+/**
+ * O saldo da conta na lista. A lista é recarregada até refletir a última mudança: com várias
+ * larguras gravando ao mesmo tempo, a resposta da liquidação pode chegar antes do saldo novo.
+ */
+async function expectBalance(page: Page, account: string, amount: string) {
+  await expect(async () => {
+    await page.goto('/finance/accounts');
+    const row = page.getByRole('listitem').filter({ hasText: account });
+    await expect(row.locator('span').last()).toContainText(amount, { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 test('default account cannot be deleted', async ({ page }) => {
@@ -64,16 +103,16 @@ test('settlement updates balance with saving and loss', async ({ page }) => {
   const account = `Conta liquidação ${SUFFIX()}`;
   await createAccount(page, account);
   await createExpense(page, 'Feira', account, '100,00');
-  await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill('80,00');
-  await page.getByRole('button', { name: 'Liquidar' }).click();
+  await settle(page, '80,00');
   await expect(page.getByText('Economizou R$ 20,00')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Desfazer liquidação' })).toBeVisible();
 
   await createExpense(page, 'Luz', account, '100,00');
-  await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill('120,00');
-  await page.getByRole('button', { name: 'Liquidar' }).click();
+  await settle(page, '120,00');
   await expect(page.getByText('Pagou R$ 20,00 a mais')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Desfazer liquidação' })).toBeVisible();
 
-  expect(await balanceOf(page, account)).toContain('200,00');
+  await expectBalance(page, account, '200,00');
   await checkPage(page);
 });
 
@@ -90,7 +129,8 @@ test('installments fall in the right statements and payment settles them', async
     page.getByRole('heading', { name: 'Compra registrada em 3 parcelas' }),
   ).toBeVisible();
 
-  await page.getByRole('link', { name: 'Faturas' }).click();
+  // O formulário fica com o resumo das parcelas; a aba Faturas está nas telas de lista.
+  await page.goto('/finance/statements');
   await choose(page, 'Cartão', card);
   await expect(page.getByText('parcela 1 de 3')).toBeVisible();
   await page.getByRole('button', { name: 'Pagar fatura' }).click();
@@ -101,6 +141,9 @@ test('installments fall in the right statements and payment settles them', async
 });
 
 test('transfer does not count in totals', async ({ page }) => {
+  // O fechamento soma tudo da pessoa: com a sessão compartilhada, os outros testes mudariam os
+  // totais no meio. Este teste entra com uma pessoa só dele.
+  await signIn(page, 'user');
   const from = `Origem ${SUFFIX()}`;
   const to = `Destino ${SUFFIX()}`;
   await createAccount(page, from);
@@ -142,9 +185,31 @@ test('monthly rent on day 31 falls on the last day', async ({ page }) => {
 });
 
 test('recurring occurrence stays overdue until settled or skipped', async ({ page }) => {
+  // A recorrência começa há 5 dias: a ocorrência aberta já está atrasada (preparada pela API).
+  const description = `Academia ${SUFFIX()}`;
+  const accounts = await api<Schemas['AccountPage']>(page, 'GET', '/accounts');
+  const account = accounts.items[0];
+  if (!account) throw new Error('pessoa sem conta padrão');
+  const startsOn = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+  await api(page, 'POST', '/recurring-transactions', {
+    account_id: account.id,
+    kind: 'expense',
+    description,
+    expected_amount: 9_000,
+    rule: {
+      frequency: 'daily',
+      interval: 1,
+      starts_on: startsOn,
+      time: '08:00',
+      timezone: 'America/Sao_Paulo',
+    },
+  });
   await page.goto('/finance/expenses?period=all&repetition=recurring');
-  const overdue = page.getByRole('listitem').filter({ hasText: 'Atrasada' }).first();
-  await overdue.getByRole('link').click();
+  const overdue = page
+    .getByRole('listitem')
+    .filter({ hasText: description })
+    .filter({ hasText: 'Atrasada' });
+  await overdue.getByRole('link', { name: description }).click();
   await expect(page.getByText('Atrasada')).toBeVisible();
   await page.getByRole('button', { name: 'Pular esta ocorrência' }).click();
   await page
@@ -191,11 +256,10 @@ test('undoing a settlement restores the balance', async ({ page }) => {
   await createExpense(page, 'Mercado', account, '50,00');
   await page.getByRole('button', { name: 'Liquidar' }).click();
   await expect(page.getByRole('button', { name: 'Desfazer liquidação' })).toBeVisible();
-  const settled = await balanceOf(page, account);
-  expect(settled).toContain('50,00');
+  await expectBalance(page, account, '50,00');
   await page.goBack();
   await page.getByRole('button', { name: 'Desfazer liquidação' }).click();
   await expect(page.getByText('Liquidação desfeita.')).toBeVisible();
-  expect(await balanceOf(page, account)).toContain('0,00');
+  await expectBalance(page, account, 'R$ 0,00');
   await checkPage(page);
 });

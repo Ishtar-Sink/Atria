@@ -156,10 +156,12 @@ export function useCompleteTask() {
   const { today } = useToday();
   return useOptimisticMutation<unknown, TodayTask, TodayTasks>({
     query_key: [KEY, 'today-tasks', today],
+    // O servidor sempre lê um corpo JSON: a pontual vai com `{}` (sem corpo, 422).
     mutation_fn: (task) =>
-      task.recurring
-        ? api.post(`/tasks/${task.task_id}/completion`, { occurrence_date: today })
-        : api.post(`/tasks/${task.task_id}/completion`),
+      api.post(
+        `/tasks/${task.task_id}/completion`,
+        task.recurring ? { occurrence_date: today } : {},
+      ),
     apply: (current, task) => ({
       items: (current?.items ?? []).filter((item) => item.task_id !== task.task_id),
       total_today: current?.total_today ?? 0,

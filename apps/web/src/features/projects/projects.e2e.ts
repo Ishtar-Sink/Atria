@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // Fluxo ponta a ponta do CT-30. Roda na TASK-35, com o servidor e as rotas de Projetos registradas:
 // lista e grade, projeto aberto na Visão geral com as raias padrão, raia nova com cor HEX em
@@ -25,6 +25,40 @@ async function createTask(page: Page, title: string) {
     headers: { 'X-CSRF-Token': csrf },
   });
   expect(response.ok()).toBe(true);
+}
+
+/**
+ * Rola até o alvo e só clica depois que o cabeçalho fixo termina de compactar ou expandir (PD-20):
+ * a rolagem do próprio Playwright dispara a transição, que desloca o alvo no meio do clique.
+ */
+async function clickSettled(page: Page, target: Locator) {
+  await target.scrollIntoViewIfNeeded();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      }),
+  );
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (animation) => !(animation instanceof CSSTransition) || animation.playState !== 'running',
+      ),
+  );
+  await target.click();
+}
+
+/** Abre a aba e espera a troca de endereço (`?tab=`) terminar antes do próximo passo. */
+async function openTab(page: Page, name: string) {
+  const tab = page.getByRole('tab', { name });
+  await clickSettled(page, tab);
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel', { name })).toBeVisible();
 }
 
 async function expectNoAxeViolations(page: Page) {
@@ -68,13 +102,13 @@ for (const size of SIZES) {
         'aria-selected',
         'true',
       );
-      await page.getByRole('tab', { name: 'Quadro' }).click();
+      await openTab(page, 'Quadro');
       for (const lane of ['Aguardando', 'Em progresso', 'Pronto']) {
         await expect(page.getByRole('heading', { level: 2, name: lane })).toBeVisible();
       }
 
       // Configurações › Raias: criar com cor HEX, reordenar pelo puxador e marcar como concluída.
-      await page.getByRole('tab', { name: 'Configurações' }).click();
+      await openTab(page, 'Configurações');
       await page.getByRole('link', { name: 'Nova raia' }).click();
       await page.getByLabel('Nome').fill('Revisão');
       await page.getByRole('button', { name: /^Cor/ }).click();
@@ -90,13 +124,21 @@ for (const size of SIZES) {
         page.getByRole('button', { name: /^Reordenar a raia Revisão, posição 3/ }),
       ).toBeVisible();
 
-      await page.getByRole('checkbox', { name: 'Conta como concluída: Revisão' }).check();
-      await page.getByRole('tab', { name: 'Visão geral' }).click();
-      await expect(page.getByRole('heading', { name: 'Andamento' })).toBeVisible();
+      // A raia muda pela mutação otimista, um instante depois do clique: `check()` exige a troca
+      // síncrona, então clica e espera o estado marcado.
+      const done = page.getByRole('checkbox', { name: 'Conta como concluída: Revisão' });
+      await done.click();
+      await expect(done).toBeChecked();
+      await openTab(page, 'Visão geral');
+      await expect(page.getByRole('heading', { name: 'Andamento', exact: true })).toBeVisible();
 
       // Cartão pelo "+ Adicionar cartão", com prazo, checklist e tarefa ligada.
-      await page.getByRole('tab', { name: 'Quadro' }).click();
-      await page.getByRole('button', { name: 'Adicionar cartão em Aguardando' }).click();
+      await openTab(page, 'Quadro');
+      await clickSettled(
+        page,
+        page.getByRole('button', { name: 'Adicionar cartão em Aguardando' }),
+      );
+      await expect(page).toHaveURL(/\/cards\/new/);
       await page.getByLabel('Título').fill('Escolher o sofá');
       await page.getByLabel('Checklist').fill('[x] Medir a sala\nComparar lojas');
       await page.getByRole('button', { name: /Prazo/ }).click();
@@ -108,8 +150,12 @@ for (const size of SIZES) {
       await expect(page.getByText('1/2')).toBeVisible();
 
       // Mover pelo seletor do pé.
+      // Pelo teclado: em 360 px a lista abre para cima, sob o cabeçalho fixo, e rolar até a
+      // opção a fecha (o seletor fecha ao rolar a página).
       await page.getByRole('button', { name: /Mover “Escolher o sofá” para/ }).click();
-      await page.getByRole('option', { name: 'Em progresso' }).click();
+      await expect(page.getByRole('option', { name: 'Em progresso' })).toBeVisible();
+      await page.keyboard.type('Em');
+      await page.keyboard.press('Enter');
       const doing = page
         .getByRole('heading', { level: 2, name: 'Em progresso' })
         .locator('xpath=ancestor::li[1]');

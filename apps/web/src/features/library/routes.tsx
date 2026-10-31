@@ -6,13 +6,15 @@ import { BookPage, type BookExtraTab } from './book-page';
 import { ReadingSessionFormPage } from './reading-session-form-page';
 import { ShelfPage } from './shelf-page';
 import { VideoFormPage } from './video-form-page';
-import { VideoPage } from './video-page';
+import { VideoPage, type VideoExtraTab } from './video-page';
 
 export interface LibraryRoutesOptions {
   /** Abas do livro que outra feature acrescenta (Conexões e Destaques, montadas na TASK-35). */
   book_extra_tabs?: readonly BookExtraTab[];
   /** Abas do artigo que outra feature acrescenta (Conexões e Destaques, montadas na TASK-35). */
   article_extra_tabs?: readonly ArticleExtraTab[];
+  /** Abas do vídeo que outra feature acrescenta (Conexões, montada na TASK-35). */
+  video_extra_tabs?: readonly VideoExtraTab[];
 }
 
 function meta(key: string) {
@@ -36,6 +38,7 @@ export function createLibraryRoutes(
     });
   const book_tabs = options.book_extra_tabs;
   const article_tabs = options.article_extra_tabs;
+  const video_tabs = options.video_extra_tabs;
   return [
     route('/library', ShelfPage, 'library.nav.title'),
     route('/library/books/new', BookFormPage, 'library.book.title_new'),
@@ -63,7 +66,11 @@ export function createLibraryRoutes(
     ),
     route('/library/articles/$articleId/edit', ArticleFormPage, 'library.article.title_edit'),
     route('/library/videos/new', VideoFormPage, 'library.video.title_new'),
-    route('/library/videos/$videoId', VideoPage, 'library.video.nav_crumb'),
+    route(
+      '/library/videos/$videoId',
+      () => <VideoPage {...(video_tabs ? { extra_tabs: video_tabs } : {})} />,
+      'library.video.nav_crumb',
+    ),
     route('/library/videos/$videoId/edit', VideoFormPage, 'library.video.title_edit'),
   ];
 }

@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { api, expectNoAxeViolations, signIn } from '../../app/e2e-session';
 
 // Fluxo ponta a ponta de CT-12. Roda na TASK-35, com o servidor e a paleta montada no layout:
 // Ctrl/Cmd + K com o foco num campo, fundo borrado, busca com e sem contextos, nota rápida e
@@ -10,21 +10,16 @@ const SIZES = [
   { name: 'desktop', width: 1280, height: 800 },
 ];
 
-async function signIn(page: Page) {
-  await page.goto('/__test__/sign-in?role=user');
-}
-
-async function expectNoAxeViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations).toEqual([]);
-}
-
 for (const size of SIZES) {
   test.describe(`paleta de comandos em ${size.name}`, () => {
     test.use({ viewport: { width: size.width, height: size.height } });
 
     test('palette searches by context and creates a quick note', async ({ page }) => {
       await signIn(page);
+      // A pessoa nova não tem dados: a nota e a tarefa que a busca acha são preparadas pela API.
+      const term = `ideias${String(Date.now())}`;
+      await api(page, 'POST', '/notes', { title: `Nota ${term}`, body: 'Texto da nota.' });
+      await api(page, 'POST', '/tasks', { title: `Tarefa ${term}` });
       await page.goto('/notes/new');
 
       // Abre com o foco num campo de texto: o atalho não escreve nada no campo.
@@ -43,14 +38,25 @@ for (const size of SIZES) {
 
       // Busca em tudo e depois só nos contextos escolhidos.
       const search = dialog.getByRole('combobox');
-      await search.fill('ideias');
-      await expect(dialog.getByRole('option').first()).toBeVisible();
+      await search.fill(term);
+      const note_option = dialog.getByRole('option').filter({ hasText: `Nota ${term}` });
+      const task_option = dialog.getByRole('option').filter({ hasText: `Tarefa ${term}` });
+      await expect(note_option).toBeVisible();
+      await expect(task_option).toBeVisible();
+      // Os chips começam com os contextos padrão (todos, como no protótipo): "Tudo" limpa a
+      // escolha e "Tarefas" passa a ser o único contexto.
+      await dialog.getByRole('button', { name: 'Tudo' }).click();
       await dialog.getByRole('button', { name: 'Tarefas' }).click();
       await expect(dialog.getByRole('button', { name: 'Tarefas' })).toHaveAttribute(
         'aria-pressed',
         'true',
       );
-      await expect(dialog.getByRole('option').first()).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Notas' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      await expect(task_option).toBeVisible();
+      await expect(note_option).toHaveCount(0);
 
       // Sem rolagem horizontal, mesmo em 360 px.
       const overflow = await page.evaluate(

@@ -26,6 +26,7 @@ export const PREFERENCES: UserPreferences = {
 export const INSTANCE: InstanceSettings = {
   invite_required: true,
   web_push_enabled: false,
+  web_push_configured: true,
   smtp_host: 'smtp.casa.test',
   smtp_port: 587,
   smtp_user: 'atria',
@@ -42,8 +43,11 @@ export function json(body: unknown, status = 200) {
 export interface ApiStub {
   role?: string;
   user_id?: string;
+  /** `GET /me` sem resposta, para o estado de carregamento. */
+  me?: 'loading';
   preferences?: UserPreferences;
   instance?: InstanceSettings | 'loading' | 'error';
+  /** A chave VAPID está configurada no servidor (`web_push_configured`); padrão: sim. */
   vapid_key?: boolean;
   /** Resposta do PATCH de /me/preferences; por padrão devolve a preferência já mudada. */
   patch_preferences?: Response;
@@ -60,7 +64,11 @@ export interface Call {
 export function stubApi(options: ApiStub = {}) {
   const calls: Call[] = [];
   let preferences = options.preferences ?? PREFERENCES;
-  let instance = options.instance ?? INSTANCE;
+  let instance =
+    options.instance ??
+    (options.vapid_key === undefined
+      ? INSTANCE
+      : { ...INSTANCE, web_push_configured: options.vapid_key });
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string, init?: RequestInit) => {
@@ -69,6 +77,7 @@ export function stubApi(options: ApiStub = {}) {
       const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
       calls.push({ method, path, body });
       if (path === '/me') {
+        if (options.me === 'loading') return new Promise<Response>(() => undefined);
         return Promise.resolve(
           json({
             id: options.user_id ?? 'u1',
@@ -85,10 +94,13 @@ export function stubApi(options: ApiStub = {}) {
         return Promise.resolve(json(preferences));
       }
       if (path === '/web-push/public-key') {
+        // Como o servidor: 404 enquanto o Web Push estiver desligado ou sem a chave VAPID.
+        const on =
+          typeof instance === 'object' && instance.web_push_enabled && instance.web_push_configured;
         return Promise.resolve(
-          options.vapid_key === false
-            ? json({ code: 'web_push_disabled', title: 'off' }, 404)
-            : json({ public_key: 'BKEY' }),
+          on
+            ? json({ public_key: 'BKEY' })
+            : json({ code: 'web_push_disabled', title: 'off' }, 404),
         );
       }
       if (path === '/admin/instance/settings') {

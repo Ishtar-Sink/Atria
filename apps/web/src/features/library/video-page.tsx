@@ -12,17 +12,25 @@ import {
   ItemHeaderActions,
   LibraryOverview,
   SafeLink,
+  type LibraryExtraTab,
   type OverviewFact,
 } from './library-overview';
-import { useVideo } from './use-library-items';
+import { useVideo, type Video } from './use-library-items';
 import { useDeleteItem } from './use-library-mutations';
 
 registerMessages('library', messages);
 
 const tabSearchSchema = z.object({ tab: z.string().default('overview') });
 
+export type VideoExtraTab = LibraryExtraTab<Video>;
+
+export interface VideoPageProps {
+  /** Abas que outra feature acrescenta (Conexões, montada na TASK-35). */
+  extra_tabs?: readonly VideoExtraTab[];
+}
+
 /** Tela do vídeo: visão geral em cartões (miniatura, canal, status e endereço) e notas (PD-37, PD-59). */
-export function VideoPage() {
+export function VideoPage({ extra_tabs = [] }: VideoPageProps) {
   const t = useT();
   const video_id =
     useParams({
@@ -83,6 +91,7 @@ export function VideoPage() {
       label: t('library.video.tab_notes'),
       panel: <ItemNotesTab kind="video" item_id={data.id} />,
     },
+    ...extra_tabs.map((tab) => ({ id: tab.id, label: tab.label, panel: tab.render(data) })),
   ];
   const current = tabs.some((tab) => tab.id === search.tab) ? search.tab : 'overview';
 

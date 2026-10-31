@@ -1,8 +1,10 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { e2eSignInPlugin } from './src/app/e2e-sign-in-plugin';
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  // A entrada `/__test__/sign-in` só existe no preview do build e2e (TASK-35).
+  plugins: [react(), ...(mode === 'e2e' ? [e2eSignInPlugin()] : [])],
   server: {
     proxy: {
       '/api': 'http://localhost:8080',
@@ -23,4 +25,4 @@ export default defineConfig({
     exclude: ['src/**/*.e2e.ts', 'node_modules'],
     css: { include: /.+/, modules: { classNameStrategy: 'non-scoped' } },
   },
-});
+}));

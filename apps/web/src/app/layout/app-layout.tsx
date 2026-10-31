@@ -1,5 +1,5 @@
 import { Outlet, useRouter } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { breakpoints } from '@atria/theme';
 import { useT } from '../../shared/i18n/i18n';
 import { useRouteFocus } from './route-focus';
@@ -22,6 +22,10 @@ function useDrawerMode(): boolean {
     };
   }, []);
   return drawer;
+}
+
+function Passthrough({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 export function AppLayout() {
@@ -54,34 +58,44 @@ export function AppLayout() {
 
   const drawer_open = drawer && open;
 
+  const shell = router.options.context.shell;
+  const Services = shell?.Services ?? Passthrough;
+
   return (
-    <div className={styles.shell}>
-      <a href="#conteudo" className={styles.skipLink}>
-        {t('common.skip_to_content')}
-      </a>
-      <Sidebar
-        items={router.options.context.nav_items}
-        drawer={drawer}
-        open={drawer_open}
-        onClose={close}
-      />
-      {drawer_open ? (
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label={t('common.close_menu')}
-          className={styles.scrim}
-          onClick={close}
+    <Services>
+      <div className={styles.shell}>
+        <a href="#conteudo" className={styles.skipLink}>
+          {t('common.skip_to_content')}
+        </a>
+        <Sidebar
+          items={router.options.context.nav_items}
+          drawer={drawer}
+          open={drawer_open}
+          onClose={close}
         />
-      ) : null}
-      <div className={styles.main}>
-        <Topbar drawer={drawer} drawer_open={drawer_open} onToggleDrawer={toggle} />
-        <main id="conteudo" tabIndex={-1} className={styles.page} data-scroll-area="">
-          <div className={styles.pageInner}>
-            <Outlet />
-          </div>
-        </main>
+        {drawer_open ? (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={t('common.close_menu')}
+            className={styles.scrim}
+            onClick={close}
+          />
+        ) : null}
+        <div className={styles.main}>
+          <Topbar
+            drawer={drawer}
+            drawer_open={drawer_open}
+            onToggleDrawer={toggle}
+            {...(shell ? { SearchTrigger: shell.SearchTrigger } : {})}
+          />
+          <main id="conteudo" tabIndex={-1} className={styles.page} data-scroll-area="">
+            <div className={styles.pageInner}>
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </Services>
   );
 }

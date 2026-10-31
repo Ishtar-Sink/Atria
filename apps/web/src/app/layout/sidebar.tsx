@@ -96,6 +96,12 @@ function ChevronIcon() {
   );
 }
 
+/** Item com `roles` (Administração) só aparece para quem tem um deles. */
+function visibleFor(item: NavItem, role: string | undefined): boolean {
+  if (!('roles' in item) || !Array.isArray(item.roles)) return true;
+  return role !== undefined && (item.roles as unknown[]).includes(role);
+}
+
 const FOCUSABLE = 'a[href], button:not([disabled])';
 
 export interface SidebarProps {
@@ -168,7 +174,8 @@ export function Sidebar({ items, drawer, open, onClose }: SidebarProps) {
       },
     },
   ];
-  const sorted = [...items].sort((a, b) => a.order - b.order);
+  const role = user && 'role' in user && typeof user.role === 'string' ? user.role : undefined;
+  const sorted = items.filter((item) => visibleFor(item, role)).sort((a, b) => a.order - b.order);
 
   return (
     // O onKeyDown só prende o foco e fecha a gaveta; o aside não vira controle.

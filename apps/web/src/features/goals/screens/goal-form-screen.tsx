@@ -4,6 +4,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { NotFoundPage } from '../../../app/layout/not-found-page';
 import { ApiProblem } from '../../../shared/api/problem';
 import { FormDate, FormSegmented, FormSelect, FormTags } from '../../../shared/forms/form-fields';
 import { useT } from '../../../shared/i18n/i18n';
@@ -202,6 +203,7 @@ function EditGoal({ goal_id }: { goal_id: string }) {
   const query = useGoal(goal_id);
   if (query.isPending) return <LoadingState label={t('goals.form.loading')} />;
   if (query.isError) {
+    if (query.error instanceof ApiProblem && query.error.status === 404) return <NotFoundPage />;
     return (
       <ErrorState
         title={t('goals.form.not_found')}

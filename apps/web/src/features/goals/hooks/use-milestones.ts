@@ -32,17 +32,26 @@ interface Snapshot {
 }
 
 let temp_counter = 0;
+const PENDING_PREFIX = 'pending-';
+
+/** Marco otimista ainda sem resposta do servidor: não tem id real para PATCH ou DELETE. */
+export function isPendingMilestone(milestone: Milestone): boolean {
+  return milestone.id.startsWith(PENDING_PREFIX);
+}
 
 interface Config<TVariables, TData> {
   goal_id: string;
   mutation_fn: (variables: TVariables) => Promise<TData>;
   apply: (items: Milestone[], variables: TVariables) => Milestone[];
+  /** Ajusta o cache com a resposta do servidor antes da nova leitura. */
+  settle?: (items: Milestone[], data: TData, variables: TVariables) => Milestone[];
 }
 
 function useMilestoneMutation<TVariables, TData>({
   goal_id,
   mutation_fn,
   apply,
+  settle,
 }: Config<TVariables, TData>) {
   const client = useQueryClient();
   const key = goalKeys.milestones(goal_id);
@@ -60,6 +69,13 @@ function useMilestoneMutation<TVariables, TData>({
         client.setQueryData<Goal>(goalKeys.detail(goal_id), (goal) => goal && recount(goal, items));
       }
       return snapshot;
+    },
+    onSuccess: (data, variables) => {
+      if (!settle) return;
+      client.setQueryData<MilestonePage>(
+        key,
+        (page) => page && { ...page, items: settle(page.items, data, variables) },
+      );
     },
     onError: (error, _variables, snapshot) => {
       rollback(client, goal_id, snapshot);
@@ -88,7 +104,7 @@ export function useCreateMilestone(goal_id: string) {
       return [
         ...items,
         {
-          id: `pending-${String(temp_counter)}`,
+          id: `${PENDING_PREFIX}${String(temp_counter)}`,
           goal_id,
           owner_id: goal?.owner_id ?? '',
           title,
@@ -99,6 +115,13 @@ export function useCreateMilestone(goal_id: string) {
           updated_at: stamp,
         },
       ];
+    },
+    // Troca o provisório pelo marco gravado; sem isso, um clique logo depois iria a um id falso.
+    settle: (items, created, { title }) => {
+      const index = items.findIndex((item) => isPendingMilestone(item) && item.title === title);
+      if (index < 0)
+        return items.some((item) => item.id === created.id) ? items : [...items, created];
+      return items.map((item, position) => (position === index ? created : item));
     },
   });
 }

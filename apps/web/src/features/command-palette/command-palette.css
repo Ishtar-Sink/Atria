@@ -9,8 +9,9 @@
   align-items: flex-start;
   padding: 12vh var(--s4) var(--s4);
   background: color-mix(in srgb, var(--bg) 62%, transparent);
+  /* Só a forma sem prefixo: o minificador do build (Lightning CSS) acrescenta a `-webkit-`, e a
+     prefixada escrita depois da outra a apagava do CSS final, sem desfoque no Chrome. */
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   animation: command-palette-fade var(--motion-base) var(--motion-ease-enter);
 }
 

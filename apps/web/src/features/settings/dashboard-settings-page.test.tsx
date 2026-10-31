@@ -75,6 +75,21 @@ describe('DashboardSettingsPage', () => {
     expect(journal).not.toBeChecked();
   });
 
+  it('pd30 waits for the person before showing the toggles', async () => {
+    stubApi({ me: 'loading' });
+    renderSettings('/settings/dashboard');
+    expect(await screen.findByRole('status')).toHaveTextContent('Carregando as configurações…');
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('pd30 shows the saved hidden block as off from the start', async () => {
+    localStorage.setItem(KEY, '["reading"]');
+    stubApi();
+    renderSettings('/settings/dashboard');
+    expect(await screen.findByRole('checkbox', { name: 'Leituras' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Diário' })).toBeChecked();
+  });
+
   it('pd15 explains the eye of the sensitive blocks', async () => {
     stubApi();
     renderSettings('/settings/dashboard');
