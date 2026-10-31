@@ -1,0 +1,94 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--elevation-1);
+  list-style: none;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.title {
+  color: var(--text);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.title:hover {
+  color: var(--primary);
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Concluída: riscada e neutra, nunca vermelha. */
+.done .title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.repeat {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .root {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .meta {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+}

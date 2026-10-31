@@ -1,0 +1,56 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Em 360 px as ações ocupam a linha e ficam à direita, para o menu aberto caber na janela. */
+@media (max-width: 480px) {
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.icon {
+  display: inline-flex;
+}
+
+.help {
+  margin: 0 0 var(--s3);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.occurrences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.occurrence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--elevation-1);
+}
+
+.occurrenceMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}

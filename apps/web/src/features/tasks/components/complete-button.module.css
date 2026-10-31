@@ -1,0 +1,12 @@
+/* Botão só com o check: área mínima de 36 px (PD-04). */
+.root {
+  min-width: calc(var(--space) * 9);
+  min-height: calc(var(--space) * 9);
+  padding: 0;
+  border-radius: var(--radius-pill);
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
