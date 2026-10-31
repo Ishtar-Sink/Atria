@@ -1,0 +1,118 @@
+.root {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0 0 var(--s2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Chips em grade de 180 px (PD-62). */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space) * 45), 1fr));
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.emo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease-standard),
+    background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.emo[data-on='true'] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.chip {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s2);
+  min-height: calc(var(--space) * 7);
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip input {
+  width: calc(var(--space) * 4);
+  height: calc(var(--space) * 4);
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.chip input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.dots {
+  display: flex;
+  gap: calc(var(--space) * 0.75);
+}
+
+.emo[data-on='false'] .dots {
+  opacity: 0.35;
+}
+
+.dot {
+  position: relative;
+  display: block;
+  width: calc(var(--space) * 3.5);
+  height: calc(var(--space) * 3.5);
+}
+
+/* O rádio fica visualmente escondido, mas continua focável e com área de toque. */
+.dot input {
+  position: absolute;
+  inset: calc(var(--space) * -1);
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dot input:disabled {
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  inset: calc(var(--space) * 0.5);
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.mark[data-filled='true'] {
+  background: var(--primary);
+}
+
+.dot:has(input:focus-visible) .mark {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

@@ -1,0 +1,144 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.filters > * {
+  min-width: calc(var(--space) * 36);
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.dayTitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--elevation-1);
+}
+
+.time {
+  flex: none;
+  min-width: calc(var(--space) * 12);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  white-space: pre-wrap;
+}
+
+.text:hover {
+  text-decoration: underline;
+}
+
+.text:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.emotions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Linha do tempo: um fio à esquerda, com um ponto por entrada. */
+.days[data-view='timeline'] .entries {
+  position: relative;
+  gap: 0;
+  padding-left: var(--s4);
+  border-left: 2px solid var(--border-strong);
+}
+
+.days[data-view='timeline'] .entry {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.days[data-view='timeline'] .entry::before {
+  content: '';
+  position: absolute;
+  top: var(--s4);
+  left: calc(var(--s4) * -1 - var(--space) * 1.5);
+  width: calc(var(--space) * 2);
+  height: calc(var(--space) * 2);
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+@media (max-width: 480px) {
+  .filters > * {
+    min-width: 100%;
+  }
+
+  .entry {
+    flex-direction: column;
+    gap: var(--s1);
+  }
+}
