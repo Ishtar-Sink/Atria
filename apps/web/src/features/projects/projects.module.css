@@ -1,0 +1,622 @@
+/* Telas de Projetos: lista, Visão geral, Quadro e Configurações, só com tokens do tema. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--surface-hover) 40%, var(--surface));
+}
+
+.rowMain {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rowTitle:hover {
+  color: var(--text);
+}
+
+/* Link esticado: o cartão inteiro abre o item, e o foco aparece no cartão. */
+.rowTitle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.rowTitle:focus-visible {
+  outline: none;
+}
+
+.row:has(.rowTitle:focus-visible),
+.tile:has(.rowTitle:focus-visible),
+.kcard:has(.rowTitle:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rowSub {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-left: auto;
+}
+
+.rowEnd {
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rowProgress {
+  flex: 1 1 100%;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  height: 100%;
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--elevation-1);
+  box-shadow: var(--shadow-md);
+}
+
+.art {
+  width: 100%;
+  height: calc(var(--space) * 24);
+  border-radius: var(--radius-md);
+}
+
+.swatch {
+  flex: none;
+  width: calc(var(--space) * 8);
+  height: calc(var(--space) * 8);
+}
+
+.tileFoot {
+  display: grid;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-top: var(--s2);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s4);
+}
+
+/* Link com a cara de botão: abre uma rota, então é <a>, não <button>. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: calc(var(--space) * 10);
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.linkButton:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.linkPrimary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-on);
+}
+
+.linkPrimary:hover {
+  background: var(--primary-hover);
+  color: var(--primary-on);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Visão geral: zona principal e lateral; abaixo de 960 px viram uma coluna. */
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bar {
+  display: flex;
+  gap: 2px;
+  height: calc(var(--space) * 3.5);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+}
+
+.bar > span {
+  min-width: 4px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: var(--s3) 0 var(--s2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.dot {
+  width: calc(var(--space) * 2.5);
+  height: calc(var(--space) * 2.5);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 15%, transparent);
+}
+
+.num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.about {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.about > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.about dt {
+  color: var(--text-muted);
+}
+
+.about dd {
+  margin: 0;
+  text-align: right;
+}
+
+.longText {
+  max-width: 68ch;
+  margin: 0 0 var(--s3);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Quadro: a rolagem horizontal fica só dentro dele; abaixo de 480 px as raias empilham. */
+.kanban {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: var(--s4);
+  margin: 0;
+  padding: 0 0 var(--s3);
+  overflow-x: auto;
+  list-style: none;
+}
+
+.lane {
+  --lane: var(--primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-height: calc(var(--space) * 50);
+  padding: var(--s3);
+  border: 1px solid color-mix(in srgb, var(--lane) 22%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--lane) 7%, var(--surface));
+}
+
+.laneDrop {
+  background: color-mix(in srgb, var(--lane) 16%, var(--surface));
+}
+
+.laneHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* O nome usa --text: o contraste não depende da cor escolhida para a raia. */
+.laneName {
+  flex: 1;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  overflow-wrap: anywhere;
+}
+
+.laneCount {
+  padding: 0 var(--s2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--lane) 18%, var(--surface));
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kcard {
+  position: relative;
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+}
+
+.kcard:hover {
+  border-color: var(--border-strong);
+}
+
+.kcardDragging {
+  opacity: 0.5;
+}
+
+.kcardDesc {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.kcardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.kcardMeta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.kcardFoot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: var(--s2);
+}
+
+/* O rótulo do seletor do pé fica só para leitor de tela (PD-46). */
+.move label,
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.move button {
+  min-height: calc(var(--space) * 7);
+  font-size: var(--font-size-xs);
+}
+
+.laneAdd {
+  width: 100%;
+  margin-top: auto;
+  justify-content: center;
+}
+
+/* O Button `muted` tingido clareia a cor da raia a 60%, abaixo de 4,5:1 sobre o fundo tingido; aqui a
+   cor da raia se aproxima de --text para o contraste não depender da cor escolhida. */
+.lane .laneAdd {
+  color: color-mix(in srgb, var(--lane) 55%, var(--text));
+}
+
+/* Configurações › Raias */
+.laneRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.laneRow {
+  display: grid;
+  grid-template-columns: calc(var(--space) * 4) minmax(0, 1fr) auto auto auto;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.laneRowDragging {
+  position: relative;
+  z-index: 5;
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+}
+
+.handle {
+  display: grid;
+  place-items: center;
+  height: calc(var(--space) * 10);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+.handle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.laneColor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.laneTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.dialog {
+  width: min(480px, calc(100vw - var(--s8)));
+  padding: var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--text) 40%, transparent);
+}
+
+.dialogTitle {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+}
+
+.dialogText {
+  margin: 0 0 var(--s4);
+  color: var(--text-muted);
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+
+.error {
+  margin: var(--s2) 0 0;
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+
+/* Descrição e checklist: o mesmo desenho do campo de texto da base, em várias linhas. */
+.textareaRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.textareaLabel {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.textarea {
+  width: 100%;
+  min-height: calc(var(--space) * 24);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+@media (max-width: 960px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .rowMeta {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .laneRow {
+    grid-template-columns: calc(var(--space) * 4) minmax(0, 1fr);
+  }
+
+  .laneRow > :nth-child(n + 3) {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kanban {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow-x: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .linkButton {
+    transition: none;
+  }
+}
