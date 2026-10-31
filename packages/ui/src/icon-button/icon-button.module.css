@@ -1,0 +1,45 @@
+.root {
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--space) * 10);
+  height: calc(var(--space) * 10);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease-standard),
+    color var(--motion-fast) var(--motion-ease-standard);
+}
+
+.root:hover:not(:disabled) {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.root:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.secondary {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.ghost {
+  border-color: transparent;
+}
+
+.icon {
+  display: inline-grid;
+  place-items: center;
+}

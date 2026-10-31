@@ -1,0 +1,11 @@
+.root {
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--space) * 10);
+  height: calc(var(--space) * 10);
+  border-radius: var(--radius-md);
+  color: var(--primary-on);
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}

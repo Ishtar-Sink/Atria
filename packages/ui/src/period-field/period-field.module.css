@@ -1,0 +1,126 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wrap {
+  position: relative;
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+  min-height: calc(var(--space) * 10);
+  padding: calc(var(--space) * 2) calc(var(--space) * 3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + var(--space) * 2);
+  z-index: 40;
+  display: flex;
+  gap: calc(var(--space) * 4);
+  padding: calc(var(--space) * 3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.toolbar {
+  right: 0;
+}
+
+.form {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: calc(var(--space) * 36);
+}
+
+.preset {
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+.preset[aria-pressed='true'] {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+}
+
+.customTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  margin: 0;
+  padding: var(--space) calc(var(--space) * 2);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 560px) {
+  .popover {
+    flex-direction: column;
+    max-width: calc(100vw - calc(var(--space) * 4));
+  }
+
+  .toolbar,
+  .form {
+    right: auto;
+    left: 0;
+    transform: none;
+  }
+}
