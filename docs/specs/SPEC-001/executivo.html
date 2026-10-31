@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPEC-001 · Resumo executivo · MVP</title>
+<style>
+:root {
+  color-scheme: dark;
+  --color-bg: #1a1528;
+  --color-surface: #231d35;
+  --color-surface-2: #2b2440;
+  --color-ink: #ece8f5;
+  --color-muted: #a39cb8;
+  --color-line: #3a3252;
+  --color-primary: #a78bfa;
+  --color-primary-ink: #150f22;
+  --color-primary-soft: #352a55;
+  --color-ok: #5ccf9f;
+  --color-ok-soft: #173027;
+  --color-warn: #f0a45a;
+  --color-warn-soft: #33251a;
+  --color-crit: #ef7b86;
+  --color-crit-soft: #3a1c22;
+  --color-diff-add: #5ccf9f;
+  --color-diff-add-soft: #173027;
+  --color-diff-del: #ef7b86;
+  --color-diff-del-soft: #3a1c22;
+  --color-head: #17112a;
+  --color-head-2: #34255c;
+  --color-head-ink: #f5f1ff;
+  --color-head-muted: #b9afd6;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f5fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1edf8;
+  --color-ink: #1d1729;
+  --color-muted: #6a6280;
+  --color-line: #e3ddee;
+  --color-primary: #6d28d9;
+  --color-primary-ink: #ffffff;
+  --color-primary-soft: #ede5fb;
+  --color-ok: #047857;
+  --color-ok-soft: #e3f4ec;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf1e3;
+  --color-crit: #b91c3c;
+  --color-crit-soft: #fbe5ea;
+  --color-diff-add: #047857;
+  --color-diff-add-soft: #e3f4ec;
+  --color-diff-del: #b91c3c;
+  --color-diff-del-soft: #fbe5ea;
+  --color-head: #1c1430;
+  --color-head-2: #38235f;
+  --color-head-ink: #ffffff;
+  --color-head-muted: #cdc2ee;
+}
+* { box-sizing: border-box; }
+html { background: var(--color-bg); }
+body {
+  margin: 0; background: var(--color-bg); color: var(--color-ink);
+  font: 400 14px/1.55 var(--font-body); -webkit-font-smoothing: antialiased;
+}
+code { font: .92em var(--font-mono); background: var(--color-surface-2); padding: 1px 5px; border-radius: 4px; }
+p { margin: 0 0 12px; }
+h2 { font-size: 20px; margin: 0 0 5px; letter-spacing: -.015em; text-wrap: pretty; }
+h3 { font-size: 15px; margin: 0 0 8px; letter-spacing: -.008em; }
+
+/* Cabeçalho em faixa */
+.hd { background: linear-gradient(160deg, var(--color-head) 0%, var(--color-head-2) 100%); color: var(--color-head-ink);
+      padding: 20px clamp(16px, 4vw, 40px) 0; }
+.hd-top, .hd-body { max-width: 1120px; margin: 0 auto; }
+.hd-top { display: flex; align-items: center; gap: 12px; }
+.mark { width: 26px; height: 26px; flex: none; }
+.wm { font-weight: 700; font-size: 15px; letter-spacing: -.01em; line-height: 1.15; }
+.wm small { display: block; font-weight: 500; font-size: 11px; color: var(--color-head-muted); letter-spacing: .02em; }
+.hd-sp { flex: 1; }
+.tbtn { background: rgba(255,255,255,.09); color: var(--color-head-ink); border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px; padding: 6px 13px; font: inherit; font-size: 12px; cursor: pointer; }
+.tbtn:hover { background: rgba(255,255,255,.17); }
+.tbtn:focus-visible { outline: 2px solid var(--color-head-muted); outline-offset: 2px; }
+.hd-body { padding: 26px 0 28px; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--color-head-muted); margin: 0 0 9px; }
+.hd-body h1 { font-size: clamp(26px, 3.5vw, 35px); line-height: 1.12; margin: 0 0 12px; letter-spacing: -.024em; text-wrap: pretty; }
+.lede { font-size: 14.5px; color: var(--color-head-muted); max-width: 900px; }
+.lede p:last-child { margin-bottom: 0; }
+.lede strong { color: var(--color-head-ink); font-weight: 600; }
+.lede code { background: rgba(255,255,255,.1); color: var(--color-head-ink); }
+
+.na { color: var(--color-muted); font-style: italic; }
+
+/* Abas */
+.nav { position: sticky; top: 0; z-index: 20; background: var(--color-surface); border-bottom: 1px solid var(--color-line); }
+.nav-in { max-width: 1120px; margin: 0 auto; display: flex; gap: 2px; padding: 0 clamp(16px, 4vw, 40px); overflow-x: auto; }
+.nav a { display: block; padding: 12px 12px 10px; font-size: 12.5px; color: var(--color-muted); text-decoration: none;
+         border-bottom: 2px solid transparent; white-space: nowrap; }
+.nav a:hover { color: var(--color-ink); }
+.nav a.on { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+.nav a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; border-radius: 3px; }
+
+main { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 56px; }
+.panel { padding: 30px 0 8px; }
+.tabs .panel:not(.on) { display: none; }
+.sec-h { margin: 0 0 18px; }
+.sec-h > p { color: var(--color-muted); font-size: 13.5px; margin: 6px 0 0; }
+.block { margin-top: 26px; }
+
+/* Indicadores */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--color-line);
+        border: 1px solid var(--color-line); border-radius: 14px; overflow: hidden; margin: 0 0 20px; }
+.kpi { background: var(--color-surface); padding: 15px 17px; }
+.kpi b { display: block; font-size: 26px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.kpi b small { font-size: 15px; font-weight: 500; color: var(--color-muted); letter-spacing: 0; }
+.kpi span { display: block; font-size: 11.5px; color: var(--color-muted); margin-top: 4px; }
+
+/* Tabelas */
+.tw { overflow-x: auto; border: 1px solid var(--color-line); border-radius: 14px; background: var(--color-surface); margin: 0 0 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--color-muted); font-weight: 700;
+     padding: 11px 14px; border-bottom: 1px solid var(--color-line); background: var(--color-surface-2); white-space: nowrap; }
+td { padding: 11px 14px; border-bottom: 1px solid var(--color-line); font-size: 13.5px; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.strong { font-weight: 600; }
+
+/* Etiquetas e notas */
+.tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px;
+       white-space: nowrap; background: var(--color-surface-2); color: var(--color-muted); }
+.tag.alto { background: var(--color-primary-soft); color: var(--color-primary); }
+.tag.medio { background: var(--color-ok-soft); color: var(--color-ok); }
+.tag.baixo { background: var(--color-surface-2); color: var(--color-muted); }
+.note { background: var(--color-primary-soft); border-radius: 9px; padding: 15px 18px; font-size: 13.5px; margin: 20px 0 0; }
+.note > b:first-child { display: block; text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; margin-bottom: 4px; color: var(--color-primary); }
+.note p:last-child, .note ul:last-child, .note ol:last-child { margin-bottom: 0; }
+.note ul, .note ol { margin: 0 0 10px; padding-left: 20px; }
+.note.warn { background: var(--color-warn-soft); }
+.note.warn > b:first-child { color: var(--color-warn); }
+
+/* Cartões das entregas */
+.cards { display: grid; gap: 10px; }
+details.card { background: var(--color-surface); border: 1px solid var(--color-line); border-left: 3px solid var(--color-line);
+               border-radius: 9px; overflow: hidden; }
+details.card.impact-alto { border-left-color: var(--color-primary); }
+details.card.impact-medio { border-left-color: var(--color-ok); }
+details.card > summary { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; padding: 15px 18px; cursor: pointer; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: "+"; font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; flex: none; width: 11px; }
+details.card[open] > summary::before { content: "\2212"; }
+details.card > summary > b { font-size: 14.5px; letter-spacing: -.008em; flex: 1; min-width: 200px; }
+details.card > summary:hover { background: var(--color-surface-2); }
+details.card > summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+details.card[open] > summary { border-bottom: 1px solid var(--color-line); }
+.card-body { padding: 14px 18px 16px 40px; color: var(--color-muted); font-size: 13.5px; }
+.card-body p { margin: 0 0 10px; }
+.card-body p:last-child { margin-bottom: 0; }
+.card-body p > b:first-child { display: block; text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em;
+                               color: var(--color-ink); opacity: .7; margin-bottom: 2px; font-weight: 700; }
+.ctl { display: flex; gap: 8px; justify-content: flex-end; margin: -6px 0 12px; }
+.ctl button { font: inherit; font-size: 12px; color: var(--color-muted); background: none; border: 1px solid var(--color-line);
+              border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.ctl button:hover { color: var(--color-ink); border-color: var(--color-primary); }
+
+/* Conteúdo em Markdown */
+.md { font-size: 14px; }
+.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+.md li { margin: 4px 0; }
+.md li::marker { color: var(--color-primary); }
+
+/* Linha do tempo */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--color-line); display: grid; gap: 10px; }
+.timeline li { position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 13.5px; }
+.timeline li::before { content: ""; position: absolute; left: -25px; top: 6px; width: 10px; height: 10px; border-radius: 50%;
+                       background: var(--color-bg); border: 2px solid var(--color-primary); }
+.timeline li.pending::before { border-color: var(--color-muted); }
+.timeline .date { font: 500 12px/1.4 var(--font-mono); color: var(--color-muted); }
+.timeline .task { overflow-wrap: anywhere; }
+.timeline .id { font: 700 11.5px var(--font-mono); color: var(--color-primary); margin-right: 6px; }
+
+footer { max-width: 1120px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 40px) 44px; border-top: 1px solid var(--color-line);
+         color: var(--color-muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .card-body { padding-left: 18px; }
+  .timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+@page { margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbtn, .nav, .ctl { display: none; }
+  .tabs .panel:not(.on), .panel { display: block; }
+  .panel + .panel { break-before: page; padding-top: 14mm; }
+  main { padding-bottom: 14mm; }
+  details.card, .kpi, .timeline li, tr { break-inside: avoid; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="hd">
+  <div class="hd-top">
+    <svg class="mark" viewBox="0 0 26 26" aria-hidden="true">
+      <circle cx="13" cy="13" r="6" fill="currentColor"/>
+      <ellipse cx="13" cy="13" rx="12" ry="4.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55" transform="rotate(-24 13 13)"/>
+    </svg>
+    <div class="wm">Vostok<small>Harness · finalização de spec</small></div>
+    <div class="hd-sp"></div>
+    <button type="button" class="tbtn" id="theme-toggle" aria-pressed="false">Tema claro</button>
+  </div>
+  <div class="hd-body">
+    <p class="eyebrow">Resumo executivo · SPEC-001 · aprovada em 2026-10-30 · concluída em 2026-10-31</p>
+    <h1>MVP</h1>
+    <div class="lede">
+<p>O <strong>Atria</strong> está pronto como produto: um organizador pessoal autohospedado que junta <strong>finanças, metas, tarefas, lembretes, notas, diário, leituras e projetos</strong> num lugar só, com tudo ligado entre si e pensado para trazer calma, não pressão por produtividade. A entrega vai do <strong>protótipo validado</strong> à <strong>aplicação completa</strong>, com servidor, telas, relatórios e instalação em um único comando, segura para dados pessoais e pronta para ser usada por amigos na mesma instância. O ciclo foi feito em dois dias, em <strong>36 etapas</strong> organizadas em 8 ondas, todas concluídas e comprovadas.</p>
+    </div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Seções">
+  <div class="nav-in" role="tablist">
+    <a href="#p-panorama" role="tab" data-tab="panorama">Panorama</a>
+    <a href="#p-entregas" role="tab" data-tab="entregas">Entregas</a>
+    <a href="#p-antes-e-depois" role="tab" data-tab="antes-e-depois">Antes e depois</a>
+    <a href="#p-execucao" role="tab" data-tab="execucao">Execução</a>
+    <a href="#p-proximos-passos" role="tab" data-tab="proximos-passos">Próximos passos</a>
+  </div>
+</nav>
+
+<main id="main">
+  <section class="panel" id="p-panorama" role="tabpanel" data-panel="panorama">
+    <div class="sec-h"><h2>O que foi entregue</h2><p>As entregas desta spec e o valor de cada uma.</p></div>
+<div class="kpis">
+<div class="kpi"><b>Módulos entregues</b><span><strong>16</strong> áreas do produto integradas no app, do dashboard à autohospedagem</span></div>
+<div class="kpi"><b>Requisitos atendidos</b><span><strong>70</strong> requisitos funcionais e <strong>10</strong> não funcionais cobertos pelas etapas concluídas</span></div>
+<div class="kpi"><b>Qualidade da interface</b><span>notas de <strong>96 a 100</strong> em desempenho, acessibilidade e boas práticas nas <strong>11</strong> telas principais</span></div>
+<div class="kpi"><b>Segurança automática</b><span><strong>704</strong> verificações automáticas do servidor, incluindo isolamento entre pessoas e dados criptografados</span></div>
+<div class="kpi"><b>Telas verificadas</b><span><strong>986</strong> verificações de componentes e <strong>450</strong> percursos completos no navegador, em quatro larguras de tela</span></div>
+<div class="kpi"><b>Acessibilidade</b><span>nenhuma violação de acessibilidade nas telas principais, nos temas claro e escuro</span></div>
+<div class="kpi"><b>Fidelidade visual</b><span><strong>48</strong> capturas de tela conferidas por uma pessoa contra o protótipo aprovado</span></div>
+</div>
+<div class="tw"><table>
+<thead><tr><th>Entrega</th><th>Impacto</th><th>Valor</th></tr></thead>
+<tbody>
+<tr><td class="strong">Protótipo navegável validado antes do código</td><td><span class="tag alto">Impacto alto</span></td><td>as decisões de interface foram tomadas e aprovadas antes de construir, e o app final segue o mesmo visual, inclusive o logo.</td></tr>
+<tr><td class="strong">Contas, convites e acesso seguro</td><td><span class="tag alto">Impacto alto</span></td><td>quem hospeda decide quem entra, e cada pessoa só vê os próprios dados, nem o administrador lê o que é dos outros.</td></tr>
+<tr><td class="strong">Financeiro completo</td><td><span class="tag alto">Impacto alto</span></td><td>a pessoa enxerga o previsto e o realizado do mês, sem planilha, e sabe quanto ganhou ou perdeu em cada conta.</td></tr>
+<tr><td class="strong">Rotina: metas, tarefas e lembretes</td><td><span class="tag alto">Impacto alto</span></td><td>a rotina fica num lugar só, com avisos na hora certa e sem cobrança de produtividade.</td></tr>
+<tr><td class="strong">Notas, diário e emoções com privacidade</td><td><span class="tag alto">Impacto alto</span></td><td>o que é íntimo fica ilegível mesmo para quem acessa o banco de dados.</td></tr>
+<tr><td class="strong">Acervo e modo leitura</td><td><span class="tag medio">Impacto médio</span></td><td>a vida de leitura fica registrada e consultável, sem depender de outro aplicativo.</td></tr>
+<tr><td class="strong">Projetos em quadro</td><td><span class="tag medio">Impacto médio</span></td><td>planos maiores ganham visão de andamento, ligada ao resto da rotina.</td></tr>
+<tr><td class="strong">Tudo conectado e fácil de achar</td><td><span class="tag alto">Impacto alto</span></td><td>a pessoa navega pelo que é relacionado (a meta, a conta, a tarefa e a nota de um mesmo assunto) e acha tudo sem procurar módulo por módulo.</td></tr>
+<tr><td class="strong">Relatórios e exportação</td><td><span class="tag medio">Impacto médio</span></td><td>a pessoa tem visão de período e é dona dos próprios dados, podendo levá-los para onde quiser.</td></tr>
+<tr><td class="strong">Configurações e personalização</td><td><span class="tag medio">Impacto médio</span></td><td>cada pessoa ajusta o app ao próprio jeito, e quem hospeda controla a instância sem mexer em arquivos.</td></tr>
+<tr><td class="strong">Instalação em um comando</td><td><span class="tag alto">Impacto alto</span></td><td>qualquer pessoa com um servidor doméstico instala e mantém o Atria, com os dados sob seu controle.</td></tr>
+</tbody>
+</table></div>
+    <div class="note"><b>O recorte deste documento</b>
+<p>Este documento cobre o MVP completo do Atria: protótipo, servidor, telas, relatórios, exportação e autohospedagem. Ficaram de fora, por decisão, recursos de inteligência artificial, colaboração real entre pessoas (a marcação &quot;compartilhada&quot; ainda não dá acesso a ninguém), várias moedas, leitura de formatos além de PDF e app instalável.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="p-entregas" role="tabpanel" data-panel="entregas">
+    <div class="sec-h"><h2>As 11 entregas</h2><p>Abra cada entrega para ver o que mudou, o valor e como perceber.</p></div>
+    <div class="ctl"><button type="button" data-cards="open">Abrir todas</button><button type="button" data-cards="close">Fechar todas</button></div>
+    <div class="cards">
+<details class="card impact-alto">
+<summary><b>Protótipo navegável validado antes do código</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>todos os módulos, a paleta de comandos e o modo leitura existiram primeiro num protótipo que abre sem servidor, com dados de exemplo.</p>
+<p><b>Valor</b>as decisões de interface foram tomadas e aprovadas antes de construir, e o app final segue o mesmo visual, inclusive o logo.</p>
+<p><b>Como perceber</b>o app tem exatamente a aparência e o comportamento do protótipo aprovado.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Contas, convites e acesso seguro</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>a instância é criada por um assistente na primeira vez; novas pessoas entram por convite de uso único; há verificação em duas etapas, recuperação de senha e três níveis de permissão.</p>
+<p><b>Valor</b>quem hospeda decide quem entra, e cada pessoa só vê os próprios dados, nem o administrador lê o que é dos outros.</p>
+<p><b>Como perceber</b>o primeiro acesso abre o assistente; quem tenta ver um item de outra pessoa recebe &quot;não encontrado&quot;.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Financeiro completo</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>contas, conta padrão, cartão de crédito com fatura e parcelas, entradas, saídas, transferências, categorias e contas recorrentes, com o saldo mudando só quando a conta é paga, e o quanto se economizou ou se pagou a mais.</p>
+<p><b>Valor</b>a pessoa enxerga o previsto e o realizado do mês, sem planilha, e sabe quanto ganhou ou perdeu em cada conta.</p>
+<p><b>Como perceber</b>o painel do Financeiro mostra o fechamento do mês, para onde foi o dinheiro e as próximas contas.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Rotina: metas, tarefas e lembretes</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>metas com marcos e progresso, tarefas pontuais e recorrentes concluídas dia a dia, e lembretes que avisam no navegador, mesmo com o app fechado quando o administrador liga essa opção.</p>
+<p><b>Valor</b>a rotina fica num lugar só, com avisos na hora certa e sem cobrança de produtividade.</p>
+<p><b>Como perceber</b>o dashboard reúne as tarefas e os lembretes do dia; o aviso aparece no horário marcado.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Notas, diário e emoções com privacidade</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>notas e diário com várias entradas por dia e emoções com intensidade, guardados criptografados.</p>
+<p><b>Valor</b>o que é íntimo fica ilegível mesmo para quem acessa o banco de dados.</p>
+<p><b>Como perceber</b>o diário mostra as entradas do dia e as emoções; a lista de emoções é editável.</p>
+
+</div>
+</details>
+<details class="card impact-medio">
+<summary><b>Acervo e modo leitura</b><span class="tag medio">Impacto médio</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>livros com progresso por páginas lidas e histórico de leitura, artigos e vídeos com capa, e um leitor de PDF em tela própria que retoma a última página, cria notas a partir de trechos e guarda destaques coloridos.</p>
+<p><b>Valor</b>a vida de leitura fica registrada e consultável, sem depender de outro aplicativo.</p>
+<p><b>Como perceber</b>a estante mostra as capas e o progresso; ao fechar o leitor, o app oferece registrar a sessão.</p>
+
+</div>
+</details>
+<details class="card impact-medio">
+<summary><b>Projetos em quadro</b><span class="tag medio">Impacto médio</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>projetos em lista e grade, com quadro de raias personalizáveis por cor e cartões com checklist, prazo e tarefa ligada.</p>
+<p><b>Valor</b>planos maiores ganham visão de andamento, ligada ao resto da rotina.</p>
+<p><b>Como perceber</b>o quadro mostra os cartões em cada raia e o andamento do projeto.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Tudo conectado e fácil de achar</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>qualquer item se liga a outro nos dois sentidos, com a aba &quot;Conexões&quot; em toda tela; uma paleta de comandos acha e cria qualquer coisa pelo teclado; toda listagem tem busca, filtros e visualizações que ficam guardados no endereço.</p>
+<p><b>Valor</b>a pessoa navega pelo que é relacionado (a meta, a conta, a tarefa e a nota de um mesmo assunto) e acha tudo sem procurar módulo por módulo.</p>
+<p><b>Como perceber</b>Ctrl + K abre a paleta de qualquer tela; a aba &quot;Conexões&quot; mostra os itens ligados.</p>
+
+</div>
+</details>
+<details class="card impact-medio">
+<summary><b>Relatórios e exportação</b><span class="tag medio">Impacto médio</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>relatórios interativos e em PDF do Financeiro, Leitura, Diário, Metas, Tarefas e Projetos, emitidos do catálogo ou da própria tela, e exportação de todos os dados da pessoa em formato aberto.</p>
+<p><b>Valor</b>a pessoa tem visão de período e é dona dos próprios dados, podendo levá-los para onde quiser.</p>
+<p><b>Como perceber</b>cada módulo tem o menu &quot;Relatórios&quot;; a exportação baixa os dados em JSON e CSV.</p>
+
+</div>
+</details>
+<details class="card impact-medio">
+<summary><b>Configurações e personalização</b><span class="tag medio">Impacto médio</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>preferências da pessoa (tema, fuso, blocos do dashboard, atalhos) e da instância (convite obrigatório, e-mail, avisos com o app fechado) valendo na hora.</p>
+<p><b>Valor</b>cada pessoa ajusta o app ao próprio jeito, e quem hospeda controla a instância sem mexer em arquivos.</p>
+<p><b>Como perceber</b>a mudança aparece na hora e continua depois de recarregar.</p>
+
+</div>
+</details>
+<details class="card impact-alto">
+<summary><b>Instalação em um comando</b><span class="tag alto">Impacto alto</span></summary>
+<div class="card-body">
+<p><b>O que mudou</b>imagem pronta, arquivo de instalação de referência e guia de autohospedagem, funcionando sem internet com só o app e o banco de dados.</p>
+<p><b>Valor</b>qualquer pessoa com um servidor doméstico instala e mantém o Atria, com os dados sob seu controle.</p>
+<p><b>Como perceber</b>um único comando sobe o app e o banco; o guia inclui o backup da chave de criptografia.</p>
+</div>
+</details>
+    </div>
+  </section>
+
+  <section class="panel" id="p-antes-e-depois" role="tabpanel" data-panel="antes-e-depois">
+    <div class="sec-h"><h2>Antes e depois</h2><p>Como era e como ficou para quem usa.</p></div>
+    <div class="md">
+<div class="tw"><table>
+<thead>
+<tr><th>Situação</th><th>Antes</th><th>Depois</th></tr>
+</thead>
+<tbody>
+<tr><td>Organizar a vida pessoal</td><td>finanças, tarefas, leituras e diário espalhados em planilhas e apps diferentes</td><td>um único app com todos os módulos ligados entre si</td></tr>
+<tr><td>Privacidade</td><td>dados pessoais em serviços de terceiros</td><td>instância própria, isolamento entre pessoas e diário e notas criptografados</td></tr>
+<tr><td>Achar algo relacionado</td><td>procurar módulo por módulo</td><td>aba &quot;Conexões&quot; em todo item e paleta de comandos com busca global</td></tr>
+<tr><td>Dinheiro do mês</td><td>conta manual do previsto e do realizado</td><td>painel com fechamento, economias, perdas e próximas contas</td></tr>
+<tr><td>Leitura</td><td>progresso e anotações fora do acervo</td><td>leitor próprio que retoma a página e guarda notas e destaques</td></tr>
+<tr><td>Instalação</td><td>não havia produto</td><td>um comando sobe o app, com guia de autohospedagem e backup</td></tr>
+</tbody>
+</table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-execucao" role="tabpanel" data-panel="execucao">
+    <div class="sec-h"><h2>Como foi executado</h2><p>Tarefas, testes e evidências, da aprovação em 2026-10-30 à conclusão em 2026-10-31.</p></div>
+<div class="kpis">
+<div class="kpi"><b>36<small> / 36</small></b><span>Tarefas concluídas</span></div>
+<div class="kpi"><b>36<small> / 36</small></b><span>Tarefas com testes aprovados</span></div>
+<div class="kpi"><b>133<small> / 133</small></b><span>Evidências geradas</span></div>
+</div>
+    <div class="block">
+      <h3>Linha do tempo</h3>
+      <ol class="timeline">
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-01</span>Protótipo HTML</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-02</span>Monorepo e CI</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-03</span>Tema e biblioteca UI</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-04</span>Núcleo do servidor</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-05</span>Base do frontend</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-06</span>Contexto auth</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-07</span>Contexto finance</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-08</span>Contexto goals</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-09</span>Contexto tasks</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-10</span>Contexto reminders</span></li>
+      <li><span class="date">2026-10-30</span><span class="task"><span class="id">TASK-11</span>Contexto notes</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-12</span>Contexto journal</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-13</span>Contexto library</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-14</span>Contexto projects</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-15</span>Contexto links</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-16</span>Contexto search</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-17</span>Contexto reports</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-18</span>Integração do servidor</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-19</span>Telas de auth</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-20</span>Telas de admin</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-21</span>Dashboard</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-22</span>Telas do Financeiro</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-23</span>Telas de Metas</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-24</span>Telas de Tarefas</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-25</span>Telas de Lembretes</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-26</span>Telas de Notas</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-27</span>Telas do Diário</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-28</span>Telas do Acervo</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-29</span>Modo leitura</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-30</span>Telas de Projetos</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-31</span>Aba Conexões</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-32</span>Paleta de comandos</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-33</span>Telas de Configurações</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-34</span>Telas de Relatórios</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-35</span>Integração do frontend</span></li>
+      <li><span class="date">2026-10-31</span><span class="task"><span class="id">TASK-36</span>Autohospedagem</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="panel" id="p-proximos-passos" role="tabpanel" data-panel="proximos-passos">
+    <div class="sec-h"><h2>Próximos passos</h2><p>O que vem a seguir e o que depende de decisão.</p></div>
+    <div class="md">
+<ul>
+<li>Ajustes finos de interface, apontados na revisão visual, ficam para uma próxima especificação, conforme decidido.</li>
+<li>Colocar o Atria no servidor pessoal e convidar as primeiras pessoas para uso real, colhendo as primeiras impressões.</li>
+<li>Decidir a próxima fronteira: colaboração real entre pessoas (o que &quot;compartilhado&quot; passa a permitir), recursos de inteligência artificial ou app instalável.</li>
+</ul>
+    </div>
+    <div class="note warn"><b>Riscos e limitações</b>
+<ul>
+<li>A marcação &quot;compartilhada&quot; ainda é só um rótulo: nenhuma outra pessoa acessa o item. Isso é intencional no MVP, mas precisa ficar claro para quem usa.</li>
+<li>Perder a chave de criptografia torna diário e notas ilegíveis; o guia de instalação pede o backup dela junto com o do banco.</li>
+<li>Os avisos com o app fechado dependem do serviço de notificações do navegador e de internet; numa rede fechada, o aviso continua só dentro do app aberto.</li>
+<li>A meta de desempenho da busca para 10 mil itens foi coberta por teste, mas ainda não por uso real com muitos dados.</li>
+</ul>
+    </div>
+  </section>
+</main>
+
+<footer>Vostok · resumo executivo de SPEC-001, gerado a partir da spec, das tarefas e do conteúdo da finalização.</footer>
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("theme-toggle");
+  button.addEventListener("click", function () {
+    var light = root.getAttribute("data-theme") !== "light";
+    root.setAttribute("data-theme", light ? "light" : "dark");
+    button.textContent = light ? "Tema escuro" : "Tema claro";
+    button.setAttribute("aria-pressed", light ? "true" : "false");
+  });
+
+  // Abas: sem JavaScript, todas as seções aparecem em sequência e os links levam a cada uma.
+  // Links do menu sem painel correspondente saem do menu.
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".nav a[data-tab]")).filter(function (a) {
+    if (document.getElementById("p-" + a.getAttribute("data-tab"))) return true;
+    a.parentNode.removeChild(a);
+    return false;
+  });
+  var panels = Array.prototype.slice.call(document.querySelectorAll(".panel"));
+  // O hash da aba (#execucao) não coincide com o id da seção (p-execucao): o link continua compartilhável
+  // e o navegador não rola até a seção antes de ela aparecer, o que esconderia o cabeçalho.
+  function show(id) {
+    if (!tabs.length) return;
+    id = id.replace(/^p-/, "");
+    if (!document.getElementById("p-" + id)) id = tabs[0].getAttribute("data-tab");
+    tabs.forEach(function (a) {
+      var on = a.getAttribute("data-tab") === id;
+      a.classList.toggle("on", on);
+      a.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    panels.forEach(function (p) { p.classList.toggle("on", p.id === "p-" + id); });
+  }
+  tabs.forEach(function (a) {
+    a.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      show(a.getAttribute("data-tab"));
+      history.replaceState(null, "", "#" + a.getAttribute("data-tab"));
+    });
+  });
+  document.body.classList.add("tabs");
+  show((location.hash || "").replace("#", ""));
+
+  var cards = Array.prototype.slice.call(document.querySelectorAll("details.card"));
+  Array.prototype.forEach.call(document.querySelectorAll("[data-cards]"), function (b) {
+    b.addEventListener("click", function () {
+      var open = b.getAttribute("data-cards") === "open";
+      cards.forEach(function (d) { d.open = open; });
+    });
+  });
+
+  // Na impressão, as entregas fechadas abrem para o conteúdo sair inteiro no papel.
+  var closed = [];
+  window.addEventListener("beforeprint", function () {
+    closed = cards.filter(function (d) { return !d.open; });
+    closed.forEach(function (d) { d.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    closed.forEach(function (d) { d.open = false; });
+  });
+})();
+</script>
+</body>
+</html>

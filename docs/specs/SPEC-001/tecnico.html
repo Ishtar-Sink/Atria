@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPEC-001 · Documento técnico · MVP</title>
+<style>
+:root {
+  color-scheme: dark;
+  --color-bg: #1a1528;
+  --color-surface: #231d35;
+  --color-surface-2: #2b2440;
+  --color-ink: #ece8f5;
+  --color-muted: #a39cb8;
+  --color-line: #3a3252;
+  --color-primary: #a78bfa;
+  --color-primary-ink: #150f22;
+  --color-primary-soft: #352a55;
+  --color-ok: #5ccf9f;
+  --color-ok-soft: #173027;
+  --color-warn: #f0a45a;
+  --color-warn-soft: #33251a;
+  --color-crit: #ef7b86;
+  --color-crit-soft: #3a1c22;
+  --color-diff-add: #5ccf9f;
+  --color-diff-add-soft: #173027;
+  --color-diff-del: #ef7b86;
+  --color-diff-del-soft: #3a1c22;
+  --color-head: #17112a;
+  --color-head-2: #34255c;
+  --color-head-ink: #f5f1ff;
+  --color-head-muted: #b9afd6;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f5fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1edf8;
+  --color-ink: #1d1729;
+  --color-muted: #6a6280;
+  --color-line: #e3ddee;
+  --color-primary: #6d28d9;
+  --color-primary-ink: #ffffff;
+  --color-primary-soft: #ede5fb;
+  --color-ok: #047857;
+  --color-ok-soft: #e3f4ec;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf1e3;
+  --color-crit: #b91c3c;
+  --color-crit-soft: #fbe5ea;
+  --color-diff-add: #047857;
+  --color-diff-add-soft: #e3f4ec;
+  --color-diff-del: #b91c3c;
+  --color-diff-del-soft: #fbe5ea;
+  --color-head: #1c1430;
+  --color-head-2: #38235f;
+  --color-head-ink: #ffffff;
+  --color-head-muted: #cdc2ee;
+}
+* { box-sizing: border-box; }
+html { background: var(--color-bg); }
+body {
+  margin: 0; background: var(--color-bg); color: var(--color-ink);
+  font: 400 14px/1.55 var(--font-body); -webkit-font-smoothing: antialiased;
+}
+code { font: .92em var(--font-mono); background: var(--color-surface-2); padding: 1px 5px; border-radius: 4px; }
+p { margin: 0 0 12px; }
+h2 { font-size: 20px; margin: 0 0 5px; letter-spacing: -.015em; text-wrap: pretty; }
+h3 { font-size: 15px; margin: 0 0 8px; letter-spacing: -.008em; }
+
+/* Cabeçalho em faixa */
+.hd { background: linear-gradient(160deg, var(--color-head) 0%, var(--color-head-2) 100%); color: var(--color-head-ink);
+      padding: 20px clamp(16px, 4vw, 40px) 0; }
+.hd-top, .hd-body { max-width: 1120px; margin: 0 auto; }
+.hd-top { display: flex; align-items: center; gap: 12px; }
+.mark { width: 26px; height: 26px; flex: none; }
+.wm { font-weight: 700; font-size: 15px; letter-spacing: -.01em; line-height: 1.15; }
+.wm small { display: block; font-weight: 500; font-size: 11px; color: var(--color-head-muted); letter-spacing: .02em; }
+.hd-sp { flex: 1; }
+.tbtn { background: rgba(255,255,255,.09); color: var(--color-head-ink); border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px; padding: 6px 13px; font: inherit; font-size: 12px; cursor: pointer; }
+.tbtn:hover { background: rgba(255,255,255,.17); }
+.tbtn:focus-visible { outline: 2px solid var(--color-head-muted); outline-offset: 2px; }
+.hd-body { padding: 26px 0 28px; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--color-head-muted); margin: 0 0 9px; }
+.hd-body h1 { font-size: clamp(26px, 3.5vw, 35px); line-height: 1.12; margin: 0 0 12px; letter-spacing: -.024em; text-wrap: pretty; }
+.lede { font-size: 14.5px; color: var(--color-head-muted); max-width: 900px; }
+.lede p:last-child { margin-bottom: 0; }
+.lede strong { color: var(--color-head-ink); font-weight: 600; }
+.lede code { background: rgba(255,255,255,.1); color: var(--color-head-ink); }
+
+main { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 56px; }
+.panel { padding: 30px 0 4px; }
+.tabs .panel:not(.on) { display: none; }
+.sec-h { margin: 0 0 14px; }
+.sec-h > p { color: var(--color-muted); font-size: 13.5px; margin: 6px 0 0; }
+/* Tabelas */
+.tw { overflow-x: auto; border: 1px solid var(--color-line); border-radius: 14px; background: var(--color-surface); margin: 0 0 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--color-muted); font-weight: 700;
+     padding: 11px 14px; border-bottom: 1px solid var(--color-line); background: var(--color-surface-2); white-space: nowrap; }
+td { padding: 11px 14px; border-bottom: 1px solid var(--color-line); font-size: 13.5px; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.strong { font-weight: 600; }
+
+.na { color: var(--color-muted); font-style: italic; }
+
+/* Abas */
+.nav { position: sticky; top: 0; z-index: 20; background: var(--color-surface); border-bottom: 1px solid var(--color-line); }
+.nav-in { max-width: 1120px; margin: 0 auto; display: flex; gap: 2px; padding: 0 clamp(16px, 4vw, 40px); overflow-x: auto; }
+.nav a { display: block; padding: 12px 12px 10px; font-size: 12.5px; color: var(--color-muted); text-decoration: none;
+         border-bottom: 2px solid transparent; white-space: nowrap; }
+.nav a:hover { color: var(--color-ink); }
+.nav a.on { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+.nav a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -3px; border-radius: 3px; }
+
+/* Diffs */
+details.dfile { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 9px; margin: 0 0 8px; overflow: hidden; }
+details.dfile[open] { border-color: var(--color-primary); }
+details.dfile > summary { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 11px 15px; cursor: pointer; list-style: none; }
+details.dfile > summary::-webkit-details-marker { display: none; }
+details.dfile > summary::before { content: "+"; font-family: var(--font-mono); color: var(--color-primary); font-weight: 700; flex: none; width: 11px; }
+details.dfile[open] > summary::before { content: "\2212"; }
+details.dfile > summary:hover { background: var(--color-surface-2); }
+details.dfile > summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+details.dfile > summary .path { font: 600 12.5px var(--font-mono); flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+.dbody { border-top: 1px solid var(--color-line); }
+.dbody > p { margin: 0; padding: 12px 15px; color: var(--color-muted); font-size: 13px; }
+.dbody .tw { border: 0; border-radius: 0; margin: 0; }
+table.diff { table-layout: fixed; min-width: 760px; font: 12px/1.5 var(--font-mono); }
+table.diff td { padding: 0 8px; border-bottom: 0; font-size: 12px; vertical-align: top; }
+table.diff col.cln { width: 48px; }
+table.diff td.ln { width: 48px; text-align: right; color: var(--color-muted); user-select: none; background: var(--color-surface-2); }
+table.diff td.code { white-space: pre-wrap; overflow-wrap: anywhere; }
+table.diff td.code.del { background: var(--color-diff-del-soft); }
+table.diff td.code.add { background: var(--color-diff-add-soft); }
+table.diff td.code.empty { background: var(--color-surface-2); }
+table.diff tr:has(td.code.del) td.ln:nth-child(1) { color: var(--color-diff-del); }
+table.diff tr:has(td.code.add) td.ln:nth-child(3) { color: var(--color-diff-add); }
+table.diff tr.hunk td { background: var(--color-primary-soft); color: var(--color-muted); padding: 4px 10px; }
+table.diff td.code:nth-child(2) { border-right: 1px solid var(--color-line); }
+
+/* Etiquetas e notas */
+.tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px;
+       white-space: nowrap; background: var(--color-surface-2); color: var(--color-muted); }
+.chip { display: inline-block; font: 700 11.5px var(--font-mono); color: var(--color-primary); background: var(--color-primary-soft);
+        padding: 1px 7px; border-radius: 999px; margin: 0 4px 3px 0; white-space: nowrap; }
+.tag.criar { background: var(--color-ok-soft); color: var(--color-ok); }
+.tag.alterar { background: var(--color-primary-soft); color: var(--color-primary); }
+.tag.remover { background: var(--color-crit-soft); color: var(--color-crit); }
+td.path { font: 12.5px var(--font-mono); overflow-wrap: anywhere; }
+td.mono { font: 12.5px var(--font-mono); white-space: nowrap; }
+.md { font-size: 14px; }
+.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+.md li { margin: 4px 0; }
+.md li::marker { color: var(--color-primary); }
+.note { background: var(--color-primary-soft); border-radius: 9px; padding: 15px 18px; font-size: 13.5px; margin: 20px 0 0; }
+.note > b:first-child { display: block; text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; margin-bottom: 4px; color: var(--color-primary); }
+.note p:last-child, .note ul:last-child, .note ol:last-child { margin-bottom: 0; }
+.note ul, .note ol { margin: 0 0 10px; padding-left: 20px; }
+.note.warn { background: var(--color-warn-soft); }
+.note.warn > b:first-child { color: var(--color-warn); }
+
+/* Conteúdo em Markdown */
+.md { font-size: 14px; }
+.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+.md li { margin: 4px 0; }
+.md li::marker { color: var(--color-primary); }
+
+footer { max-width: 1120px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 40px) 44px; border-top: 1px solid var(--color-line);
+         color: var(--color-muted); font-size: 12px; }
+
+@page { margin: 14mm 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbtn, .nav { display: none; }
+  details.dfile { break-inside: auto; }
+  main { padding-bottom: 0; }
+  .hd { padding-top: 0; }
+  .tabs .panel:not(.on), .panel { display: block; }
+  .panel + .panel { break-before: page; }
+  .sec-h, tr, th { break-inside: avoid; }
+  .sec-h { break-after: avoid; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="hd">
+  <div class="hd-top">
+    <svg class="mark" viewBox="0 0 26 26" aria-hidden="true">
+      <circle cx="13" cy="13" r="6" fill="currentColor"/>
+      <ellipse cx="13" cy="13" rx="12" ry="4.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55" transform="rotate(-24 13 13)"/>
+    </svg>
+    <div class="wm">Vostok<small>Harness · finalização de spec</small></div>
+    <div class="hd-sp"></div>
+    <button type="button" class="tbtn" id="theme-toggle" aria-pressed="false">Tema claro</button>
+  </div>
+  <div class="hd-body">
+    <p class="eyebrow">Documento técnico · SPEC-001 · aprovada em 2026-10-30 · concluída em 2026-10-31</p>
+    <h1>MVP</h1>
+    <div class="lede">
+      <p>Para quem vai manter o que foi entregue: <strong>o que foi feito</strong> e como, os <strong>requisitos</strong> cobertos, os <strong>arquivos</strong> e <strong>commits</strong>, as decisões e onde se aprofundar.</p>
+    </div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Seções">
+  <div class="nav-in" role="tablist">
+    <a href="#p-visao-geral" role="tab" data-tab="visao-geral">Visão geral</a>
+    <a href="#p-arquitetura" role="tab" data-tab="arquitetura">Arquitetura</a>
+    <a href="#p-o-que-foi-feito" role="tab" data-tab="o-que-foi-feito">O que foi feito</a>
+    <a href="#p-requisitos" role="tab" data-tab="requisitos">Requisitos</a>
+    <a href="#p-arquivos" role="tab" data-tab="arquivos">Arquivos</a>
+    <a href="#p-diffs" role="tab" data-tab="diffs">Diffs</a>
+    <a href="#p-commits" role="tab" data-tab="commits">Commits</a>
+    <a href="#p-decisoes" role="tab" data-tab="decisoes">Decisões</a>
+    <a href="#p-aprendizados" role="tab" data-tab="aprendizados">Aprendizados</a>
+    <a href="#p-atencao" role="tab" data-tab="atencao">Atenção</a>
+    <a href="#p-referencias" role="tab" data-tab="referencias">Referências</a>
+  </div>
+</nav>
+
+<main>
+  <section class="panel" id="p-visao-geral" role="tabpanel" data-panel="visao-geral">
+    <div class="sec-h"><h2>Visão geral</h2></div>
+    <div class="md">
+<p>O Atria é um monorepo pnpm e Cargo com um servidor Rust (axum, sqlx, PostgreSQL com Row Level Security) que expõe a API <code>/api/v1</code> descrita em OpenAPI, e um frontend React (Vite, TanStack Router e Query) que consome essa API por tipos gerados em <code>@atria/contracts</code>. O servidor é dividido em doze contextos com camadas domínio, aplicação, infraestrutura e interface; o frontend em dezesseis features registradas num registro único, sobre a biblioteca <code>@atria/ui</code> e os tokens de <code>@atria/theme</code>. Os dois saem numa só imagem Docker, que também serve o frontend estático, junto do PostgreSQL no compose de referência.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="p-arquitetura" role="tabpanel" data-panel="arquitetura">
+    <div class="sec-h"><h2>Arquitetura e componentes</h2></div>
+    <div class="md">
+<ul>
+<li>**<code>prototype/</code>:** protótipo HTML autocontido com dados em memória e o teste de fumaça que valida telas, interações e ausência de rede; fonte visual de verdade (DEC-007).</li>
+<li>**<code>packages/theme</code> e <code>packages/ui</code>:** tokens do ecossistema e componentes acessíveis (seletor próprio, calendário, período, cor, abas, cabeçalho preso), com testes de componente e axe.</li>
+<li>**<code>packages/contracts</code>:** <code>openapi.json</code> gerado pelo servidor e <code>schema.ts</code> gerado por <code>openapi-typescript</code>; o CI confere que os dois batem.</li>
+<li>**<code>apps/server/src/shared</code> e <code>http</code>:** erros <code>problem+json</code>, ids UUID v7, relógio injetável, dinheiro, recorrência, criptografia, visibilidade, sessão em PostgreSQL, CSRF por double submit com checagem de origem, cabeçalhos de segurança e a camada que roda cada requisição até o fim.</li>
+<li><strong>Contextos do servidor:</strong> <code>auth</code>, <code>finance</code>, <code>goals</code>, <code>tasks</code>, <code>reminders</code>, <code>notes</code>, <code>journal</code>, <code>library</code>, <code>projects</code>, <code>links</code>, <code>search</code> e <code>reports</code>, cada um com migrações próprias, queries checadas pelo sqlx e testes de integração com testcontainers.</li>
+<li>**<code>apps/web/src/app</code>:** roteador raiz, layout autenticado, <code>feature-registry.ts</code> (registro único das features e da sidebar), <code>entity-types.ts</code> (rotas de entidade tipadas pelos contratos) e <code>entity-layout.tsx</code> (aba Conexões e Destaques por <code>extra_tabs</code>).</li>
+<li>**<code>apps/web/src/features/*</code>:** uma pasta por módulo, com rotas, telas, hooks, textos e testes; os e2e de cada feature rodam contra o servidor real.</li>
+<li>**<code>deploy/</code>, <code>Dockerfile</code> e <code>docker-compose.yml</code>:** imagem multiestágio, compose de referência só com o app e o PostgreSQL e o guia de autohospedagem; <code>docker-compose.e2e.yml</code> sobe o servidor dos e2e com a chave VAPID.</li>
+</ul>
+    </div>
+  </section>
+
+  <section class="panel" id="p-o-que-foi-feito" role="tabpanel" data-panel="o-que-foi-feito">
+    <div class="sec-h"><h2>O que foi feito</h2></div>
+    <div class="md">
+<ul>
+<li><strong>Protótipo (onda 1):</strong> HTML único com todos os módulos, paleta e leitor, validado por teste de fumaça sem rede; as decisões visuais viraram <code>docs/decisoes-do-prototipo.md</code> (PD-01 a PD-62).</li>
+<li><strong>Fundação (ondas 2 e 3):</strong> monorepo, CI com lint, testes, auditoria e Lighthouse; tema e biblioteca de componentes; núcleo do servidor com banco, criptografia AES-GCM com chave em arquivo, armazenamento de arquivos e RLS.</li>
+<li><strong>Contextos do servidor (ondas 4 e 5):</strong> cada módulo como contexto isolado. Destaques: recorrência com uma ocorrência aberta e cópia liquidada (DEC-003), fatura e parcelas do cartão, diário e notas criptografados, disparo de lembretes com Web Push, ligações bidirecionais, busca global com <code>unaccent</code>, relatórios HTML e PDF e exportação JSON e CSV.</li>
+<li><strong>Integração do servidor (onda 6):</strong> os doze contextos montados num roteador só, com o documento OpenAPI unificado e o contrato gerado para o frontend.</li>
+<li><strong>Telas (onda 7):</strong> dezesseis features, cada uma com telas, estados de carregando, vazio e erro, interface otimista com desfazer, filtros e visualizações na URL e testes de componente com axe.</li>
+<li><strong>Integração do frontend (onda 8):</strong> registro único das features, aba Conexões em toda tela de entidade, entrada de teste <code>/__test__/sign-in</code> só no build e2e, e2e de todas as features contra o servidor real em 360, 480, 720 e 1280 px, capturas visuais e Lighthouse logado no CI. Os e2e revelaram e corrigiram defeitos reais: hora obrigatória na tarefa recorrente, trava de cadastro por IP que não zerava, interruptor do Web Push sem saber da chave VAPID e transação deixada aberta no pool quando o cliente desconecta.</li>
+<li><strong>Autohospedagem (onda 5):</strong> imagem Docker, compose de referência atrás de proxy reverso e guia com backup da chave.</li>
+</ul>
+    </div>
+  </section>
+
+  <section class="panel" id="p-requisitos" role="tabpanel" data-panel="requisitos">
+    <div class="sec-h"><h2>Requisitos e tarefas</h2><p>Cada requisito com as tarefas que o cobrem.</p></div>
+<div class="tw"><table>
+<thead><tr><th>Requisito</th><th>Descrição</th><th>Tarefas</th></tr></thead>
+<tbody>
+<tr><td class="mono">RF-01</td><td>O protótipo HTML deve ser um único arquivo autocontido, que abre no navegador sem servidor, com todos os módulos navegáveis e dados em memória.</td><td><span class="chip">TASK-01</span></td></tr>
+<tr><td class="mono">RF-02</td><td>O protótipo HTML deve permitir cadastrar, editar, filtrar, buscar e trocar o modo de visualização das entidades de todos os módulos.</td><td><span class="chip">TASK-01</span></td></tr>
+<tr><td class="mono">CT-01</td><td>Protótipo abre sem servidor</td><td><span class="chip">TASK-01</span></td></tr>
+<tr><td class="mono">CT-02</td><td>Protótipo cadastra e edita</td><td><span class="chip">TASK-01</span></td></tr>
+<tr><td class="mono">RF-21</td><td>Toda entidade deve poder ser marcada como pessoal ou compartilhada.</td><td><span class="chip">TASK-04</span><span class="chip">TASK-35</span></td></tr>
+<tr><td class="mono">RF-14</td><td>O sistema deve mostrar uma sidebar com a navegação dos módulos e uma topbar com o gatilho da busca, os breadcrumbs e as informações da tela.</td><td><span class="chip">TASK-05</span></td></tr>
+<tr><td class="mono">CT-11</td><td>Layout</td><td><span class="chip">TASK-05</span></td></tr>
+<tr><td class="mono">RF-03</td><td>O sistema deve abrir um assistente de primeira execução numa instância sem usuários, que cria a conta admin sem convite.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-04</td><td>O sistema deve permitir o cadastro só com um convite de uso único, válido enquanto o admin mantiver o convite obrigatório.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-05</td><td>O sistema deve permitir que o admin desligue a exigência de convite para cadastro.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">RF-06</td><td>O sistema deve permitir login com e-mail e senha, e com o código TOTP quando a pessoa tiver ativado o 2FA.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-07</td><td>O sistema deve permitir que cada usuário ative o 2FA por TOTP, e exigir a ativação para o admin.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-08</td><td>O sistema deve enviar o link de redefinição de senha por e-mail quando houver SMTP configurado.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-09</td><td>O sistema deve permitir que o admin gere um link de redefinição de senha de uso único para um usuário.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">RF-10</td><td>O sistema deve permitir que o admin conceda e retire o papel <code>elevated</code>.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">RF-11</td><td>O papel <code>elevated</code> deve permitir gerar convites de cadastro.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">RF-12</td><td>O papel <code>elevated</code> deve permitir ver a lista de usuários e desativar ou reativar contas com o papel <code>user</code>.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">RF-13</td><td>O papel <code>elevated</code> deve permitir ver o estado da instância: versão, espaço usado e saúde.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">RF-58</td><td>Configurações deve permitir que o usuário ajuste tema, idioma, fuso horário, moeda e o atalho da paleta.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-33</span></td></tr>
+<tr><td class="mono">RF-59</td><td>Configurações deve permitir que a pessoa escolha os contextos padrão da busca.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-33</span></td></tr>
+<tr><td class="mono">RF-60</td><td>Configurações deve permitir que o admin ajuste a instância: convite obrigatório, papéis, Web Push e SMTP.</td><td><span class="chip">TASK-06</span><span class="chip">TASK-33</span></td></tr>
+<tr><td class="mono">CT-03</td><td>Primeira execução</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">CT-04</td><td>Cadastro com convite</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">CT-05</td><td>Convite opcional</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">CT-06</td><td>Login com 2FA</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">CT-07</td><td>2FA obrigatório para admin</td><td><span class="chip">TASK-06</span></td></tr>
+<tr><td class="mono">CT-08</td><td>Recuperação por e-mail</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">CT-09</td><td>Recuperação pelo admin</td><td><span class="chip">TASK-06</span><span class="chip">TASK-19</span></td></tr>
+<tr><td class="mono">CT-10</td><td>Papéis</td><td><span class="chip">TASK-06</span><span class="chip">TASK-20</span></td></tr>
+<tr><td class="mono">CT-31</td><td>Configurações do usuário</td><td><span class="chip">TASK-06</span><span class="chip">TASK-33</span></td></tr>
+<tr><td class="mono">CT-32</td><td>Configurações da instância</td><td><span class="chip">TASK-06</span><span class="chip">TASK-33</span></td></tr>
+<tr><td class="mono">RF-24</td><td>O Financeiro deve permitir cadastrar, renomear e excluir contas.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-25</td><td>O sistema deve criar a conta padrão &quot;Conta principal&quot; para cada usuário.</td><td><span class="chip">TASK-07</span></td></tr>
+<tr><td class="mono">RF-26</td><td>O Financeiro deve permitir cadastrar um cartão de crédito como conta, com limite, dia de fechamento e dia de vencimento.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-27</td><td>O Financeiro deve permitir registrar entradas e saídas com valor previsto, data prevista, conta e categoria.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-28</td><td>O Financeiro deve permitir registrar uma compra parcelada no cartão, gerando uma movimentação por parcela na fatura correspondente.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-29</td><td>O Financeiro deve permitir registrar transferências entre contas.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-30</td><td>O Financeiro deve permitir cadastrar, renomear e excluir categorias de movimentação.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-31</td><td>O Financeiro deve permitir criar movimentações recorrentes.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-32</td><td>O Financeiro deve permitir liquidar uma movimentação com o valor efetivo e a data efetiva.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-33</td><td>O Financeiro deve calcular e mostrar a economia, o ganho ou a perda de cada movimentação liquidada, na conta e nos relatórios.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-34</td><td>O Financeiro deve mostrar a fatura do cartão por período e permitir pagá-la.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-35</td><td>O Financeiro deve ter um dashboard próprio, com saldo por conta, previsto x realizado do mês, economias e perdas.</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-17</td><td>Contas</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-18</td><td>Liquidação com economia e perda</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-19</td><td>Cartão e parcelas</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-20</td><td>Transferência e categorias</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-21</td><td>Recorrência financeira</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">CT-22</td><td>Dashboard financeiro</td><td><span class="chip">TASK-07</span><span class="chip">TASK-22</span></td></tr>
+<tr><td class="mono">RF-36</td><td>Metas deve permitir cadastrar uma meta com título, descrição, prazo opcional e status.</td><td><span class="chip">TASK-08</span><span class="chip">TASK-23</span></td></tr>
+<tr><td class="mono">RF-37</td><td>Metas deve permitir cadastrar marcos e calcular o progresso pela porcentagem de marcos concluídos.</td><td><span class="chip">TASK-08</span><span class="chip">TASK-23</span></td></tr>
+<tr><td class="mono">CT-23</td><td>Metas</td><td><span class="chip">TASK-08</span><span class="chip">TASK-23</span></td></tr>
+<tr><td class="mono">RF-38</td><td>Tarefas deve permitir cadastrar, concluir e reabrir tarefas pontuais.</td><td><span class="chip">TASK-09</span><span class="chip">TASK-24</span></td></tr>
+<tr><td class="mono">RF-39</td><td>Tarefas deve permitir criar tarefas recorrentes, com cada ocorrência concluída separadamente.</td><td><span class="chip">TASK-09</span><span class="chip">TASK-24</span></td></tr>
+<tr><td class="mono">CT-24</td><td>Tarefas</td><td><span class="chip">TASK-09</span><span class="chip">TASK-24</span></td></tr>
+<tr><td class="mono">RF-40</td><td>Lembretes deve permitir cadastrar lembretes pontuais e recorrentes com data e hora.</td><td><span class="chip">TASK-10</span><span class="chip">TASK-25</span></td></tr>
+<tr><td class="mono">RF-41</td><td>O sistema deve notificar os lembretes no navegador com o Atria aberto em alguma aba.</td><td><span class="chip">TASK-10</span><span class="chip">TASK-25</span></td></tr>
+<tr><td class="mono">RF-42</td><td>O sistema deve enviar os lembretes por Web Push quando o admin tiver ligado o recurso e a pessoa tiver dado permissão.</td><td><span class="chip">TASK-10</span><span class="chip">TASK-25</span></td></tr>
+<tr><td class="mono">CT-25</td><td>Lembretes</td><td><span class="chip">TASK-10</span><span class="chip">TASK-25</span></td></tr>
+<tr><td class="mono">RF-43</td><td>Notas deve permitir cadastrar, editar e excluir notas independentes.</td><td><span class="chip">TASK-11</span><span class="chip">TASK-26</span></td></tr>
+<tr><td class="mono">CT-26</td><td>Notas</td><td><span class="chip">TASK-11</span><span class="chip">TASK-26</span></td></tr>
+<tr><td class="mono">RF-44</td><td>O Diário deve permitir registrar várias entradas por dia, cada uma com data, hora e texto.</td><td><span class="chip">TASK-12</span><span class="chip">TASK-27</span></td></tr>
+<tr><td class="mono">RF-45</td><td>O Diário deve permitir marcar uma ou mais emoções em cada entrada, com intensidade opcional.</td><td><span class="chip">TASK-12</span><span class="chip">TASK-27</span></td></tr>
+<tr><td class="mono">RF-46</td><td>O Diário deve permitir editar a lista de emoções do usuário.</td><td><span class="chip">TASK-12</span><span class="chip">TASK-27</span></td></tr>
+<tr><td class="mono">CT-27</td><td>Diário</td><td><span class="chip">TASK-12</span><span class="chip">TASK-27</span></td></tr>
+<tr><td class="mono">RF-47</td><td>O Acervo deve permitir cadastrar livros com título, capa, autor, editora, número de páginas e tags.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-48</td><td>O Acervo deve permitir registrar páginas lidas por sessão, com observação, e editar ou excluir cada registro.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-49</td><td>O Acervo deve mostrar a barra de progresso do livro na estante e na tela do livro.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-50</td><td>O Acervo deve mostrar o histórico de leitura e o histórico de notas do livro em abas separadas.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-51</td><td>O Acervo deve permitir anexar o PDF do livro, de forma opcional.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-52</td><td>O Acervo deve permitir cadastrar artigos com título, URL, autor, fonte, tags, status de leitura e notas em histórico.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-53</td><td>O Acervo deve permitir cadastrar vídeos com URL, miniatura e notas em histórico, mostrando a miniatura na vitrine.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-64</td><td>O Acervo deve permitir anexar o PDF do artigo, de forma opcional.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">RF-66</td><td>O modo leitura deve retomar a leitura na última página lida do livro ou do artigo.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-67</td><td>O modo leitura deve oferecer, ao fechar o PDF de um livro, o registro da sessão de leitura com o intervalo de páginas já preenchido.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-68</td><td>O modo leitura deve criar uma nota no histórico de notas do livro ou do artigo a partir de um trecho selecionado, com a página citada e um comentário opcional.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-69</td><td>O modo leitura deve permitir destacar trechos do PDF com cor e listar os destaques numa aba &quot;Destaques&quot; do livro ou do artigo.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-70</td><td>O modo leitura deve ter um botão para baixar o PDF.</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">CT-28</td><td>Livros</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">CT-29</td><td>Artigos e vídeos</td><td><span class="chip">TASK-13</span><span class="chip">TASK-28</span></td></tr>
+<tr><td class="mono">CT-35</td><td>Leitor de PDF</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">CT-36</td><td>Registro da sessão ao fechar</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">CT-37</td><td>Nota a partir de trecho</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">CT-38</td><td>Destaques e download</td><td><span class="chip">TASK-13</span><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-54</td><td>Projetos deve listar os projetos em lista e em grade.</td><td><span class="chip">TASK-14</span><span class="chip">TASK-30</span></td></tr>
+<tr><td class="mono">RF-55</td><td>Projetos deve abrir cada projeto num Kanban com as raias padrão Aguardando, Em progresso e Pronto.</td><td><span class="chip">TASK-14</span><span class="chip">TASK-30</span></td></tr>
+<tr><td class="mono">RF-56</td><td>Projetos deve permitir criar, renomear, reordenar, colorir e excluir raias.</td><td><span class="chip">TASK-14</span><span class="chip">TASK-30</span></td></tr>
+<tr><td class="mono">RF-57</td><td>Projetos deve permitir criar cartões próprios do projeto e movê-los entre as raias.</td><td><span class="chip">TASK-14</span><span class="chip">TASK-30</span></td></tr>
+<tr><td class="mono">CT-30</td><td>Projetos e Kanban</td><td><span class="chip">TASK-14</span><span class="chip">TASK-30</span></td></tr>
+<tr><td class="mono">RF-18</td><td>O sistema deve permitir ligar qualquer entidade a outra e mostrar a ligação nos dois lados.</td><td><span class="chip">TASK-15</span><span class="chip">TASK-31</span></td></tr>
+<tr><td class="mono">CT-13</td><td>Ligações bidirecionais</td><td><span class="chip">TASK-15</span><span class="chip">TASK-31</span></td></tr>
+<tr><td class="mono">RF-16</td><td>A paleta de comandos deve buscar em todas as entidades ou nos contextos escolhidos pela pessoa.</td><td><span class="chip">TASK-16</span><span class="chip">TASK-32</span></td></tr>
+<tr><td class="mono">CT-12</td><td>Paleta de comandos</td><td><span class="chip">TASK-16</span><span class="chip">TASK-32</span></td></tr>
+<tr><td class="mono">RF-61</td><td>Relatórios deve gerar os relatórios de Financeiro, Leitura, Diário, Metas, Tarefas e Projetos em HTML interativo.</td><td><span class="chip">TASK-17</span><span class="chip">TASK-34</span></td></tr>
+<tr><td class="mono">RF-62</td><td>Relatórios deve exportar cada relatório em PDF com a identidade visual do ecossistema.</td><td><span class="chip">TASK-17</span><span class="chip">TASK-34</span></td></tr>
+<tr><td class="mono">RF-63</td><td>O sistema deve exportar todos os dados do usuário em JSON e CSV.</td><td><span class="chip">TASK-17</span><span class="chip">TASK-34</span></td></tr>
+<tr><td class="mono">CT-33</td><td>Relatórios</td><td><span class="chip">TASK-17</span><span class="chip">TASK-34</span></td></tr>
+<tr><td class="mono">CT-34</td><td>Exportação</td><td><span class="chip">TASK-17</span><span class="chip">TASK-34</span></td></tr>
+<tr><td class="mono">RF-22</td><td>O Dashboard deve mostrar o saldo total, as próximas movimentações, as tarefas e lembretes do dia, as leituras em andamento e a última entrada do diário.</td><td><span class="chip">TASK-21</span></td></tr>
+<tr><td class="mono">RF-23</td><td>O Dashboard deve permitir ocultar e mostrar cada bloco.</td><td><span class="chip">TASK-21</span></td></tr>
+<tr><td class="mono">CT-16</td><td>Dashboard</td><td><span class="chip">TASK-21</span></td></tr>
+<tr><td class="mono">RF-65</td><td>O modo leitura deve abrir o PDF do livro ou do artigo numa tela própria, sem sidebar nem topbar, com zoom, navegação por página e tema claro ou escuro.</td><td><span class="chip">TASK-29</span></td></tr>
+<tr><td class="mono">RF-19</td><td>Toda entidade deve ter uma aba &quot;Conexões&quot; com filtro, busca, agrupamento e categorização das ligações.</td><td><span class="chip">TASK-31</span></td></tr>
+<tr><td class="mono">RF-15</td><td>O sistema deve abrir a paleta de comandos com Ctrl + K (Windows e Linux) ou Cmd + K (macOS) e com um clique no campo de busca da topbar, borrando o fundo.</td><td><span class="chip">TASK-32</span></td></tr>
+<tr><td class="mono">RF-17</td><td>A paleta de comandos deve criar uma entidade só com os campos mínimos e oferecer &quot;abrir para completar&quot;, que leva à tela própria da entidade.</td><td><span class="chip">TASK-32</span></td></tr>
+<tr><td class="mono">RF-20</td><td>Toda tela de listagem deve ter filtros, busca e modos de visualização.</td><td><span class="chip">TASK-35</span></td></tr>
+<tr><td class="mono">CT-14</td><td>Listagens</td><td><span class="chip">TASK-35</span></td></tr>
+<tr><td class="mono">CT-15</td><td>Visibilidade</td><td><span class="chip">TASK-35</span></td></tr>
+</tbody>
+</table></div>
+  </section>
+
+  <section class="panel" id="p-arquivos" role="tabpanel" data-panel="arquivos">
+    <div class="sec-h"><h2>Arquivos alterados</h2><p>Os caminhos de "Mudar" das tarefas, com a ação.</p></div>
+<div class="tw"><table>
+<thead><tr><th>Ação</th><th>Caminho</th></tr></thead>
+<tbody>
+<tr><td><span class="tag criar">criar</span></td><td class="path">prototype/atria-prototype.html</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">prototype/smoke-test.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">package.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">pnpm-workspace.yaml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">Cargo.toml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">LICENSE</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">.github/workflows/ci.yml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">lighthouserc.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">docs/glossario.md</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/package.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/tsconfig.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/eslint.config.js</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/tokens.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/tokens.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/fonts.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/palette.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/contrast.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/index.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/tokens.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/contrast.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/palette.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/fonts/InterVariable.woff2</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/fonts/Outfit-Variable.ttf</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/fonts/OFL-Inter.txt</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/fonts/OFL-Outfit.txt</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/package.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/tsconfig.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/eslint.config.js</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/vitest.config.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/test/setup.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/index.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/button/button.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/icon-button/icon-button.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/text-field/text-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/select-field/select-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/checkbox/checkbox.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/card/card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/badge/badge.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/tabs/tabs.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/confirm-dialog/confirm-dialog.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/toast/toast.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/empty-state/empty-state.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/loading-state/loading-state.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/error-state/error-state.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/page-header/page-header.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/toolbar/toolbar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/view-switcher/view-switcher.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/progress-bar/progress-bar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/item-swatch/item-swatch.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/&lt;componente&gt;/&lt;componente&gt;.module.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/ui/src/&lt;componente&gt;/&lt;componente&gt;.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/Cargo.toml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/build.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/main.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/config.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/state.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/router.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/session.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/csrf.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/security_headers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/client_ip.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/healthz.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/static_files.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/test_support.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/ids.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/clock.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/money.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/recurrence.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/visibility.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/pagination.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/crypto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/db.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/shared/test_support.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/storage</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/storage/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/storage/key.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/storage/local.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/package.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/tsconfig.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/eslint.config.js</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/vite.config.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/playwright.config.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/index.html</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/main.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/router.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/routes.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/providers.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/global.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/app-layout.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/sidebar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/topbar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/breadcrumbs.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/not-found-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/app-layout.module.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/app-layout.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/theme/theme-provider.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/theme/theme-provider.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/api/client.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/api/problem.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/api/query-client.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/api/client.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/optimistic/use-optimistic-mutation.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/optimistic/use-optimistic-mutation.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/toast/toast-store.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/i18n/i18n.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/i18n/i18n.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/format/intl.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/format/intl.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/preferences/preferences-context.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/navigation/nav-item.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/navigation/route-meta.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/layout/screen-info.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/command-palette/palette-store.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/url-state/use-list-search.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/url-state/use-list-search.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/test/setup.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/test/render.tsx</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">packages/ui/src/text-field/text-field.module.css</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">packages/ui/src/test/setup.ts</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">packages/ui/src/index.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/layout/route-focus.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/shared/session/current-user.ts</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/shared/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app/router.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-shots.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/dev/forms-preview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/theme/src/prototype-fidelity.test.ts</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app/layout/sidebar.tsx</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app/global.css</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app/dev/forms-preview.tsx</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app/providers.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/user.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/invite.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/password_reset.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/totp.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/preferences.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/instance_settings.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/throttle.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/setup.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/sign_up.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/sign_in.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/totp_enrollment.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/password_resets.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/admin.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/application/preferences.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/pg_users.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/pg_tokens.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/pg_settings.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/pg_throttle.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/argon2_hasher.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/infrastructure/smtp_mail_sender.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/migrations/20261101060001_create-auth-users.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/migrations/20261101060002_create-auth-tokens.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/migrations/20261101060003_create-auth-settings.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/migrations/20261101060004_create-auth-attempts.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/setup.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/sign_up.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/sign_in.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/password_resets.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/roles.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/auth/tests/preferences.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/account.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/transaction.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/settlement.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/credit_card.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/transfer.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/category.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/recurring_transaction.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/finance/domain/forecast.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/summary.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/domain/error.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/ports.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/accounts.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/transactions.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/credit_cards.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/transfers.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/categories.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/recurring_transactions.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/application/summaries.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_accounts.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_transactions.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_transfers.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_categories.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_recurring_transactions.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/infrastructure/pg_idempotency.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/interface/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/interface/dto.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/interface/handlers.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/interface/openapi.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/migrations/20261101070001_create-finance-accounts.sql</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/migrations/20261101070002_create-finance-categories.sql</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/migrations/20261101070003_create-finance-recurring-transactions.sql</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/migrations/20261101070004_create-finance-transactions.sql</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/migrations/20261101070005_create-finance-idempotency-keys.sql</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/accounts.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/transactions.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/credit_cards.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/transfers.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/recurring_transactions.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/finance/tests/listings.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/summaries.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/deletion_hook.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance/tests/authorization.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/domain/goal.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/domain/milestone.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/application/goals.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/infrastructure/pg_goals.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/migrations/20261101080001_create-goals.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/tests/goals.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/tests/deletion_hook.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/goals/tests/authorization.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/domain/task.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/domain/schedule.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/domain/occurrence.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/application/tasks.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/infrastructure/pg_tasks.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/migrations/20261101090001_create-tasks.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/tests/tasks.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/tests/deletion_hook.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/tasks/tests/authorization.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/domain/reminder.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/domain/firing.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/domain/push_subscription.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/application/reminders.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/application/dispatcher.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/application/subscriptions.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/infrastructure/pg_reminders.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/infrastructure/pg_schedule.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/infrastructure/web_push_sender.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/migrations/20261101100001_create-reminders.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/migrations/20261101100002_create-push-subscriptions.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/tests/reminders.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/tests/dispatcher.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/tests/deletion_hook.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reminders/tests/authorization.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/domain/note.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/application/service.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/infrastructure/pg_note_repository.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/migrations/20261101110001_create-notes.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/notes/tests/api.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/domain/journal_entry.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/domain/emotion.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/application/entries.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/application/emotions.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/infrastructure/pg_journal_entry_repository.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/infrastructure/pg_emotion_repository.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/migrations/20261101120001_create-journal.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/journal/tests/api.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/book.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/article.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/video.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/reading_session.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/item_note.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/highlight.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/library_file.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/books.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/articles.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/videos.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/files.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/application/search.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/pg_books.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/pg_articles.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/pg_videos.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/pg_item_notes.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/pg_files.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/infrastructure/oembed_thumbnail_fetcher.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/books.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/articles.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/videos.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/files.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/migrations/20261101130001_create-library.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/tests/books.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/tests/articles.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/tests/videos.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/library/tests/files.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/project.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/lane.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/card.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/summary.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/application/service.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/application/search.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/infrastructure/pg_project_repository.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/migrations/20261101140001_create-projects.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/projects/tests/api.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/domain/link.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/domain/error.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/application/ports.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/application/service.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/application/deletion_hook.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/infrastructure/pg_link_repository.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/interface/dto.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/interface/handlers.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/interface/openapi.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/migrations/20261101150001_create-links.sql</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/tests/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/links/tests/api.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/migrations/.gitkeep</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/search/tests.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/domain/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/application/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/infrastructure/palette.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/infrastructure/html.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/infrastructure/pdf.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/infrastructure/export.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/interface/mod.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/report.typ</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/fonts/inter-regular.ttf</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/fonts/inter-semibold.ttf</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/fonts/outfit-semibold.ttf</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/fonts/OFL-inter.txt</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/assets/fonts/OFL-outfit.txt</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/migrations/.gitkeep</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/reports/tests.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/main.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/http/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/http/router.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/contexts.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/openapi.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/http/tests.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests/support.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests/migrations.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests/routes.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests/api_doc.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/tests/isolation.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/http/test_support.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/http/healthz.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/shared/test_support.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/shared/db.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/shared/visibility.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/auth</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/finance</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/goals</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/tasks</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/reminders</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/notes</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/journal</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/library</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/projects</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/links</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/search/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/reports/infrastructure/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/reports/domain/mod.rs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/server/src/reports/infrastructure/palette.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">.sqlx</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">Dockerfile</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/contracts/package.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/contracts/tsconfig.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/contracts/openapi.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/contracts/src/schema.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">packages/contracts/src/index.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/components/auth-card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/components/auth-card.module.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/components/auth-card.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/schemas.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/hooks/use-auth-mutations.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/hooks/use-auth-mutations.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/setup-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/setup-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/sign-in-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/sign-in-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/sign-up-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/sign-up-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/two-factor-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/two-factor-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/forgot-password-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/forgot-password-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/reset-password-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/reset-password-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/admin-password-reset-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/screens/admin-password-reset-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/auth.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/auth/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-auth.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/permissions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/permissions.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/hooks/use-users.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/hooks/use-users.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/hooks/use-invites.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/hooks/use-invites.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/hooks/use-instance-status.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/users-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/users-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/invites-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/invites-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/new-invite-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/new-invite-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/instance-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/screens/instance-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/admin.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/admin/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-admin.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/blocks.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-hidden-blocks.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-hidden-blocks.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-masked-blocks.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-masked-blocks.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-dashboard-data.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/hooks/use-dashboard-data.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/components/dashboard-block.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/components/calm-message.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/components/greeting-card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/components/complete-task-button.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/components/components.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/screens/dashboard-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/screens/dashboard-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/dashboard.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/dashboard/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-dashboard.mjs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/package.json</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">pnpm-lock.yaml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/lib/money-input.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/lib/money-input.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/lib/finance-period.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/lib/finance-period.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-financial-summary.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-financial-summary.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-recurring-transactions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-recurring-transactions.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-accounts.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-accounts.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-categories.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-categories.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-transactions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-transactions.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-transfers.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-statements.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/hooks/use-statements.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/money-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/difference-badge.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/transaction-row.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/visibility-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/finance-shell.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/panel-charts.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/settlement-card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/components.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/finance-panel-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/finance-panel-screen.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/accounts-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/account-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/account-detail-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/accounts-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transactions-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transaction-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transaction-detail-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/recurrence-detail-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transfers-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transfer-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transfer-detail-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/transactions-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/finance-settings-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/category-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/category-detail-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/categories-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/statements-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/statement-payment-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/screens/statements-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/components/finance.module.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/finance.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/finance/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-finance.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/lib/goal-progress.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/lib/goal-progress.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/hooks/use-goals.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/hooks/use-goals.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/hooks/use-milestones.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/hooks/use-milestones.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/screens/goals-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/screens/goal-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/screens/goal-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/screens/goal-overview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/lib/goal-reports.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/lib/goal-reports.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/screens/goals-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/goals.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/goals/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-goals.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/hooks/use-tasks.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/hooks/use-tasks.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/hooks/use-task-completion.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/hooks/use-task-completion.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/lib/task-reports.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/lib/task-reports.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/components/task-item.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/components/complete-button.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/components/complete-button.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/screens/task-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/screens/task-overview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/screens/tasks-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/screens/task-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/screens/tasks-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/tasks.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/tasks/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-tasks.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/index.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-reminders.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-reminders.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-notification-permission.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-notification-permission.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-reminder-scheduler.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/hooks/use-reminder-scheduler.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/push/service-worker.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/push/handle-push.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/push/handle-push.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/push/use-web-push.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/push/use-web-push.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/components/notification-settings-card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/components/reminder-notifier.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/screens/reminders-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/screens/reminder-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/screens/reminder-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/screens/reminder-overview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/screens/reminders-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/reminders.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reminders/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-reminders.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/hooks/use-notes.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/hooks/use-notes.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/screens/notes-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/screens/note-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/screens/note-form-screen.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/screens/notes-screens.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/notes.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/notes/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-notes.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-list-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-reports.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-reports.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-entry-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-entry-overview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-entry-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-entry-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/emotion-picker.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/emotions-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/use-journal-entries.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/use-journal-entry.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/use-journal-entry-mutations.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/use-emotions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-list-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal-entry-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/emotion-picker.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/emotions-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/use-journal-entry-mutations.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/journal.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/journal/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-journal.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/shelf-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/library-item-cover.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/cover-upload-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/book-progress.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/book-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/book-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/reading-session-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/reading-history-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/item-notes-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/article-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/article-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/video-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/video-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/library-overview.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/pdf-attachment-field.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-library-items.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-book.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-book-progress.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-reading-sessions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-item-notes.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-library-mutations.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/shelf-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/cover-upload-field.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/reading-history-tab.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/book-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/book-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/reading-session-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/use-book-progress.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/article-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/video-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/video-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/library.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/library/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-library.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/load-pdf.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/reader-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/reader-toolbar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/pdf-viewer.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/pdf-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/selection-toolbar.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/passage-note-panel.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/session-offer-dialog.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/highlights-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-pdf-document.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-reading-position.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-reading-session-offer.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-passage-note.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-highlights.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/reader-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-reading-position.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/use-reading-session-offer.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/passage-note-panel.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/highlights-tab.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/reader.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reader/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-reader.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/projects-list-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-overview-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/kanban-board-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/kanban-lane.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/kanban-card.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-settings-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/lane-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/delete-lane-dialog.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/card-form-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-projects.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-kanban.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-project-summary.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-card-task-link.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/projects-list-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-overview-tab.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/kanban-board-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/project-settings-tab.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/lane-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/delete-lane-dialog.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/card-form-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-kanban.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/use-card-task-link.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/projects.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/projects/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-projects.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connections-tab.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connection-item.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/new-connection-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/remove-connection-dialog.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connections-summary.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/entity-categories.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/use-connections.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/use-linked-titles.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/use-connection-mutations.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connections-tab.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/new-connection-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/use-connection-mutations.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connections-summary.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/use-linked-titles.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/connections.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/connections/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-connections.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/command-palette.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/command-palette.css</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/command-palette-provider.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/palette-trigger.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/context-chips.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/quick-create.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/parse-query.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/shortcut.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/palette-actions.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-command-palette.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-palette-shortcut.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-palette-search.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-recent-items.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-quick-create.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/command-palette.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/use-palette-shortcut.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/parse-query.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/quick-create.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/command-palette.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/command-palette/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-command-palette.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/settings-layout.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/user-preferences-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/dashboard-settings-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/use-dashboard-blocks.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/dashboard-settings-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/shortcut-recorder.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/search-contexts-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/instance-settings-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/use-user-preferences.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/use-instance-settings.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/settings-options.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/user-preferences-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/shortcut-recorder.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/search-contexts-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/instance-settings-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/settings.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/settings/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-settings.mjs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/routes.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/nav.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/i18n/pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/reports-list-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/report-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/report-filters.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/report-result.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/exports-page.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/report-catalog.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/use-report-search.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/use-report-search.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/use-report-result.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/use-filter-options.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/use-file-download.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/reports-list-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/report-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/exports-page.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/reports.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/features/reports/evidence/harness.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/scripts/evidence-reports.mjs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/src/app</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/feature-registry.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/feature-registry.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/e2e-sign-in-plugin.ts</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/vite.config.ts</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">apps/web/playwright.config.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/e2e-auth.setup.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/server/src/http/run_to_completion.rs</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/entity-types.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/entity-layout.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/entity-layout.test.tsx</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/listing-standard.test.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/i18n/entity-layout.pt-br.json</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/e2e-session.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/listings.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/visibility.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/navigation.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/accessibility.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/lighthouse-login.cjs</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">lighthouserc.json</td></tr>
+<tr><td><span class="tag alterar">alterar</span></td><td class="path">.github/workflows/ci.yml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/visual.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">apps/web/src/app/prototype-routes.e2e.ts</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">Dockerfile</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">docker-compose.yml</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">.env.example</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">deploy/caddyfile-atria</td></tr>
+<tr><td><span class="tag criar">criar</span></td><td class="path">docs/self-hosting.md</td></tr>
+</tbody>
+</table></div>
+  </section>
+
+  <section class="panel" id="p-diffs" role="tabpanel" data-panel="diffs">
+    <div class="sec-h"><h2>Diffs</h2><p>O que mudou em cada arquivo alterado, entre o último commit anterior à aprovação e o estado atual.</p></div>
+<p class="na">Não se aplica. Sem base de comparação: nenhum commit anterior à aprovação da spec.</p>
+
+  </section>
+
+  <section class="panel" id="p-commits" role="tabpanel" data-panel="commits">
+    <div class="sec-h"><h2>Commits</h2><p>Desde a aprovação da spec, nos caminhos das tarefas.</p></div>
+<div class="tw"><table>
+<thead><tr><th>Commit</th><th>Data</th><th>Mensagem</th></tr></thead>
+<tbody>
+<tr><td class="mono">ae39257</td><td class="mono">2026-10-31</td><td>feat(web): integra as features no app (TASK-35)</td></tr>
+<tr><td class="mono">de907e5</td><td class="mono">2026-10-31</td><td>feat(auth): informa nas configurações da instância se a chave VAPID existe</td></tr>
+<tr><td class="mono">72657f0</td><td class="mono">2026-10-31</td><td>fix(auth): zera a trava de cadastro por IP quando o cadastro dá certo</td></tr>
+<tr><td class="mono">8b4524a</td><td class="mono">2026-10-31</td><td>fix(server): conclui a requisição mesmo quando o cliente desconecta</td></tr>
+<tr><td class="mono">2f1dfcf</td><td class="mono">2026-10-31</td><td>feat(reports): adiciona as telas de relatórios e exportação</td></tr>
+<tr><td class="mono">e915ea7</td><td class="mono">2026-10-31</td><td>feat(settings): adiciona as telas de configurações</td></tr>
+<tr><td class="mono">8d3fc3f</td><td class="mono">2026-10-31</td><td>feat(command-palette): adiciona a paleta de comandos</td></tr>
+<tr><td class="mono">cb83822</td><td class="mono">2026-10-31</td><td>feat(connections): adiciona a aba Conexões e a tela de ligar</td></tr>
+<tr><td class="mono">ac309ad</td><td class="mono">2026-10-31</td><td>feat(projects): adiciona as telas de projetos, quadro e raias</td></tr>
+<tr><td class="mono">6a179f9</td><td class="mono">2026-10-31</td><td>feat(reader): adiciona o modo leitura de PDF com destaques</td></tr>
+<tr><td class="mono">1225c96</td><td class="mono">2026-10-31</td><td>feat(library): adiciona as telas do acervo</td></tr>
+<tr><td class="mono">baeb891</td><td class="mono">2026-10-31</td><td>feat(journal): adiciona as telas do diário</td></tr>
+<tr><td class="mono">3460f2d</td><td class="mono">2026-10-31</td><td>feat(notes): adiciona as telas de notas</td></tr>
+<tr><td class="mono">3bafa3a</td><td class="mono">2026-10-31</td><td>feat(reminders): adiciona as telas de lembretes e o aviso no navegador</td></tr>
+<tr><td class="mono">aead460</td><td class="mono">2026-10-31</td><td>feat(tasks): adiciona as telas de tarefas e ocorrências</td></tr>
+<tr><td class="mono">6fd12e8</td><td class="mono">2026-10-31</td><td>feat(goals): adiciona as telas de metas e marcos</td></tr>
+<tr><td class="mono">fa521fb</td><td class="mono">2026-10-31</td><td>feat(finance): adiciona as telas do Financeiro</td></tr>
+<tr><td class="mono">2a514f7</td><td class="mono">2026-10-31</td><td>feat(dashboard): adiciona o dashboard com as zonas principal e lateral</td></tr>
+<tr><td class="mono">0589b9e</td><td class="mono">2026-10-31</td><td>feat(admin): adiciona as telas de usuários, convites e instância</td></tr>
+<tr><td class="mono">0ba8893</td><td class="mono">2026-10-31</td><td>feat(auth): adiciona as telas de assistente, login, cadastro, 2FA e redefinição de senha</td></tr>
+<tr><td class="mono">fd97e5f</td><td class="mono">2026-10-31</td><td>build(web): declara @atria/contracts como dependência do app</td></tr>
+<tr><td class="mono">422b036</td><td class="mono">2026-10-31</td><td>fix(web): deixa o botão de perfil, o menu da conta e a topbar fiéis ao protótipo</td></tr>
+<tr><td class="mono">26b559f</td><td class="mono">2026-10-31</td><td>fix(ui): deixa a lista do seletor focável e sem fechar ao abrir</td></tr>
+<tr><td class="mono">86957dd</td><td class="mono">2026-10-31</td><td>feat(server): integra os doze contextos com queries checadas e contratos OpenAPI</td></tr>
+<tr><td class="mono">d23ab40</td><td class="mono">2026-10-31</td><td>feat(reports): adiciona relatórios em HTML e PDF e a exportação JSON e CSV</td></tr>
+<tr><td class="mono">807bc69</td><td class="mono">2026-10-31</td><td>feat(search): adiciona a busca global por contexto</td></tr>
+<tr><td class="mono">2fb187d</td><td class="mono">2026-10-31</td><td>feat(links): adiciona o contexto de ligações entre entidades</td></tr>
+<tr><td class="mono">e6523f2</td><td class="mono">2026-10-31</td><td>feat(projects): adiciona o contexto de projetos com raias e cartões</td></tr>
+<tr><td class="mono">97fa7ab</td><td class="mono">2026-10-31</td><td>feat(library): adiciona o contexto do acervo com livros, artigos e vídeos</td></tr>
+<tr><td class="mono">ba36edb</td><td class="mono">2026-10-31</td><td>feat(journal): adiciona o contexto do diário criptografado com emoções</td></tr>
+<tr><td class="mono">cea55e9</td><td class="mono">2026-10-31</td><td>feat(notes): adiciona o contexto de notas criptografadas</td></tr>
+<tr><td class="mono">ef22947</td><td class="mono">2026-10-31</td><td>feat(reminders): adiciona o contexto de lembretes com disparo e Web Push</td></tr>
+<tr><td class="mono">5e66904</td><td class="mono">2026-10-31</td><td>feat(tasks): adiciona o contexto de tarefas com recorrência</td></tr>
+<tr><td class="mono">a5e6ba6</td><td class="mono">2026-10-31</td><td>feat(goals): adiciona o contexto de metas com marcos e progresso</td></tr>
+<tr><td class="mono">7481e7a</td><td class="mono">2026-10-31</td><td>feat(finance): adiciona o contexto financeiro com contas, cartões, recorrências e resumos</td></tr>
+<tr><td class="mono">73d2d7e</td><td class="mono">2026-10-31</td><td>feat(auth): adiciona o contexto de autenticação, convites, 2FA e preferências</td></tr>
+<tr><td class="mono">7745e25</td><td class="mono">2026-10-31</td><td>feat(server): adiciona o núcleo do servidor com banco, criptografia e armazenamento</td></tr>
+<tr><td class="mono">8bce432</td><td class="mono">2026-10-30</td><td>feat(deploy): adiciona a imagem Docker, o compose de referência e o guia de autohospedagem</td></tr>
+<tr><td class="mono">0057cba</td><td class="mono">2026-10-30</td><td>feat(web): adiciona a base do frontend com layout, rotas e formulários</td></tr>
+<tr><td class="mono">87591e4</td><td class="mono">2026-10-30</td><td>feat(ui): adiciona o tema e a biblioteca de componentes</td></tr>
+<tr><td class="mono">e469cc6</td><td class="mono">2026-10-30</td><td>build: configura o monorepo pnpm e Cargo e o CI</td></tr>
+<tr><td class="mono">b3e99c9</td><td class="mono">2026-10-30</td><td>feat(prototype): adiciona o protótipo HTML e os documentos de decisão</td></tr>
+<tr><td class="mono">e19d8b9</td><td class="mono">2026-10-30</td><td>chore: inicializa o repositório com licença e gitignore</td></tr>
+</tbody>
+</table></div>
+  </section>
+
+  <section class="panel" id="p-decisoes" role="tabpanel" data-panel="decisoes">
+    <div class="sec-h"><h2>Decisões</h2></div>
+    <div class="md">
+<ul>
+<li><strong>Visual idêntico ao protótipo (DEC-007):</strong> descartada a reinterpretação livre das telas; o protótipo aprovado é a fonte da verdade, inclusive para o servidor (DEC-002).</li>
+<li><strong>Recorrência com uma ocorrência aberta e cópia liquidada (DEC-003):</strong> descartada a materialização de todas as ocorrências futuras, que complicava mudar a regra só dali em diante (RN-08).</li>
+<li><strong>Período livre e desfazer liquidação (DEC-004, DEC-005):</strong> o resumo financeiro vai da primeira movimentação até hoje sem comparação forçada, e a liquidação pode ser desfeita revertendo o saldo.</li>
+<li><strong>Visibilidade no formulário e no cartão &quot;Registro&quot; (DEC-006):</strong> descartado o controle acima das abas; a marcação é um campo da entidade.</li>
+<li>**Conexões por <code>extra_tabs</code> (TASK-35, ajuste 4):** descartado um layout genérico, que duplicaria cabeçalhos e barras de abas; a categoria fica sem Conexões por não ser um tipo ligável.</li>
+<li><strong>Entrada de teste só no build e2e (TASK-35, ajuste 5):</strong> descartada uma rota assíncrona no próprio app; o <code>vite preview --mode e2e</code> atende <code>/__test__/sign-in</code> e nada disso entra no build de produção.</li>
+<li><strong>Requisição até o fim (TASK-35, ajuste 9):</strong> descartado um <code>ROLLBACK</code> a cada devolução de conexão; a requisição roda numa tarefa própria e não é interrompida no meio de uma transação.</li>
+<li><strong>Configuração da chave VAPID nas configurações da instância (TASK-35, ajuste 8):</strong> descartado fazer o endpoint da chave responder com o Web Push desligado, o que mudaria o sentido dele para os lembretes.</li>
+</ul>
+    </div>
+  </section>
+
+  <section class="panel" id="p-aprendizados" role="tabpanel" data-panel="aprendizados">
+    <div class="sec-h"><h2>Aprendizados</h2></div>
+    <div class="md">
+<ul>
+<li><strong>Baseline da tarefa que cria arquivos:</strong> quase toda tarefa bloqueou na primeira regressão porque o baseline media pastas que a própria tarefa criava; virou o aceite geral KNW-005 e defeitos do harness reportados e corrigidos (issues 3, 5 e 6). A versão 0.2.6 do harness passa a aceitar saídas que só ganham linhas.</li>
+<li><strong>e2e escritos antes da integração não rodavam:</strong> cerca de 60 testes supunham usuário fixo, instância vazia ou variáveis que ninguém definia; foram corrigidos na própria integração, separando suposição do teste de defeito real de tela.</li>
+<li><strong>Testes instáveis vinham de corrida, não de sorte:</strong> clique durante a transição do cabeçalho fixo, navegação que cancelava salvamentos otimistas, relógio falso avançando antes do agendador carregar e formulário enviado antes do token CSRF. Cada um foi reproduzido sob carga antes da correção.</li>
+<li><strong>Transação vazando no pool:</strong> só apareceu ao ligar o log de instruções do Postgres; o aviso &quot;there is already a transaction in progress&quot; era o sintoma. Medir antes de corrigir evitou duas hipóteses erradas.</li>
+<li><strong>Infraestrutura de build:</strong> web-push exige OpenSSL do sistema (KNW-003), o cache de target do Docker guarda o <code>cfg</code> antigo do <code>build.rs</code> (KNW-008), as macros do sqlx mapeiam datas para <code>time</code> (KNW-009) e o Lightning CSS apagava o <code>backdrop-filter</code> (ISS-001).</li>
+<li><strong>Numa próxima vez:</strong> escrever os e2e já contra a entrada de teste e o servidor real desde a onda das telas, e declarar evidências que reaproveitam a saída da Verificação, para não repetir e2e e Lighthouse a cada finalização.</li>
+</ul>
+    </div>
+  </section>
+
+  <section class="panel" id="p-atencao" role="tabpanel" data-panel="atencao">
+    <div class="sec-h"><h2>Pontos de atenção</h2></div>
+    <div class="note warn"><b>Antes de mexer</b>
+<ul>
+<li><strong>Chave de criptografia:</strong> <code>ATRIA_ENCRYPTION_KEY_FILE</code> fora do banco; sem ela, diário e notas ficam ilegíveis. Nunca troque a chave sem migrar os dados.</li>
+<li>**Camada <code>run_to_completion</code>:** toda requisição roda numa tarefa do Tokio; não a remova nem ponha uma camada de tempo-limite que cancele handlers por dentro dela.</li>
+<li><strong>Contrato gerado:</strong> mudou a API, gere de novo <code>packages/contracts/openapi.json</code> e <code>schema.ts</code>; o CI recusa contrato desatualizado.</li>
+<li><strong>e2e:</strong> dependem do servidor com <code>ATRIA_PUBLIC_URL=http://localhost:4173</code>, das chaves em <code>secrets/</code> e do preview em modo e2e; a trava de cadastro por IP é compartilhada por todos os testes.</li>
+<li><strong>Lighthouse local:</strong> precisa de <code>CHROME_PATH</code> quando não há Chrome instalado; no CI o runner já tem.</li>
+<li><strong>Seletor da biblioteca:</strong> fecha ao rolar a página; em telas estreitas a lista pode abrir sob o cabeçalho fixo, então testes devem escolher pelo teclado.</li>
+<li><strong>Capturas visuais:</strong> <code>apps/web/visual-screenshots/</code> é gerada pelos e2e e ainda não está no <code>.gitignore</code>.</li>
+<li><strong>Bundle:</strong> o build avisa de um pedaço acima de 500 kB; as notas do Lighthouse seguem acima de 90, mas vale dividir o código se crescer.</li>
+</ul>
+    </div>
+  </section>
+
+  <section class="panel" id="p-referencias" role="tabpanel" data-panel="referencias">
+    <div class="sec-h"><h2>Referências</h2><p>Para se aprofundar.</p></div>
+    <div class="md">
+<ul>
+<li>**<code>vostok/work/specs/refined/SPEC-001-mvp.md</code>:** requisitos, regras de negócio, contratos e registro de decisões da spec.</li>
+<li>**<code>docs/decisoes-do-prototipo.md</code> e <code>prototype/atria-prototype.html</code>:** as decisões visuais PD-01 a PD-62 e o protótipo que o app segue.</li>
+<li>**<code>docs/self-hosting.md</code>:** instalação, variáveis <code>ATRIA_</code>, proxy reverso e backup da chave.</li>
+<li>**<code>apps/server/src/http/router.rs</code> e <code>run_to_completion.rs</code>:** a pilha de camadas comum a toda requisição e o motivo de cada uma.</li>
+<li>**<code>apps/server/src/shared/recurrence.rs</code>:** a regra de recorrência compartilhada por finanças, tarefas e lembretes, com os casos de fim de mês e fuso.</li>
+<li>**<code>apps/web/src/app/feature-registry.ts</code> e <code>entity-types.ts</code>:** onde uma feature nova é registrada e como uma tela de entidade ganha Conexões.</li>
+<li>**<code>apps/web/src/app/e2e-sign-in-plugin.ts</code> e <code>playwright.config.ts</code>:** como os e2e entram no app e preparam dados.</li>
+<li><strong>Memória DEC-001 a DEC-013, KNW-001 a KNW-009 e ISS-001:</strong> as decisões e os aprendizados do período, com o contexto de cada um.</li>
+<li>**Commits <code>86957dd</code>, <code>ae39257</code> e <code>8b4524a</code>:** a integração do servidor, a integração do frontend e a correção da transação aberta no pool.</li>
+</ul>
+    </div>
+  </section>
+</main>
+
+<footer>Vostok · documento técnico de SPEC-001, gerado a partir da spec, das tarefas e do conteúdo da finalização.</footer>
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById("theme-toggle");
+  button.addEventListener("click", function () {
+    var light = root.getAttribute("data-theme") !== "light";
+    root.setAttribute("data-theme", light ? "light" : "dark");
+    button.textContent = light ? "Tema escuro" : "Tema claro";
+    button.setAttribute("aria-pressed", light ? "true" : "false");
+  });
+
+  // Abas: sem JavaScript, todas as seções aparecem em sequência e os links levam a cada uma.
+  // Links do menu sem painel correspondente saem do menu.
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".nav a[data-tab]")).filter(function (a) {
+    if (document.getElementById("p-" + a.getAttribute("data-tab"))) return true;
+    a.parentNode.removeChild(a);
+    return false;
+  });
+  var panels = Array.prototype.slice.call(document.querySelectorAll(".panel"));
+  // O hash da aba (#diffs) não coincide com o id da seção (p-diffs): o link continua compartilhável
+  // e o navegador não rola até a seção antes de ela aparecer, o que esconderia o cabeçalho.
+  function show(id) {
+    if (!tabs.length) return;
+    id = id.replace(/^p-/, "");
+    if (!document.getElementById("p-" + id)) id = tabs[0].getAttribute("data-tab");
+    tabs.forEach(function (a) {
+      var on = a.getAttribute("data-tab") === id;
+      a.classList.toggle("on", on);
+      a.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    panels.forEach(function (p) { p.classList.toggle("on", p.id === "p-" + id); });
+  }
+  tabs.forEach(function (a) {
+    a.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      show(a.getAttribute("data-tab"));
+      history.replaceState(null, "", "#" + a.getAttribute("data-tab"));
+    });
+  });
+  document.body.classList.add("tabs");
+  show((location.hash || "").replace("#", ""));
+
+  // Na impressão, os blocos de diff fechados abrem para o conteúdo sair inteiro no papel.
+  var closed = [];
+  window.addEventListener("beforeprint", function () {
+    closed = Array.prototype.slice.call(document.querySelectorAll("details.dfile:not([open])"));
+    closed.forEach(function (d) { d.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    closed.forEach(function (d) { d.open = false; });
+  });
+})();
+</script>
+</body>
+</html>
