@@ -1,0 +1,629 @@
+/* Telas do Acervo: estante, formulários e detalhes do protótipo, só com tokens do tema. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.sub {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.breakable {
+  overflow-wrap: anywhere;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Link com a cara de botão: abre uma rota, então é <a>, não <button>. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: calc(var(--space) * 10);
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.linkButton:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.linkPrimary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-on);
+}
+
+.linkPrimary:hover {
+  background: var(--primary-hover);
+  color: var(--primary-on);
+}
+
+/* Capas: 2:3 no livro e 16:9 no artigo e no vídeo (PD-36, PD-38). */
+.cover {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+  box-shadow: var(--shadow-sm);
+}
+
+.portrait {
+  aspect-ratio: 2 / 3;
+}
+
+.landscape {
+  aspect-ratio: 16 / 9;
+}
+
+.coverImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.coverFill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* Estante: livros em retrato, em colunas de pelo menos 170 px (PD-38). */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.tagFilter {
+  min-width: calc(var(--space) * 36);
+}
+
+.chipRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  min-height: calc(var(--space) * 10);
+  padding: calc(var(--space) * 0.75);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.chipToggle {
+  padding: var(--s1) var(--s3);
+  border: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chipToggle:hover {
+  color: var(--text);
+}
+
+.chipToggle[aria-pressed='true'] {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.chipToggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.shelfGrid,
+.shelfGridWide {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shelfGrid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.shelfGridWide {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  height: 100%;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--elevation-1);
+  box-shadow: var(--shadow-md);
+}
+
+.tileBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+/* O pé fica sempre embaixo, alinhado entre cartões de alturas diferentes (PD-39). */
+.tileFoot {
+  display: grid;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-top: var(--s2);
+}
+
+/* Link esticado: o cartão inteiro abre o item, e o foco aparece no cartão (PD-07). */
+.stretched {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.stretched:hover {
+  color: var(--text);
+}
+
+.stretched::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.stretched:focus-visible {
+  outline: none;
+}
+
+.tile:has(.stretched:focus-visible),
+.row:has(.stretched:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--surface-hover) 40%, var(--surface));
+}
+
+.rowCover {
+  flex: none;
+  width: calc(var(--space) * 10);
+  border-radius: var(--radius-sm);
+}
+
+.row[data-kind='video'] .rowCover,
+.row[data-kind='article'] .rowCover {
+  width: calc(var(--space) * 16);
+}
+
+.rowMain {
+  display: flex;
+  flex: 1 1 9rem;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowFoot {
+  flex: 0 1 calc(var(--space) * 56);
+  min-width: 0;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0 0 var(--s3);
+  padding: 0;
+  list-style: none;
+}
+
+.tileFoot .pills,
+.rowFoot .pills {
+  margin: 0;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s4);
+}
+
+/* Progresso do livro: barra e percentual (RF-49). */
+.progress {
+  display: grid;
+  gap: var(--space);
+}
+
+.progressText {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Visão geral: zona principal e lateral; abaixo de 960 px viram uma coluna (PD-59). */
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mediaCard,
+.mediaCardWide {
+  display: grid;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.mediaCard {
+  grid-template-columns: calc(var(--space) * 40) minmax(0, 1fr);
+}
+
+.mediaCardWide {
+  grid-template-columns: calc(var(--space) * 60) minmax(0, 1fr);
+}
+
+.dataSide {
+  display: grid;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space) * 36), 1fr));
+  gap: var(--s4);
+  margin: 0;
+}
+
+.facts dt,
+.about dt {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: var(--s1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.about {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.about > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.about dd {
+  margin: 0;
+  text-align: right;
+}
+
+.longText {
+  max-width: 68ch;
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Histórico de leitura e notas. */
+.historyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.historyHead p {
+  margin: 0;
+}
+
+.sessionRow,
+.noteRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.noteRow {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--s2);
+}
+
+.sessionMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sessionLine {
+  font-weight: 600;
+}
+
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.quote {
+  margin: 0;
+  padding-left: var(--s3);
+  border-left: 3px solid var(--primary);
+  color: var(--text-muted);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.noteForm {
+  display: grid;
+  gap: var(--s3);
+}
+
+.pageField {
+  max-width: calc(var(--space) * 36);
+}
+
+/* Capa por upload (PD-36) e formulário com a capa à esquerda (PD-37). */
+.formMedia {
+  display: grid;
+  grid-template-columns: calc(var(--space) * 55) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.formMediaFields {
+  display: grid;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.coverField {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.coverDrop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  transition:
+    background var(--motion-fast) var(--motion-ease-standard),
+    border-color var(--motion-fast) var(--motion-ease-standard);
+}
+
+.coverDrop[data-has-image='true'] {
+  border-style: solid;
+  padding: 0;
+}
+
+.coverDrop.over {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.dropBody {
+  display: grid;
+  justify-items: center;
+  gap: var(--s3);
+}
+
+.coverTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+
+.fieldLabel {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.pdfField {
+  display: grid;
+  gap: var(--s2);
+}
+
+.pdfRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.fileName {
+  overflow-wrap: anywhere;
+}
+
+.textareaRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.textarea {
+  width: 100%;
+  min-height: calc(var(--space) * 20);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+@media (max-width: 960px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .formMedia {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coverField {
+    max-width: calc(var(--space) * 50);
+  }
+
+  .mediaCard,
+  .mediaCardWide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mediaCard > :first-child {
+    max-width: calc(var(--space) * 50);
+  }
+}
+
+@media (max-width: 480px) {
+  .tagFilter {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .shelfGridWide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
