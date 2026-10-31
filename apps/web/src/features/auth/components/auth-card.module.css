@@ -1,0 +1,62 @@
+/* Contêiner das telas de entrada: ocupa a janela e centraliza o cartão na vertical. */
+.stage {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--s5);
+}
+
+/* Dentro do layout do app (tela do admin), o cartão só se centraliza na horizontal. */
+.stageInline {
+  display: block;
+  min-height: 0;
+  padding: 0;
+}
+
+.card {
+  width: 100%;
+  max-width: calc(var(--space) * 100);
+  margin-inline: auto;
+}
+
+.brand {
+  margin-bottom: var(--s5);
+}
+
+.back {
+  margin-bottom: var(--s3);
+}
+
+.heading {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xxl);
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+}
+
+.heading:focus {
+  outline: none;
+}
+
+.subtitle {
+  margin: var(--s2) 0 var(--s5);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+@media (max-width: 480px) {
+  .stage {
+    padding: var(--s3);
+  }
+}

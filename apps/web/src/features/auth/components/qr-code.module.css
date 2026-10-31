@@ -1,0 +1,14 @@
+/* O QR code precisa de módulos escuros sobre fundo claro nos dois temas para ser lido pela câmera. */
+.root {
+  display: block;
+  width: calc(var(--space) * 44);
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: Canvas;
+  color: CanvasText;
+  color-scheme: light;
+}
