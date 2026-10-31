@@ -102,7 +102,7 @@
 }
 
 .success:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--success) 22%, var(--surface));
+  background: color-mix(in srgb, var(--success) 22%, var(--success-soft));
 }
 
 .success[aria-pressed='true'] {
@@ -111,5 +111,5 @@
 }
 
 .success[aria-pressed='true']:hover:not(:disabled) {
-  background: var(--success);
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { Button } from './button';
@@ -46,5 +48,21 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: 'Concluir' });
     expect(button.className).toMatch(/success/);
     expect(button).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('Button success hover (DEC-013)', () => {
+  const css = readFileSync(join(__dirname, 'button.module.css'), 'utf8');
+
+  it('mixes success 22% with success-soft on hover, as in the prototype', () => {
+    expect(css).toMatch(
+      /\.success:hover:not\(:disabled\) \{\s*background: color-mix\(in srgb, var\(--success\) 22%, var\(--success-soft\)\);/,
+    );
+  });
+
+  it('mixes success 85% with text when pressed and hovered, as in the prototype', () => {
+    expect(css).toMatch(
+      /\.success\[aria-pressed='true'\]:hover:not\(:disabled\) \{\s*background: color-mix\(in srgb, var\(--success\) 85%, var\(--text\)\);/,
+    );
   });
 });
