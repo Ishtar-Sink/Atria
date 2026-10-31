@@ -3,7 +3,7 @@
 use axum::Router;
 use axum::extract::{DefaultBodyLimit, MatchedPath, Request};
 use axum::http::{Response, StatusCode};
-use axum::middleware::from_fn_with_state;
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use tower::ServiceBuilder;
@@ -14,6 +14,7 @@ use tracing::Span;
 use crate::http::AppState;
 use crate::http::csrf::csrf;
 use crate::http::healthz::healthz;
+use crate::http::run_to_completion::run_to_completion;
 use crate::http::security_headers::security_headers;
 use crate::http::session::session_layer;
 use crate::http::static_files::static_files;
@@ -59,6 +60,9 @@ pub(crate) fn build_router_with(
         .layer(trace)
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
+        // Daqui para dentro (sessão, CSRF e handler), o cliente desconectar não interrompe
+        // a requisição no meio de uma transação.
+        .layer(from_fn(run_to_completion))
         .layer(from_fn_with_state(state.config.clone(), security_headers))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(session_layer(state.pool.clone(), &state.config))

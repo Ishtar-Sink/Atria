@@ -459,3 +459,62 @@ async fn test_support_sign_in_as_creates_authenticated_session() {
     ctx.clock.advance(chrono::Duration::hours(1));
     assert_eq!(ctx.state.clock.now(), expected + chrono::Duration::hours(1));
 }
+
+/// O hyper descarta o handler quando o cliente desconecta. No meio de uma transação, a
+/// conexão podia voltar ao pool com ela aberta, e as escritas seguintes ficavam invisíveis
+/// ou se perdiam (TASK-35, ajuste 9). A requisição agora roda até o fim.
+#[tokio::test]
+async fn request_runs_to_completion_after_client_disconnects() {
+    use std::time::Duration;
+    use tokio::sync::Notify;
+    use tower::ServiceExt;
+
+    let ctx = TestContext::new().await;
+    let pool = ctx.state.pool.clone();
+    sqlx::query("CREATE TABLE run_to_completion_probe (id int)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let started = Arc::new(Notify::new());
+    let handler_pool = pool.clone();
+    let handler_started = started.clone();
+    let slow = Router::new().route(
+        "/slow-write",
+        post(move || {
+            let pool = handler_pool.clone();
+            let started = handler_started.clone();
+            async move {
+                let mut tx = pool.begin().await.unwrap();
+                started.notify_one();
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                sqlx::query("INSERT INTO run_to_completion_probe VALUES (1)")
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
+                tx.commit().await.unwrap();
+                StatusCode::NO_CONTENT
+            }
+        }),
+    );
+    let session = ctx.anonymous().await;
+    let app = ctx.app(slow);
+    let request = session
+        .request(Method::POST, "/api/v1/slow-write")
+        .body(Body::empty())
+        .unwrap();
+
+    // O cliente desconecta com a transação aberta: o hyper descarta o futuro da requisição.
+    let client = tokio::spawn(app.oneshot(request));
+    started.notified().await;
+    client.abort();
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
+    let written: i64 = sqlx::query_scalar("SELECT count(*) FROM run_to_completion_probe")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        written, 1,
+        "a requisição cancelada não terminou a transação"
+    );
+}

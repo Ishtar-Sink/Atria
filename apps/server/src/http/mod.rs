@@ -8,6 +8,7 @@ pub mod csrf;
 pub mod healthz;
 pub mod openapi;
 pub mod router;
+pub mod run_to_completion;
 pub mod security_headers;
 pub mod session;
 pub mod state;
