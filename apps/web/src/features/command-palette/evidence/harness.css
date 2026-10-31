@@ -1,0 +1,38 @@
+/* Estilos da página de evidência da paleta (só tokens do tema). */
+.harness-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  max-width: 640px;
+}
+
+.harness-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  color: var(--text);
+}
+
+.harness-input {
+  padding: var(--s2) var(--s3);
+  color: var(--text);
+  background: var(--elevation-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.harness-cards {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.harness-cards li {
+  padding: var(--s3);
+  color: var(--text);
+  background: var(--elevation-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
