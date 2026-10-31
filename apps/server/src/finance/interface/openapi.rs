@@ -1,0 +1,113 @@
+//! Documento OpenAPI do Financeiro, gerado do código ([project/api-02]).
+
+use utoipa::OpenApi;
+
+use crate::finance::interface::dto::*;
+use crate::finance::interface::handlers;
+use crate::shared::error::{FieldError, ProblemDetails};
+use crate::shared::recurrence::{Frequency, RecurrenceRule, Weekday};
+use crate::shared::visibility::Visibility;
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        handlers::list_accounts,
+        handlers::create_account,
+        handlers::get_account,
+        handlers::update_account,
+        handlers::delete_account,
+        handlers::list_categories,
+        handlers::create_category,
+        handlers::get_category,
+        handlers::update_category,
+        handlers::delete_category,
+        handlers::list_transactions,
+        handlers::create_transactions,
+        handlers::get_transaction,
+        handlers::update_transaction,
+        handlers::delete_transaction,
+        handlers::settle_transaction,
+        handlers::undo_settlement,
+        handlers::list_transfers,
+        handlers::create_transfer,
+        handlers::get_transfer,
+        handlers::delete_transfer,
+        handlers::list_recurring_transactions,
+        handlers::create_recurring_transaction,
+        handlers::get_recurring_transaction,
+        handlers::update_recurring_transaction,
+        handlers::settle_occurrence,
+        handlers::skip_occurrence,
+        handlers::list_settled_transactions,
+        handlers::list_statements,
+        handlers::pay_statement,
+        handlers::get_financial_summary,
+    ),
+    components(schemas(
+        AccountKindDto, TransactionKindDto, DifferenceKindDto, CategoryColorDto, ItemStatusDto,
+        RepetitionDto,
+        CreateAccountRequest, UpdateAccountRequest, AccountResponse, AccountPage,
+        CreateCategoryRequest, UpdateCategoryRequest, CategoryResponse, CategoryPage,
+        CreateTransactionRequest, UpdateTransactionRequest, SettleTransactionRequest, InstallmentDto, TransactionResponse,
+        TransactionItemResponse, CreatedTransactions, TransactionPage,
+        CreateTransferRequest, TransferResponse, TransferPage,
+        CreateRecurringTransactionRequest, UpdateRecurringTransactionRequest,
+        SettleOccurrenceRequest, SkipOccurrenceRequest, OpenOccurrenceDto,
+        RecurringTransactionResponse, RecurringTransactionPage, SettledTransactionPage,
+        StatementResponse, StatementList, PayStatementRequest, StatementPaymentResponse,
+        PeriodDto, FlowDto, PeriodTotalsDto, WhereGroupDto, WhereItemDto, PlannedDto,
+        ExpectedVsSettledDto, SavingsAndLossesDto, AccountBalanceDto, BalanceDto,
+        CreditCardSummaryDto, FinancialSummaryResponse,
+        RecurrenceRule, Frequency, Weekday, Visibility, ProblemDetails, FieldError,
+    )),
+    tags((name = "finance", description = "Financeiro: contas, movimentações, cartões, recorrências e painel"))
+)]
+pub struct FinanceApi;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn documents_all_finance_routes() {
+        let document = FinanceApi::openapi();
+        let expected = [
+            ("/api/v1/accounts", ["get", "post"].as_slice()),
+            ("/api/v1/accounts/{id}", &["get", "patch", "delete"]),
+            ("/api/v1/categories", &["get", "post"]),
+            ("/api/v1/categories/{id}", &["get", "patch", "delete"]),
+            ("/api/v1/transactions", &["get", "post"]),
+            ("/api/v1/transactions/{id}", &["get", "patch", "delete"]),
+            ("/api/v1/transactions/{id}/settlement", &["post", "delete"]),
+            ("/api/v1/transfers", &["get", "post"]),
+            ("/api/v1/transfers/{id}", &["get", "delete"]),
+            ("/api/v1/recurring-transactions", &["get", "post"]),
+            ("/api/v1/recurring-transactions/{id}", &["get", "patch"]),
+            ("/api/v1/recurring-transactions/{id}/settlement", &["post"]),
+            ("/api/v1/recurring-transactions/{id}/skip", &["post"]),
+            (
+                "/api/v1/recurring-transactions/{id}/settled-transactions",
+                &["get"],
+            ),
+            ("/api/v1/credit-cards/{id}/statements", &["get"]),
+            (
+                "/api/v1/credit-cards/{id}/statements/{period}/payment",
+                &["post"],
+            ),
+            ("/api/v1/financial-summaries", &["get"]),
+        ];
+        let json = serde_json::to_value(&document).unwrap();
+
+        for (path, methods) in expected {
+            let item = &json["paths"][path];
+            assert!(item.is_object(), "falta o caminho {path}");
+            for method in methods {
+                assert!(item[method].is_object(), "falta {method} {path}");
+            }
+        }
+        assert_eq!(json["paths"].as_object().unwrap().len(), expected.len());
+        assert!(json["components"]["schemas"]["TransactionResponse"].is_object());
+        assert!(json["components"]["schemas"]["TransactionItemResponse"].is_object());
+        assert!(json["components"]["schemas"]["FinancialSummaryResponse"].is_object());
+    }
+}
