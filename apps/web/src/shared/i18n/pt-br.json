@@ -28,6 +28,7 @@
   "errors.validation_failed": "Alguns dados não são válidos. Confira e tente de novo.",
   "errors.not_found": "O item não foi encontrado.",
   "account_menu": "Menu da conta",
+  "account": "Conta",
   "settings": "Configurações",
   "back": "Voltar",
   "edit": "Editar",

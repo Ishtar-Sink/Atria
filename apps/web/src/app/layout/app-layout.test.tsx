@@ -154,20 +154,16 @@ describe('AppLayout', () => {
   it('renders the profile button with the name and the initials', async () => {
     stubMe({ id: 'u1', email: 'ana@exemplo.com', display_name: 'Ana Souza' });
     renderWithProviders(<PaletteProbe />, { nav_items });
-    const button = await screen.findByRole('button', { name: 'Menu da conta' });
-    await waitFor(() => {
-      expect(button).toHaveTextContent('Ana Souza');
-    });
+    const button = await screen.findByRole('button', { name: 'Ana Souza' });
+    expect(button).not.toHaveAttribute('aria-label');
     expect(button).toHaveTextContent('AS');
   });
 
   it('falls back to the email and its initials without a display name', async () => {
     stubMe({ id: 'u1', email: 'maria@exemplo.com' });
     renderWithProviders(<PaletteProbe />, { nav_items });
-    const button = await screen.findByRole('button', { name: 'Menu da conta' });
-    await waitFor(() => {
-      expect(button).toHaveTextContent('maria@exemplo.com');
-    });
+    const button = await screen.findByRole('button', { name: 'maria@exemplo.com' });
+    expect(button).not.toHaveAttribute('aria-label');
     expect(button).toHaveTextContent('MA');
   });
 
@@ -179,7 +175,7 @@ describe('AppLayout', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Configurações', 'Tema escuro', 'Sair']);
+    ).toEqual(['Configurações', 'Alternar tema', 'Sair']);
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toHaveAttribute(
       'data-tone',
       'danger',

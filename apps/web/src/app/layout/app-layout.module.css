@@ -243,8 +243,11 @@
     padding: calc(var(--space) * 4) calc(var(--space) * 3);
   }
 
+  /* O protótipo deixa a busca encolher sem limite e o texto quebra em 3 linhas ou sobrepõe a trilha;
+     aqui a busca nunca fica abaixo de 136 px (no máximo 2 linhas) e a trilha desce de linha. */
   .searchTrigger {
     flex: 1;
+    min-width: calc(var(--space) * 34);
   }
 
   .screenInfo {
@@ -256,6 +259,60 @@
 @media (max-width: 480px) {
   .shortcut {
     display: none;
+  }
+}
+
+.profileRoot {
+  display: flex;
+  width: 100%;
+}
+
+/* Menu da conta: `.profile-menu` e seus `.nav-item` do protótipo. Vale só para este menu. */
+div.accountMenu {
+  z-index: 40;
+  display: grid;
+  gap: var(--s1);
+  min-width: 220px;
+  padding: var(--s2);
+  border-color: var(--border);
+  background: var(--elevation-2);
+}
+
+div.accountMenu [role='menuitem'] {
+  gap: var(--s3);
+  min-height: 40px;
+  padding: 0 var(--s3);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: inherit;
+  font-weight: 500;
+  transition:
+    background var(--motion-fast) var(--motion-ease-standard),
+    color var(--motion-fast) var(--motion-ease-standard);
+}
+
+div.accountMenu [role='menuitem']:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+div.accountMenu [role='menuitem'][data-tone='danger'] {
+  color: var(--danger);
+}
+
+div.accountMenu [role='menuitem'][data-tone='danger']:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* O protótipo abre o menu acima do botão, alinhado à esquerda, quando não cabe à direita
+   (gaveta de 280 px + 8 + 220 px de menu > largura da janela). */
+@media (max-width: 495px) {
+  div.accountMenu {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + var(--s2));
+    left: 0;
   }
 }
 
@@ -276,7 +333,8 @@
   cursor: pointer;
 }
 
-.profileButton:hover {
+.profileButton:hover,
+.profileButton[aria-expanded='true'] {
   background: var(--surface-hover);
 }
 

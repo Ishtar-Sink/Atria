@@ -289,7 +289,7 @@ const layoutScenarios = [
     sizes: ['desktop'],
     run: async (page, tag) => {
       await page.getByRole('button', { name: 'Menu da conta' }).click();
-      const menu = page.getByRole('menu', { name: 'Menu da conta' });
+      const menu = page.getByRole('menu', { name: 'Conta' });
       await menu.waitFor();
       check(`${tag}: menu visível`, await menu.isVisible());
       check(`${tag}: menu dentro da janela`, await inViewport(page, menu));
