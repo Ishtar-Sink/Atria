@@ -1,0 +1,372 @@
+/* Telas de Metas: listas, cartões e visão geral do protótipo, só com tokens do tema. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--surface-hover) 40%, var(--surface));
+}
+
+.rowMain {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rowTitle:hover {
+  color: var(--text);
+}
+
+/* Link esticado: o cartão inteiro abre a meta, e o foco aparece no cartão. */
+.rowTitle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.rowTitle:focus-visible {
+  outline: none;
+}
+
+.row:has(.rowTitle:focus-visible),
+.tile:has(.rowTitle:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rowSub {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-left: auto;
+}
+
+.rowEnd {
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rowProgress {
+  flex: 1 1 100%;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  height: 100%;
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--elevation-1);
+  box-shadow: var(--shadow-md);
+}
+
+.art {
+  width: 100%;
+  height: calc(var(--space) * 24);
+  border-radius: var(--radius-md);
+}
+
+.swatch {
+  flex: none;
+  width: calc(var(--space) * 8);
+  height: calc(var(--space) * 8);
+}
+
+.tileFoot {
+  display: grid;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-top: var(--s2);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s4);
+}
+
+/* Link com a cara de botão: abre uma rota, então é <a>, não <button>. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: calc(var(--space) * 10);
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.linkButton:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.linkPrimary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-on);
+}
+
+.linkPrimary:hover {
+  background: var(--primary-hover);
+  color: var(--primary-on);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.filterLabel {
+  min-width: calc(var(--space) * 36);
+}
+
+/* Visão geral: zona principal e lateral; abaixo de 960 px viram uma coluna. */
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space) * 36), 1fr));
+  gap: var(--s4);
+  margin: var(--s4) 0 0;
+}
+
+.facts dt,
+.about dt {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: var(--s1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.about {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.about > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.about dd {
+  margin: 0;
+  text-align: right;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.longText {
+  max-width: 68ch;
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.registerPills {
+  margin-bottom: var(--s3);
+}
+
+.milestoneRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.addForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.addField {
+  flex: 1 1 calc(var(--space) * 56);
+  min-width: 0;
+}
+
+.addSubmit {
+  margin-top: calc(var(--space) * 6);
+}
+
+@media (max-width: 960px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .rowMeta {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .addSubmit {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filterLabel {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* Descrição: o mesmo desenho do campo de texto da base, em várias linhas. */
+.textareaRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.textareaLabel {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.textarea {
+  width: 100%;
+  min-height: calc(var(--space) * 24);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
