@@ -128,3 +128,27 @@ async fn elevated_generates_invite() {
     let (status, _, _) = h.sign_up("ana@example.com", Some(&token)).await;
     assert_eq!(status, StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn successful_sign_up_resets_ip_failures() {
+    let h = Harness::new().await;
+    let (_, admin) = h.admin_session().await;
+
+    // Quatro convites inválidos, um cadastro certo e mais quatro inválidos: sem zerar a contagem
+    // no sucesso, as oito falhas do mesmo IP travariam o próximo cadastro ([project/security-07]).
+    for _ in 0..4 {
+        let (status, _, _) = h.sign_up("ana@example.com", Some("not-a-real-token")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+    let token = h.invite_token(&admin).await;
+    let (status, _, body) = h.sign_up("ana@example.com", Some(&token)).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    for _ in 0..4 {
+        let (status, _, _) = h.sign_up("bia@example.com", Some("not-a-real-token")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    let token = h.invite_token(&admin).await;
+    let (status, _, body) = h.sign_up("bia@example.com", Some(&token)).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+}

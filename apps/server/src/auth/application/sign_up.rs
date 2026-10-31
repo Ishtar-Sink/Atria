@@ -30,8 +30,11 @@ impl AuthService {
         }
         let password_hash = self.hash_password(request.password).await?;
         let result = self.create_member(email, password_hash, token).await;
-        if matches!(result, Err(AuthError::InviteInvalid)) {
-            self.register_failures(&[throttle_key]).await?;
+        match &result {
+            Err(AuthError::InviteInvalid) => self.register_failures(&[throttle_key]).await?,
+            // Como no login: o acerto zera a contagem, e só falhas seguidas travam o IP.
+            Ok(_) => self.reset_failures(&[throttle_key]).await?,
+            Err(_) => {}
         }
         result
     }
