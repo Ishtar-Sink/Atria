@@ -1,4 +1,5 @@
-//! Repositório de contas.
+//! Repositório de contas. A exclusão com conta de destino move tudo e acerta os dois
+//! saldos numa única transação ([project/database-03]).
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -7,7 +8,7 @@ use uuid::Uuid;
 use crate::finance::application::ports::{AccountRepository, Outcome};
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::account::Account;
-use crate::finance::infrastructure::{begin, commit, currency, storage};
+use crate::finance::infrastructure::{Tx, add_to_balance, begin, commit, currency, storage};
 use crate::shared::visibility::Visibility;
 
 #[derive(Debug, Clone)]
@@ -135,16 +136,64 @@ impl AccountRepository for PgAccounts {
         commit(tx).await
     }
 
-    async fn delete(&self, owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Outcome<()> {
+    async fn delete(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+        move_to: Option<Uuid>,
+        now: DateTime<Utc>,
+    ) -> Outcome<Vec<Uuid>> {
         let mut tx = begin(&self.pool, owner_id).await?;
-        let row: Option<AccountRow> = sqlx::query_as!(AccountRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, is_default, balance_amount, currency, \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM accounts WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL \
-             FOR UPDATE", id, owner_id)
-        .fetch_optional(&mut *tx)
+        // Linhas antes das contas, como em `settle` e `undo_settlement`: a mesma ordem de
+        // travas evita o impasse com uma liquidação simultânea.
+        sqlx::query_scalar!(
+            "SELECT id FROM transactions WHERE account_id = $1 AND owner_id = $2 \
+             AND deleted_at IS NULL ORDER BY id FOR UPDATE",
+            id,
+            owner_id,
+        )
+        .fetch_all(&mut *tx)
         .await
         .map_err(storage)?;
-        let account = row.ok_or(FinanceError::NotFound)?.into_domain()?;
+        sqlx::query_scalar!(
+            "SELECT id FROM recurring_transactions WHERE account_id = $1 AND owner_id = $2 \
+             AND deleted_at IS NULL ORDER BY id FOR UPDATE",
+            id,
+            owner_id,
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(storage)?;
+        sqlx::query_scalar!(
+            "SELECT id FROM transfers WHERE (from_account_id = $1 OR to_account_id = $1) \
+             AND owner_id = $2 AND deleted_at IS NULL ORDER BY id FOR UPDATE",
+            id,
+            owner_id,
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(storage)?;
+        // As contas em ordem de id, como `lock_both`.
+        let mut ids = vec![id];
+        ids.extend(move_to);
+        ids.sort();
+        let mut account = None;
+        let mut target = None;
+        for locked_id in ids {
+            let found = locked(&mut tx, owner_id, locked_id).await?;
+            if locked_id == id {
+                account = found;
+            } else {
+                target = Some(found.ok_or(FinanceError::invalid("move_to", "not_found"))?);
+            }
+        }
+        let account = account.ok_or(FinanceError::NotFound)?;
         account.ensure_deletable()?;
+        if let Some(target) = &target
+            && target.currency != account.currency
+        {
+            return Err(FinanceError::CurrencyMismatch);
+        }
         let in_use: bool = sqlx::query_scalar!("SELECT EXISTS (SELECT 1 FROM transactions WHERE account_id = $1 AND deleted_at IS NULL) \
              OR EXISTS (SELECT 1 FROM transfers WHERE (from_account_id = $1 OR to_account_id = $1) \
                         AND deleted_at IS NULL) \
@@ -153,11 +202,95 @@ impl AccountRepository for PgAccounts {
         .fetch_one(&mut *tx)
         .await
         .map_err(storage)?;
-        if in_use {
+        let mut deleted_transfers = Vec::new();
+        if let Some(target) = target {
+            let between = sqlx::query!(
+                "UPDATE transfers SET deleted_at = $1, updated_at = $1 WHERE owner_id = $2 \
+                 AND deleted_at IS NULL AND ((from_account_id = $3 AND to_account_id = $4) \
+                 OR (from_account_id = $4 AND to_account_id = $3)) \
+                 RETURNING id, from_account_id, amount",
+                now as _,
+                owner_id,
+                id,
+                target.id,
+            )
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(storage)?;
+            // Reverter cada transferência entre as duas antes de mover o resto (RN-05).
+            let mut source_delta: i64 = 0;
+            let mut target_delta: i64 = 0;
+            for transfer in between {
+                if transfer.from_account_id == id {
+                    source_delta = source_delta.saturating_add(transfer.amount);
+                    target_delta = target_delta.saturating_sub(transfer.amount);
+                } else {
+                    source_delta = source_delta.saturating_sub(transfer.amount);
+                    target_delta = target_delta.saturating_add(transfer.amount);
+                }
+                deleted_transfers.push(transfer.id);
+            }
+            sqlx::query!(
+                "UPDATE transactions SET account_id = $1, updated_at = $2 \
+                 WHERE account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+                target.id,
+                now as _,
+                id,
+                owner_id,
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(storage)?;
+            sqlx::query!(
+                "UPDATE recurring_transactions SET account_id = $1, updated_at = $2 \
+                 WHERE account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+                target.id,
+                now as _,
+                id,
+                owner_id,
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(storage)?;
+            sqlx::query!(
+                "UPDATE transfers SET from_account_id = $1, updated_at = $2 \
+                 WHERE from_account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+                target.id,
+                now as _,
+                id,
+                owner_id,
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(storage)?;
+            sqlx::query!(
+                "UPDATE transfers SET to_account_id = $1, updated_at = $2 \
+                 WHERE to_account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+                target.id,
+                now as _,
+                id,
+                owner_id,
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(storage)?;
+            // O destino recebe o que restou na conta excluída depois das reversões.
+            let remaining = account.balance_amount.saturating_add(source_delta);
+            add_to_balance(
+                &mut tx,
+                owner_id,
+                target.id,
+                target_delta.saturating_add(remaining),
+                now,
+            )
+            .await?;
+        } else if in_use {
             return Err(FinanceError::AccountHasTransactions);
         }
+        // Saldo zerado: o valor foi para o destino, e o saldo total da pessoa não muda.
         sqlx::query!(
-            "UPDATE accounts SET deleted_at = $1, updated_at = $1 WHERE id = $2 AND owner_id = $3",
+            "UPDATE accounts SET balance_amount = 0, deleted_at = $1, updated_at = $1 \
+             WHERE id = $2 AND owner_id = $3",
             now as _,
             id,
             owner_id
@@ -165,6 +298,17 @@ impl AccountRepository for PgAccounts {
         .execute(&mut *tx)
         .await
         .map_err(storage)?;
-        commit(tx).await
+        commit(tx).await?;
+        Ok(deleted_transfers)
     }
+}
+
+async fn locked(tx: &mut Tx<'_>, owner_id: Uuid, id: Uuid) -> Outcome<Option<Account>> {
+    let row: Option<AccountRow> = sqlx::query_as!(AccountRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, is_default, balance_amount, currency, \
+    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM accounts WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL \
+             FOR UPDATE", id, owner_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(storage)?;
+    row.map(AccountRow::into_domain).transpose()
 }

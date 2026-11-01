@@ -1,5 +1,6 @@
 //! Recorrência financeira com ocorrência aberta única, cópia liquidada e previsão
-//! virtual (CT-21, CB-02, CB-09, RF-31, RN-08, RN-09, PD-51, DEC-003, DEC-004).
+//! virtual (CT-21, CB-02, CB-09, RF-31, RN-08, RN-09, PD-51, DEC-003, DEC-004), e a
+//! exclusão da recorrente (RF-01, RF-02, RF-03, CT-01, CT-02, CB-01, CB-02 da SPEC-003).
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
@@ -521,4 +522,124 @@ async fn lists_settled_copies_of_recurring_with_pagination() {
     assert_eq!(second["items"][0]["id"], january["id"]);
     assert_eq!(second["next_cursor"], Value::Null);
     assert_eq!(all["items"].as_array().unwrap().len(), 2);
+}
+
+async fn internet(t: &FinanceTest, account: &str) -> String {
+    let body = t
+        .create_recurring(
+            &t.alice,
+            account,
+            "expense",
+            5_000,
+            monthly_rule("2026-11-10", 10),
+        )
+        .await;
+    id_of(&body)
+}
+
+async fn transaction(t: &FinanceTest, id: &str) -> Value {
+    let (status, body) = t.get(&t.alice, &format!("/transactions/{id}")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    body
+}
+
+#[tokio::test]
+async fn ct01_deleting_recurring_keeps_settled_copies_as_one_off_history() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = internet(&t, &account).await;
+    let (status, november) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-10", 5_000, "2026-11-10")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{november}");
+    let (status, december) = t
+        .settle_occurrence(&t.alice, &id, "2026-12-10", 5_000, "2026-12-10")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{december}");
+    assert_eq!(t.balance(&t.alice, &account).await, -10_000);
+
+    let (status, body) = t
+        .delete(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let (status, body) = t
+        .get(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    assert_eq!(body["code"], "not_found");
+    let recurring = t.items(&t.alice, "/recurring-transactions").await;
+    assert!(recurring.iter().all(|item| item["id"] != id.as_str()));
+    assert_eq!(
+        rows(
+            &t.items(&t.alice, "/transactions?from=2026-11-01&to=2027-03-31")
+                .await
+        ),
+        vec![
+            row("2026-11-10", 5_000, "settled", true),
+            row("2026-12-10", 5_000, "settled", true),
+        ]
+    );
+    for copy in [&november, &december] {
+        let stored = transaction(&t, &id_of(copy)).await;
+        assert!(stored["generated_from"].is_null(), "{stored}");
+        assert!(stored["occurrence_date"].is_null(), "{stored}");
+    }
+    assert_eq!(t.balance(&t.alice, &account).await, -10_000);
+    assert_eq!(stored_transactions(&t).await, 2);
+}
+
+#[tokio::test]
+async fn ct02_deleting_never_settled_recurring_leaves_no_history_and_second_delete_is_404() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = internet(&t, &account).await;
+    let uri = format!("/recurring-transactions/{id}");
+
+    let (status, body) = t.delete(&t.alice, &uri).await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    assert_eq!(stored_transactions(&t).await, 0);
+    assert!(
+        t.items(&t.alice, "/transactions?from=2026-11-01&to=2027-03-31")
+            .await
+            .is_empty()
+    );
+    let (status, body) = t.delete(&t.alice, &uri).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    assert_eq!(body["code"], "not_found");
+    let (status, body) = t
+        .patch(&t.alice, &uri, json!({ "expected_amount": 1 }))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    let (status, body) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-10", 5_000, "2026-11-10")
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    let (status, body) = t.skip_occurrence(&t.alice, &id, "2026-11-10").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+}
+
+#[tokio::test]
+async fn undo_settlement_of_copy_after_recurring_deletion_keeps_it_as_one_off() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = internet(&t, &account).await;
+    let (status, copy) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-10", 5_000, "2026-11-10")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    let (status, body) = t
+        .delete(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+
+    let (status, undone) = t.undo_settlement(&t.alice, &id_of(&copy)).await;
+
+    assert_eq!(status, StatusCode::OK, "{undone}");
+    assert_eq!(undone["status"], "open");
+    assert!(undone["settled_at"].is_null(), "{undone}");
+    assert!(undone["generated_from"].is_null(), "{undone}");
+    assert_eq!(t.balance(&t.alice, &account).await, 0);
+    assert_eq!(stored_transactions(&t).await, 1);
 }

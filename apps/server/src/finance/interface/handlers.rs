@@ -52,7 +52,9 @@ pub fn api_error(error: FinanceError) -> ApiError {
         FinanceError::Validation(issues) => {
             ApiError::unprocessable("validation_failed", field_errors(&issues))
         }
-        FinanceError::IdempotencyKeyReused | FinanceError::CategoryKindMismatch => ApiError::new(
+        FinanceError::IdempotencyKeyReused
+        | FinanceError::CategoryKindMismatch
+        | FinanceError::CurrencyMismatch => ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             error.code(),
             "Unprocessable Content",
@@ -356,19 +358,30 @@ pub async fn update_account(
     Ok(Json(account.into()))
 }
 
-#[utoipa::path(delete, path = "/api/v1/accounts/{id}", tag = "finance", params(("id" = Uuid, Path)),
+/// Exclui a conta; com movimentações, move tudo para `move_to` (RF-05, RF-06). 409 para a
+/// conta padrão ou sem destino; 422 para destino inválido ou de outra moeda.
+#[utoipa::path(delete, path = "/api/v1/accounts/{id}", tag = "finance",
+    params(("id" = Uuid, Path), DeleteAccountQuery),
     responses((status = 204), (status = 404, body = ProblemDetails),
-        (status = 409, body = ProblemDetails)))]
+        (status = 409, body = ProblemDetails), (status = 422, body = ProblemDetails)))]
 pub async fn delete_account(
     State(state): State<AppState>,
     user: CurrentUser,
     hook: Option<Extension<EntityDeletedHook>>,
     Id(id): Id,
+    Params(query): Params<DeleteAccountQuery>,
 ) -> ApiResult<StatusCode> {
     let repo = PgAccounts::new(state.pool.clone());
-    accounts::delete(&repo, env(&state), user.user_id, id)
+    let deleted_transfers = accounts::delete(&repo, env(&state), user.user_id, id, query.move_to)
         .await
         .map_err(api_error)?;
+    notify_deleted(
+        hook.as_ref().map(|h| &h.0),
+        user.user_id,
+        "transfer",
+        &deleted_transfers,
+    )
+    .await;
     notify_deleted(hook.as_ref().map(|h| &h.0), user.user_id, "account", &[id]).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -416,7 +429,7 @@ pub async fn create_category(
     let input = categories::NewCategory {
         name: body.name,
         kind: body.kind.into(),
-        color: body.color.into(),
+        color: body.color,
         visibility: body.visibility.unwrap_or_default(),
     };
     let repo = PgCategories::new(state.pool.clone());
@@ -451,7 +464,7 @@ pub async fn update_category(
 ) -> ApiResult<Json<CategoryResponse>> {
     let patch = categories::CategoryPatch {
         name: body.name,
-        color: body.color.map(Into::into),
+        color: body.color,
         visibility: body.visibility,
     };
     let repo = PgCategories::new(state.pool.clone());
@@ -936,6 +949,22 @@ pub async fn update_recurring_transaction(
         updated,
         state.clock.now(),
     )))
+}
+
+/// Exclui a recorrente e a ocorrência aberta; as cópias liquidadas ficam como pontuais (RF-01, RN-01).
+#[utoipa::path(delete, path = "/api/v1/recurring-transactions/{id}", tag = "finance",
+    params(("id" = Uuid, Path)),
+    responses((status = 204), (status = 404, body = ProblemDetails)))]
+pub async fn delete_recurring_transaction(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Id(id): Id,
+) -> ApiResult<StatusCode> {
+    let repo = PgRecurringTransactions::new(state.pool.clone());
+    recurring_transactions::delete(&repo, env(&state), user.user_id, id)
+        .await
+        .map_err(api_error)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(post, path = "/api/v1/recurring-transactions/{id}/settlement", tag = "finance",

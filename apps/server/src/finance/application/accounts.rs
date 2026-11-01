@@ -1,10 +1,12 @@
 //! Casos de uso de contas (RF-24, RF-25, RF-26). Toda chamada garante,
-//! antes, a "Conta principal" do usuário, criada uma única vez.
+//! antes, a "Conta principal" do usuário, criada uma única vez. A exclusão de uma
+//! conta com movimentações leva tudo para uma conta de destino (RF-05, RF-06).
 
 use uuid::Uuid;
 
 use crate::finance::application::Env;
 use crate::finance::application::ports::{AccountRepository, Outcome};
+use crate::finance::domain::FinanceError;
 use crate::finance::domain::account::{Account, validate_name};
 use crate::shared::money::Currency;
 use crate::shared::visibility::Visibility;
@@ -115,12 +117,41 @@ pub async fn update<R: AccountRepository>(
     Ok(account)
 }
 
+/// O destino de uma exclusão é sempre outra conta (RN-04).
+pub fn check_destination(account_id: Uuid, move_to: Option<Uuid>) -> Outcome<()> {
+    if move_to == Some(account_id) {
+        return Err(FinanceError::invalid("move_to", "same_account"));
+    }
+    Ok(())
+}
+
+/// Devolve os ids das transferências entre a conta e o destino, excluídas junto (RN-05).
 pub async fn delete<R: AccountRepository>(
     repo: &R,
     env: Env<'_>,
     owner_id: Uuid,
     id: Uuid,
-) -> Outcome<()> {
+    move_to: Option<Uuid>,
+) -> Outcome<Vec<Uuid>> {
     ensure_default(repo, env, owner_id).await?;
-    repo.delete(owner_id, id, env.clock.now()).await
+    check_destination(id, move_to)?;
+    repo.delete(owner_id, id, move_to, env.clock.now()).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn destination_must_differ_from_deleted_account() {
+        let id = Uuid::from_u128(1);
+
+        assert!(matches!(
+            check_destination(id, Some(id)),
+            Err(FinanceError::Validation(issues))
+                if issues[0].field == "move_to" && issues[0].code == "same_account"
+        ));
+        assert!(check_destination(id, None).is_ok());
+        assert!(check_destination(id, Some(Uuid::from_u128(2))).is_ok());
+    }
 }

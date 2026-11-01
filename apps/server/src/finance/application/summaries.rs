@@ -1,6 +1,6 @@
 //! Dados do painel do Financeiro num período livre (RF-35, PD-55, PD-58, DEC-004).
 //! Fechamento, comparação, "Para onde foi", previsto x realizado e economias seguem
-//! o período; saldo e próximas contas são o estado de hoje.
+//! o período; saldo, próximas contas e a série "Mês a mês" são o estado de hoje.
 
 use std::collections::HashMap;
 
@@ -17,9 +17,9 @@ use crate::finance::domain::category::Category;
 use crate::finance::domain::forecast::{FinanceItem, project};
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::summary::{
-    Entry, ExpectedVsSettled, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS, WhereItem,
-    expected_vs_settled, forecast_balance, period_totals, savings_and_losses, upcoming_movements,
-    where_it_went,
+    Entry, ExpectedVsSettled, MonthTotals, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS,
+    WhereItem, expected_vs_settled, forecast_balance, monthly_series, monthly_window,
+    period_totals, savings_and_losses, upcoming_movements, where_it_went,
 };
 use crate::shared::money::Currency;
 
@@ -53,6 +53,8 @@ pub struct PeriodSummaryView {
     /// Todas as contas; o saldo atual soma todas.
     pub accounts: Vec<Account>,
     pub upcoming_bills: Vec<FinanceItem>,
+    /// "Mês a mês": 6 meses realizados e 6 projetados, o estado de hoje, fora do período (RF-17).
+    pub monthly: Vec<MonthTotals>,
 }
 
 /// Repositórios que o resumo lê.
@@ -118,6 +120,14 @@ where
             pending_until(sources.transactions, &models, owner_id, period.to, now).await?;
         forecast_balance(current_balance, &pending, period.to, today)
     };
+    let monthly = monthly(
+        sources.transactions,
+        &models,
+        owner_id,
+        current_balance,
+        now,
+    )
+    .await?;
     let category_list = categories::list_all(sources.categories, owner_id).await?;
     let bills = upcoming(sources.transactions, &models, owner_id, now).await?;
     Ok(PeriodSummaryView {
@@ -136,6 +146,7 @@ where
         forecast_at_period_end,
         accounts: all_accounts,
         upcoming_bills: bills,
+        monthly,
     })
 }
 
@@ -217,6 +228,31 @@ async fn pending_until<T: TransactionRepository>(
         .map(FinanceItem::Stored)
         .chain(projected(models, None, to, now))
         .collect())
+}
+
+/// Liquidadas desde o início da janela e pendentes até o fim dela; nada é gravado
+/// (DEC-003).
+async fn monthly<T: TransactionRepository>(
+    transactions: &T,
+    models: &[RecurringTransaction],
+    owner_id: Uuid,
+    current_balance: i64,
+    now: DateTime<Utc>,
+) -> Outcome<Vec<MonthTotals>> {
+    let today = now.date_naive();
+    let window = monthly_window(today);
+    let filter = TransactionFilter {
+        from: Some(window.from),
+        settled: Some(true),
+        ..TransactionFilter::default()
+    };
+    let settled: Vec<FinanceItem> = transactions::list_all(transactions, owner_id, &filter)
+        .await?
+        .into_iter()
+        .map(FinanceItem::Stored)
+        .collect();
+    let pending = pending_until(transactions, models, owner_id, window.to, now).await?;
+    Ok(monthly_series(&settled, &pending, current_balance, today))
 }
 
 async fn upcoming<T: TransactionRepository>(

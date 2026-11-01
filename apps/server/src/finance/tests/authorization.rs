@@ -23,7 +23,7 @@ async fn seed(t: &FinanceTest) -> Value {
     let checking = t.default_account(&t.alice).await;
     let savings = t.create_account(&t.alice, "Poupança").await;
     let category = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let item = t
         .create_transaction(&t.alice, &checking, "expense", 10_000, "2026-11-05")
@@ -127,6 +127,11 @@ async fn other_user_resources_return_404() {
             Method::PATCH,
             format!("/recurring-transactions/{}", id("recurring")),
             Some(json!({ "expected_amount": 1 })),
+        ),
+        (
+            Method::DELETE,
+            format!("/recurring-transactions/{}", id("recurring")),
+            None,
         ),
         (
             Method::POST,
@@ -251,7 +256,7 @@ async fn row_level_security_hides_other_owner_rows() {
     let mut tx = begin_for_user(t.pool(), BOB).await.unwrap();
     let foreign = sqlx::query(
         "INSERT INTO categories (id, owner_id, name, kind, color, created_at, updated_at) \
-         VALUES ($1, $2, 'Invasão', 'expense', 'info', now(), now())",
+         VALUES ($1, $2, 'Invasão', 'expense', '#0369a1', now(), now())",
     )
     .bind(uuid::Uuid::from_u128(99))
     .bind(ALICE)

@@ -57,7 +57,9 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/recurring-transactions/{id}",
-            get(h::get_recurring_transaction).patch(h::update_recurring_transaction),
+            get(h::get_recurring_transaction)
+                .patch(h::update_recurring_transaction)
+                .delete(h::delete_recurring_transaction),
         )
         .route(
             "/recurring-transactions/{id}/settlement",

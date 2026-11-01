@@ -49,13 +49,17 @@ pub trait AccountRepository: Send + Sync {
     fn get(&self, owner_id: Uuid, id: Uuid) -> impl Future<Output = Outcome<Account>> + Send;
     fn insert(&self, account: &Account) -> impl Future<Output = Outcome<()>> + Send;
     fn update(&self, account: &Account) -> impl Future<Output = Outcome<()>> + Send;
-    /// Exclusão lógica; recusa a conta padrão e a conta com movimentações.
+    /// Exclusão lógica numa transação; recusa a conta padrão. Com movimentações, exige
+    /// `move_to`, outra conta ativa do dono na mesma moeda, que recebe movimentações,
+    /// transferências, recorrências e o saldo; as transferências entre as duas são
+    /// excluídas (RF-06, RN-04, RN-05). Devolve os ids dessas transferências.
     fn delete(
         &self,
         owner_id: Uuid,
         id: Uuid,
+        move_to: Option<Uuid>,
         now: DateTime<Utc>,
-    ) -> impl Future<Output = Outcome<()>> + Send;
+    ) -> impl Future<Output = Outcome<Vec<Uuid>>> + Send;
 }
 
 pub trait CategoryRepository: Send + Sync {
@@ -262,6 +266,16 @@ pub trait RecurringTransactionRepository: Send + Sync {
         occurrence_date: NaiveDate,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<RecurringTransaction>> + Send;
+
+    /// Exclusão lógica numa transação: trava a recorrente, solta as cópias liquidadas (sem
+    /// `generated_from` nem `occurrence_date`) e marca `deleted_at` (RN-01). Já excluída ou
+    /// de outro dono: `NotFound`.
+    fn delete(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Outcome<()>> + Send;
 }
 
 /// Resposta gravada para uma `Idempotency-Key`.

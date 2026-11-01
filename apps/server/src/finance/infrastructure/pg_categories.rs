@@ -45,7 +45,7 @@ impl CategoryRow {
             visibility: self.visibility,
             name: self.name,
             kind: TransactionKind::parse(&self.kind).ok_or_else(|| corrupt("kind"))?,
-            color: CategoryColor::parse(&self.color).ok_or_else(|| corrupt("color"))?,
+            color: CategoryColor::parse(&self.color).map_err(|_| corrupt("color"))?,
             system_key: self
                 .system_key
                 .map(|key| SystemCategory::from_key(&key).ok_or_else(|| corrupt("system_key")))

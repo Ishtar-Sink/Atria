@@ -136,6 +136,8 @@ fn overrides(resource: &str, created: &[Created]) -> Map<String, Value> {
             "target_type": "goal",
             "target_id": id("goals"),
         }),
+        // A cor é HEX livre, e a amostra gerada do schema seria recusada.
+        "categories" => json!({"color": "#6d28d9"}),
         _ => json!({}),
     };
     value.as_object().cloned().unwrap_or_default()

@@ -196,7 +196,7 @@ impl T {
     }
 
     async fn category(&self, session: &TestSession, name: &str, kind: &str) -> String {
-        let body = json!({ "name": name, "kind": kind, "color": "primary" });
+        let body = json!({ "name": name, "kind": kind, "color": "#6d28d9" });
         id_of(&self.make(session, "/categories", body).await)
     }
 
@@ -1738,6 +1738,19 @@ async fn export_json_contains_all_user_entities() {
         20
     );
     assert_eq!(rows(&export["contexts"]["links"], "links").len(), 1);
+    let categories = export["contexts"]["finance"]["categories"]
+        .as_array()
+        .expect("categorias");
+    assert!(!categories.is_empty());
+    assert!(categories.iter().all(|category| {
+        let color = category["color"].as_str().unwrap_or_default();
+        color.len() == 7 && color.starts_with('#')
+    }));
+    assert!(
+        categories
+            .iter()
+            .any(|category| category["color"] == "#6d28d9")
+    );
     let text = export.to_string();
     assert!(!text.contains("hash") && !text.contains("totp_secret"));
 }

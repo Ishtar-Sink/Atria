@@ -9,12 +9,13 @@ use uuid::Uuid;
 use crate::finance::application::ports::Repetition;
 use crate::finance::application::summaries::{PeriodSummaryView, WhereView};
 use crate::finance::domain::account::Account;
-use crate::finance::domain::category::{Category, CategoryColor, SystemCategory};
+use crate::finance::domain::category::{Category, SystemCategory};
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
 use crate::finance::domain::summary::{
-    ExpectedVsSettled, Flow, Period, PeriodTotals, Planned, SavingsAndLosses, WhereGroup,
+    ExpectedVsSettled, Flow, MonthTotals, Period, PeriodTotals, Planned, SavingsAndLosses,
+    WhereGroup,
 };
 use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKind};
 use crate::finance::domain::transfer::Transfer;
@@ -60,43 +61,6 @@ impl From<DifferenceKind> for DifferenceKindDto {
             DifferenceKind::Saving => Self::Saving,
             DifferenceKind::Gain => Self::Gain,
             DifferenceKind::Loss => Self::Loss,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CategoryColorDto {
-    Primary,
-    Accent,
-    Success,
-    Warning,
-    Danger,
-    Info,
-}
-
-impl From<CategoryColorDto> for CategoryColor {
-    fn from(value: CategoryColorDto) -> Self {
-        match value {
-            CategoryColorDto::Primary => Self::Primary,
-            CategoryColorDto::Accent => Self::Accent,
-            CategoryColorDto::Success => Self::Success,
-            CategoryColorDto::Warning => Self::Warning,
-            CategoryColorDto::Danger => Self::Danger,
-            CategoryColorDto::Info => Self::Info,
-        }
-    }
-}
-
-impl From<CategoryColor> for CategoryColorDto {
-    fn from(value: CategoryColor) -> Self {
-        match value {
-            CategoryColor::Primary => Self::Primary,
-            CategoryColor::Accent => Self::Accent,
-            CategoryColor::Success => Self::Success,
-            CategoryColor::Warning => Self::Warning,
-            CategoryColor::Danger => Self::Danger,
-            CategoryColor::Info => Self::Info,
         }
     }
 }
@@ -202,7 +166,9 @@ pub struct AccountPage {
 pub struct CreateCategoryRequest {
     pub name: String,
     pub kind: TransactionKindDto,
-    pub color: CategoryColorDto,
+    /// HEX `#rrggbb`; guardado em minúsculas (RN-09).
+    #[schema(example = "#6d28d9")]
+    pub color: String,
     pub visibility: Option<Visibility>,
 }
 
@@ -211,7 +177,9 @@ pub struct CreateCategoryRequest {
 #[serde(deny_unknown_fields)]
 pub struct UpdateCategoryRequest {
     pub name: Option<String>,
-    pub color: Option<CategoryColorDto>,
+    /// HEX `#rrggbb`; guardado em minúsculas (RN-09).
+    #[schema(example = "#6d28d9")]
+    pub color: Option<String>,
     pub visibility: Option<Visibility>,
 }
 
@@ -229,6 +197,15 @@ pub struct DeleteCategoryQuery {
     /// Categoria do mesmo tipo que recebe as movimentações de uma categoria em uso
     /// (CB-15, PD-49).
     pub replacement_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct DeleteAccountQuery {
+    /// Outra conta ativa da mesma pessoa e da mesma moeda que recebe as movimentações, as
+    /// transferências, as recorrências e o saldo; obrigatória quando a conta tem
+    /// movimentações (RF-05, RF-06, RN-04).
+    pub move_to: Option<Uuid>,
 }
 
 /// Chave estável de uma categoria padrão (RF-11).
@@ -267,7 +244,9 @@ pub struct CategoryResponse {
     pub updated_at: DateTime<Utc>,
     pub name: String,
     pub kind: TransactionKindDto,
-    pub color: CategoryColorDto,
+    /// HEX `#rrggbb`.
+    #[schema(example = "#6d28d9")]
+    pub color: String,
     /// Chave da categoria padrão (RF-11): a tela traduz o nome por ela; nula nas criadas pela pessoa e nas padrão renomeadas.
     pub system_key: Option<SystemCategoryKey>,
 }
@@ -282,7 +261,7 @@ impl From<Category> for CategoryResponse {
             updated_at: category.updated_at,
             name: category.name,
             kind: category.kind.into(),
-            color: category.color.into(),
+            color: category.color.as_str().to_owned(),
             system_key: category.system_key.map(Into::into),
         }
     }
@@ -775,7 +754,8 @@ impl From<WhereGroup> for WhereGroupDto {
 pub struct WhereItemDto {
     pub category_id: Option<Uuid>,
     pub name: Option<String>,
-    pub color: Option<CategoryColorDto>,
+    /// HEX `#rrggbb`.
+    pub color: Option<String>,
     pub group: WhereGroupDto,
     pub amount: i64,
 }
@@ -785,7 +765,9 @@ impl From<WhereView> for WhereItemDto {
         Self {
             category_id: view.item.category_id,
             name: view.category.as_ref().map(|category| category.name.clone()),
-            color: view.category.map(|category| category.color.into()),
+            color: view
+                .category
+                .map(|category| category.color.as_str().to_owned()),
             group: view.item.group.into(),
             amount: view.item.amount,
         }
@@ -855,6 +837,30 @@ pub struct BalanceDto {
     pub accounts: Vec<AccountBalanceDto>,
 }
 
+/// Um mês do "Mês a mês": entradas, saídas e saldo ao fim do mês, em centavos; `projected`
+/// nos meses calculados pelas recorrentes e pendentes, sem linhas gravadas (RF-17, RN-08).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MonthlyTotalsDto {
+    #[schema(example = "2026-11")]
+    pub month: String,
+    pub income: i64,
+    pub expense: i64,
+    pub balance: i64,
+    pub projected: bool,
+}
+
+impl From<MonthTotals> for MonthlyTotalsDto {
+    fn from(value: MonthTotals) -> Self {
+        Self {
+            month: value.month.format("%Y-%m").to_string(),
+            income: value.income,
+            expense: value.expense,
+            balance: value.balance,
+            projected: value.projected,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FinancialSummaryResponse {
     pub period: PeriodDto,
@@ -867,6 +873,8 @@ pub struct FinancialSummaryResponse {
     pub balance: BalanceDto,
     /// Entradas e saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas, com as ocorrências abertas das recorrentes (RF-15).
     pub upcoming_bills: Vec<TransactionItemResponse>,
+    /// 6 meses realizados e 6 projetados, em ordem (RF-17).
+    pub monthly: Vec<MonthlyTotalsDto>,
     #[schema(example = "BRL")]
     pub currency: String,
 }
@@ -900,6 +908,7 @@ impl From<PeriodSummaryView> for FinancialSummaryResponse {
                 .into_iter()
                 .map(|item| TransactionItemResponse::new(item, today))
                 .collect(),
+            monthly: view.monthly.into_iter().map(Into::into).collect(),
             currency: view.currency.to_string(),
         }
     }

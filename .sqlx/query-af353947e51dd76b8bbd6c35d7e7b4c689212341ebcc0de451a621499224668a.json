@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE recurring_transactions SET account_id = $1, updated_at = $2 WHERE account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "af353947e51dd76b8bbd6c35d7e7b4c689212341ebcc0de451a621499224668a"
+}

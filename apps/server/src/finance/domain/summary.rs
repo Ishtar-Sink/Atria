@@ -1,11 +1,12 @@
 //! Painel do Financeiro por período livre (RF-35, PD-55, PD-58): fechamento realizado
 //! e previsto, comparação com o período anterior, "Para onde foi", previsto x
-//! realizado, economias e perdas, saldo previsto e próximas movimentações. As
-//! transferências ficam fora de todos os totais (RN-05).
+//! realizado, economias e perdas, saldo previsto, próximas movimentações e a série
+//! "Mês a mês", com 6 meses realizados e 6 projetados (RF-17). As transferências
+//! ficam fora de todos os totais (RN-05).
 
 use std::collections::HashMap;
 
-use chrono::{Duration, NaiveDate};
+use chrono::{Datelike, Duration, Months, NaiveDate};
 use uuid::Uuid;
 
 use crate::finance::domain::forecast::FinanceItem;
@@ -238,6 +239,121 @@ pub fn upcoming_movements(items: Vec<FinanceItem>, today: NaiveDate) -> Vec<Fina
         .collect();
     movements.sort_by_key(|item| (item.expected_date(), item.key()));
     movements
+}
+
+/// Meses do "Mês a mês": os realizados terminam no mês de hoje (RF-15, RF-17).
+pub const MONTHLY_REALIZED_MONTHS: u32 = 6;
+pub const MONTHLY_PROJECTED_MONTHS: u32 = 6;
+
+/// Um mês do "Mês a mês": `month` é o primeiro dia do mês e `balance`, o saldo ao fim
+/// dele. Os projetados vêm das pendentes e das recorrentes, sem linhas gravadas (RN-08).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonthTotals {
+    pub month: NaiveDate,
+    pub income: i64,
+    pub expense: i64,
+    pub balance: i64,
+    pub projected: bool,
+}
+
+fn first_of_month(day: NaiveDate) -> NaiveDate {
+    day.with_day(1).unwrap_or(day)
+}
+
+fn last_of_month(first: NaiveDate) -> NaiveDate {
+    first
+        .checked_add_months(Months::new(1))
+        .and_then(|next| next.pred_opt())
+        .unwrap_or(first)
+}
+
+/// Do primeiro dia do mês de hoje menos 5 meses ao último dia do mês de hoje mais 6.
+pub fn monthly_window(today: NaiveDate) -> Period {
+    let current = first_of_month(today);
+    let from = current
+        .checked_sub_months(Months::new(MONTHLY_REALIZED_MONTHS - 1))
+        .unwrap_or(today);
+    let to = current
+        .checked_add_months(Months::new(MONTHLY_PROJECTED_MONTHS))
+        .map_or(today, last_of_month);
+    Period { from, to }
+}
+
+/// 12 meses consecutivos: os realizados somam as liquidadas pela data efetiva e voltam
+/// do saldo atual; os projetados somam as pendentes pela data prevista e usam o saldo
+/// previsto, que inclui as atrasadas (RF-17, CB-08).
+pub fn monthly_series(
+    settled: &[FinanceItem],
+    pending: &[FinanceItem],
+    current_balance: i64,
+    today: NaiveDate,
+) -> Vec<MonthTotals> {
+    let start = monthly_window(today).from;
+    (0..MONTHLY_REALIZED_MONTHS + MONTHLY_PROJECTED_MONTHS)
+        .filter_map(|offset| start.checked_add_months(Months::new(offset)))
+        .map(|month| {
+            if month > first_of_month(today) {
+                projected_month(pending, current_balance, month, today)
+            } else {
+                realized_month(settled, current_balance, month)
+            }
+        })
+        .collect()
+}
+
+fn realized_month(settled: &[FinanceItem], current_balance: i64, month: NaiveDate) -> MonthTotals {
+    let end = last_of_month(month);
+    let mut totals = MonthTotals {
+        month,
+        income: 0,
+        expense: 0,
+        balance: current_balance,
+        projected: false,
+    };
+    for item in settled {
+        let Some(done) = item.settlement() else {
+            continue;
+        };
+        let date = item.effective_date();
+        if date > end {
+            totals.balance = totals
+                .balance
+                .saturating_sub(item.kind().signed(done.settled_amount));
+        } else if date >= month {
+            add_to(&mut totals, item.kind(), done.settled_amount);
+        }
+    }
+    totals
+}
+
+fn projected_month(
+    pending: &[FinanceItem],
+    current_balance: i64,
+    month: NaiveDate,
+    today: NaiveDate,
+) -> MonthTotals {
+    let end = last_of_month(month);
+    let mut totals = MonthTotals {
+        month,
+        income: 0,
+        expense: 0,
+        balance: forecast_balance(current_balance, pending, end, today).unwrap_or(current_balance),
+        projected: true,
+    };
+    for item in pending {
+        let date = item.expected_date();
+        if !item.is_settled() && date >= month && date <= end {
+            add_to(&mut totals, item.kind(), item.expected_amount());
+        }
+    }
+    totals
+}
+
+fn add_to(totals: &mut MonthTotals, kind: TransactionKind, amount: i64) {
+    match kind {
+        TransactionKind::Income => totals.income = totals.income.saturating_add(amount),
+        TransactionKind::Expense => totals.expense = totals.expense.saturating_add(amount),
+    }
 }
 
 #[cfg(test)]
@@ -502,6 +618,104 @@ mod tests {
                 (date("2026-11-30"), 200_000),
                 (date("2026-12-01"), 3_000),
             ]
+        );
+    }
+
+    fn settled_on(kind: TransactionKind, amount: i64, day: &str) -> FinanceItem {
+        let mut item = stored(kind, amount, day);
+        item.settle(amount, date(day), instant()).unwrap();
+        FinanceItem::Stored(item)
+    }
+
+    fn pending_on(kind: TransactionKind, amount: i64, day: &str) -> FinanceItem {
+        FinanceItem::Stored(stored(kind, amount, day))
+    }
+
+    fn month<'a>(series: &'a [MonthTotals], first_day: &str) -> &'a MonthTotals {
+        series
+            .iter()
+            .find(|totals| totals.month == date(first_day))
+            .expect("mês da série")
+    }
+
+    #[test]
+    fn monthly_series_has_6_realized_and_6_projected_consecutive_months() {
+        let series = monthly_series(&[], &[], 0, date("2026-11-01"));
+
+        let months: Vec<NaiveDate> = series.iter().map(|totals| totals.month).collect();
+        let expected: Vec<NaiveDate> = [
+            "2026-06-01",
+            "2026-07-01",
+            "2026-08-01",
+            "2026-09-01",
+            "2026-10-01",
+            "2026-11-01",
+            "2026-12-01",
+            "2027-01-01",
+            "2027-02-01",
+            "2027-03-01",
+            "2027-04-01",
+            "2027-05-01",
+        ]
+        .into_iter()
+        .map(date)
+        .collect();
+        assert_eq!(months, expected);
+        assert!(series[..6].iter().all(|totals| !totals.projected));
+        assert!(series[6..].iter().all(|totals| totals.projected));
+        assert!(
+            series
+                .iter()
+                .all(|totals| totals.income == 0 && totals.expense == 0 && totals.balance == 0)
+        );
+    }
+
+    #[test]
+    fn monthly_series_realized_months_sum_settled_and_go_back_from_current_balance() {
+        let settled = [
+            settled_on(TransactionKind::Income, 300_000, "2026-08-05"),
+            settled_on(TransactionKind::Expense, 45_000, "2026-10-12"),
+        ];
+
+        let series = monthly_series(&settled, &[], 255_000, date("2026-11-01"));
+
+        let august = month(&series, "2026-08-01");
+        assert_eq!((august.income, august.balance), (300_000, 300_000));
+        let october = month(&series, "2026-10-01");
+        assert_eq!((october.expense, october.balance), (45_000, 255_000));
+        assert_eq!(month(&series, "2026-06-01").balance, 0);
+        assert_eq!(month(&series, "2026-07-01").balance, 0);
+        assert_eq!(month(&series, "2026-11-01").balance, 255_000);
+    }
+
+    #[test]
+    fn monthly_series_projected_months_use_pending_by_expected_date() {
+        let mut pending = vec![
+            pending_on(TransactionKind::Expense, 20_000, "2027-01-15"),
+            pending_on(TransactionKind::Expense, 1_000, "2026-10-20"),
+        ];
+        for day in [
+            "2026-12-05",
+            "2027-01-05",
+            "2027-02-05",
+            "2027-03-05",
+            "2027-04-05",
+            "2027-05-05",
+        ] {
+            pending.push(pending_on(TransactionKind::Expense, 10_000, day));
+        }
+
+        let series = monthly_series(&[], &pending, 255_000, date("2026-11-01"));
+
+        let december = month(&series, "2026-12-01");
+        assert_eq!((december.expense, december.balance), (10_000, 244_000));
+        let january = month(&series, "2027-01-01");
+        assert_eq!((january.expense, january.balance), (30_000, 214_000));
+        assert_eq!(month(&series, "2027-05-01").balance, 174_000);
+        assert!(
+            series[6..]
+                .iter()
+                .all(|totals| totals.expense % 10_000 == 0)
         );
     }
 }

@@ -10,7 +10,7 @@ async fn balance_changes_only_on_settlement() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let category = t
-        .create_category(&t.alice, "Moradia", "expense", "primary")
+        .create_category(&t.alice, "Moradia", "expense", "#6d28d9")
         .await;
 
     let body = json!({
@@ -178,7 +178,7 @@ async fn transaction_with_category_of_other_kind_is_refused() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let salary = t
-        .create_category(&t.alice, "Salário", "income", "success")
+        .create_category(&t.alice, "Salário", "income", "#047857")
         .await;
     let body = json!({
         "kind": "expense",
@@ -232,7 +232,7 @@ async fn updates_unsettled_transaction_fields() {
     let checking = t.default_account(&t.alice).await;
     let savings = t.create_account(&t.alice, "Poupança").await;
     let rent = t
-        .create_category(&t.alice, "Moradia", "expense", "primary")
+        .create_category(&t.alice, "Moradia", "expense", "#6d28d9")
         .await;
     let item = t
         .create_transaction(&t.alice, &checking, "expense", 10_000, "2026-11-05")
@@ -277,7 +277,7 @@ async fn settled_transaction_accepts_only_description_category_and_visibility() 
     let account = t.default_account(&t.alice).await;
     let other = t.create_account(&t.alice, "Outra").await;
     let market = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let item = t
         .create_transaction(&t.alice, &account, "expense", 10_000, "2026-11-05")
@@ -317,7 +317,7 @@ async fn update_with_category_of_other_kind_is_refused() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let salary = t
-        .create_category(&t.alice, "Salário", "income", "success")
+        .create_category(&t.alice, "Salário", "income", "#047857")
         .await;
     let item = t
         .create_transaction(&t.alice, &account, "expense", 10_000, "2026-11-05")

@@ -14,7 +14,7 @@ use crate::shared::visibility::Visibility;
 pub struct NewCategory {
     pub name: String,
     pub kind: TransactionKind,
-    pub color: CategoryColor,
+    pub color: String,
     pub visibility: Visibility,
 }
 
@@ -22,7 +22,7 @@ pub struct NewCategory {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CategoryPatch {
     pub name: Option<String>,
-    pub color: Option<CategoryColor>,
+    pub color: Option<String>,
     pub visibility: Option<Visibility>,
 }
 
@@ -74,6 +74,7 @@ pub async fn create<R: CategoryRepository>(
     owner_id: Uuid,
     input: NewCategory,
 ) -> Outcome<Category> {
+    let color = CategoryColor::parse(&input.color)?;
     let now = env.clock.now();
     let category = Category {
         id: env.ids.new_id(),
@@ -81,7 +82,7 @@ pub async fn create<R: CategoryRepository>(
         visibility: input.visibility,
         name: validate_name(&input.name)?,
         kind: input.kind,
-        color: input.color,
+        color,
         system_key: None,
         created_at: now,
         updated_at: now,
@@ -97,13 +98,18 @@ pub async fn update<R: CategoryRepository>(
     id: Uuid,
     patch: CategoryPatch,
 ) -> Outcome<Category> {
+    let color = patch
+        .color
+        .as_deref()
+        .map(CategoryColor::parse)
+        .transpose()?;
     let mut category = repo.get(owner_id, id).await?;
     if let Some(name) = patch.name.as_deref() {
         category.name = validate_name(name)?;
         // A padrão renomeada passa a mostrar o nome da pessoa, não a tradução.
         category.system_key = None;
     }
-    if let Some(color) = patch.color {
+    if let Some(color) = color {
         category.color = color;
     }
     if let Some(visibility) = patch.visibility {

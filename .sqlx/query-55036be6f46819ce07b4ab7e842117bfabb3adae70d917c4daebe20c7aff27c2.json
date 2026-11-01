@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE transactions SET generated_from = NULL, occurrence_date = NULL, updated_at = $1 WHERE generated_from = $2 AND owner_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "55036be6f46819ce07b4ab7e842117bfabb3adae70d917c4daebe20c7aff27c2"
+}

@@ -1,4 +1,4 @@
-//! Categoria de movimentação: tipo (entrada ou saída), cor do tema e a regra de
+//! Categoria de movimentação: tipo (entrada ou saída), cor HEX livre e a regra de
 //! substituição ao excluir uma em uso (RF-30, CB-15, PD-49, PD-58).
 
 use chrono::{DateTime, Utc};
@@ -10,40 +10,21 @@ use crate::shared::visibility::Visibility;
 
 pub const NAME_MAX_CHARS: usize = 80;
 
-/// Tons do tema que uma categoria pode usar, os mesmos do protótipo; uma cor livre
-/// fugiria dos tokens do tema ([project/code-style-10]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CategoryColor {
-    Primary,
-    Accent,
-    Success,
-    Warning,
-    Danger,
-    Info,
-}
+/// Cor da categoria: HEX `#rrggbb` livre (PD-12, RF-18), sempre em minúsculas (RN-09).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CategoryColor(String);
 
 impl CategoryColor {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Primary => "primary",
-            Self::Accent => "accent",
-            Self::Success => "success",
-            Self::Warning => "warning",
-            Self::Danger => "danger",
-            Self::Info => "info",
+    pub fn parse(text: &str) -> Result<Self, FinanceError> {
+        let digits = text.strip_prefix('#').unwrap_or_default();
+        if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(FinanceError::invalid("color", "invalid"));
         }
+        Ok(Self(text.to_ascii_lowercase()))
     }
 
-    pub fn parse(text: &str) -> Option<Self> {
-        match text {
-            "primary" => Some(Self::Primary),
-            "accent" => Some(Self::Accent),
-            "success" => Some(Self::Success),
-            "warning" => Some(Self::Warning),
-            "danger" => Some(Self::Danger),
-            "info" => Some(Self::Info),
-            _ => None,
-        }
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -108,17 +89,18 @@ impl SystemCategory {
         }
     }
 
-    /// Os mesmos tons do protótipo.
+    /// HEX dos tokens do tema claro, os mesmos tons do protótipo (RF-20).
     pub fn color(self) -> CategoryColor {
-        match self {
-            Self::Salary => CategoryColor::Success,
-            Self::Freelance => CategoryColor::Accent,
-            Self::Housing => CategoryColor::Primary,
-            Self::Groceries => CategoryColor::Success,
-            Self::Transport => CategoryColor::Info,
-            Self::Leisure => CategoryColor::Accent,
-            Self::Health => CategoryColor::Danger,
-        }
+        let hex = match self {
+            Self::Salary => "#047857",
+            Self::Freelance => "#0e7490",
+            Self::Housing => "#6d28d9",
+            Self::Groceries => "#047857",
+            Self::Transport => "#0369a1",
+            Self::Leisure => "#0e7490",
+            Self::Health => "#be123c",
+        };
+        CategoryColor(hex.to_owned())
     }
 
     /// Só o valor gravado na coluna `name`, que é obrigatória: a tela mostra o nome
@@ -263,15 +245,37 @@ mod tests {
     }
 
     #[test]
-    fn category_color_accepts_only_theme_tones() {
-        for tone in ["primary", "accent", "success", "warning", "danger", "info"] {
-            assert_eq!(
-                CategoryColor::parse(tone).map(CategoryColor::as_str),
-                Some(tone)
+    fn category_color_accepts_only_hex_rrggbb() {
+        assert_eq!(CategoryColor::parse("#1A2b3C").unwrap().as_str(), "#1a2b3c");
+        for other in ["primary", "#fff", "#12345g", "123456", "#1234567", ""] {
+            assert!(
+                matches!(
+                    CategoryColor::parse(other),
+                    Err(FinanceError::Validation(_))
+                ),
+                "{other}"
             );
         }
-        for other in ["#ff0000", "red", "Primary", ""] {
-            assert_eq!(CategoryColor::parse(other), None);
-        }
+    }
+
+    #[test]
+    fn system_category_colors_are_theme_hex() {
+        let colors: Vec<(&str, String)> = SystemCategory::ALL
+            .into_iter()
+            .map(|category| (category.key(), category.color().as_str().to_owned()))
+            .collect();
+        assert_eq!(
+            colors,
+            [
+                ("salary", "#047857"),
+                ("freelance", "#0e7490"),
+                ("housing", "#6d28d9"),
+                ("groceries", "#047857"),
+                ("transport", "#0369a1"),
+                ("leisure", "#0e7490"),
+                ("health", "#be123c"),
+            ]
+            .map(|(key, hex)| (key, hex.to_owned()))
+        );
     }
 }

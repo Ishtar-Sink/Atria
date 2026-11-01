@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE accounts SET deleted_at = $1, updated_at = $1 WHERE id = $2 AND owner_id = $3",
+  "query": "UPDATE recurring_transactions SET deleted_at = $1, updated_at = $1 WHERE id = $2 AND owner_id = $3",
   "describe": {
     "columns": [],
     "parameters": {
@@ -12,5 +12,5 @@
     },
     "nullable": []
   },
-  "hash": "e26786248161624ad2e7cd10e983e1f3547cb7eab6212bcc1d43747599573196"
+  "hash": "6a910221aa5cc10f41490df7953b5e265874a675d6b083343ba5cfab73fd1437"
 }

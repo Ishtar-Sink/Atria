@@ -54,10 +54,10 @@ async fn deleting_category_in_use_requires_replacement() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let market = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let food = t
-        .create_category(&t.alice, "Alimentação", "expense", "accent")
+        .create_category(&t.alice, "Alimentação", "expense", "#0e7490")
         .await;
     let body = json!({
         "kind": "expense",
@@ -98,16 +98,16 @@ async fn deleting_category_in_use_requires_replacement() {
 #[tokio::test]
 async fn creates_renames_and_deletes_category() {
     let t = FinanceTest::new().await;
-    let category = |name: &str| json!({ "name": name, "kind": "expense", "color": "info" });
+    let category = |name: &str| json!({ "name": name, "kind": "expense", "color": "#0369a1" });
 
     let id = t
-        .create_category(&t.alice, "Lazer", "expense", "info")
+        .create_category(&t.alice, "Lazer", "expense", "#0369a1")
         .await;
     let (renamed_status, renamed) = t
         .patch(
             &t.alice,
             &format!("/categories/{id}"),
-            json!({ "name": "Viagens", "color": "danger" }),
+            json!({ "name": "Viagens", "color": "#be123c" }),
         )
         .await;
     let (duplicate, problem) = t.post(&t.alice, "/categories", category("viagens")).await;
@@ -115,7 +115,7 @@ async fn creates_renames_and_deletes_category() {
         .post(
             &t.alice,
             "/categories",
-            json!({ "name": "Viagens", "kind": "income", "color": "info" }),
+            json!({ "name": "Viagens", "kind": "income", "color": "#0369a1" }),
         )
         .await;
     let (bob_same_name, _) = t.post(&t.bob, "/categories", category("Viagens")).await;
@@ -125,7 +125,7 @@ async fn creates_renames_and_deletes_category() {
 
     assert_eq!(renamed_status, StatusCode::OK, "{renamed}");
     assert_eq!(renamed["name"], "Viagens");
-    assert_eq!(renamed["color"], "danger");
+    assert_eq!(renamed["color"], "#be123c");
     assert_eq!(renamed["kind"], "expense");
     assert_eq!(duplicate, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(
@@ -147,14 +147,14 @@ async fn category_has_kind_and_color() {
         .post(
             &t.alice,
             "/categories",
-            json!({ "name": "Salário", "kind": "income", "color": "success" }),
+            json!({ "name": "Salário", "kind": "income", "color": "#047857" }),
         )
         .await;
     let (missing_kind, _) = t
         .post(
             &t.alice,
             "/categories",
-            json!({ "name": "Sem tipo", "color": "success" }),
+            json!({ "name": "Sem tipo", "color": "#047857" }),
         )
         .await;
     let (hex_color, _) = t
@@ -176,9 +176,9 @@ async fn category_has_kind_and_color() {
 
     assert_eq!(status, StatusCode::CREATED, "{created}");
     assert_eq!(created["kind"], "income");
-    assert_eq!(created["color"], "success");
+    assert_eq!(created["color"], "#047857");
     assert_eq!(missing_kind, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(hex_color, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(hex_color, StatusCode::CREATED);
     assert_eq!(
         kind_change,
         StatusCode::UNPROCESSABLE_ENTITY,
@@ -191,13 +191,13 @@ async fn category_has_kind_and_color() {
 async fn categories_list_filters_by_kind() {
     let t = FinanceTest::new().await;
     let salary = t
-        .create_category(&t.alice, "Salário", "income", "success")
+        .create_category(&t.alice, "Salário", "income", "#047857")
         .await;
     let rent = t
-        .create_category(&t.alice, "Moradia", "expense", "primary")
+        .create_category(&t.alice, "Moradia", "expense", "#6d28d9")
         .await;
     let market = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let ids = |items: Vec<serde_json::Value>| items.iter().map(id_of).collect::<Vec<_>>();
 
@@ -217,10 +217,10 @@ async fn replacement_category_of_other_kind_is_refused() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let market = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let salary = t
-        .create_category(&t.alice, "Salário", "income", "success")
+        .create_category(&t.alice, "Salário", "income", "#047857")
         .await;
     let body = json!({
         "kind": "expense",

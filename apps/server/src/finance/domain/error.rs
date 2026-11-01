@@ -26,8 +26,10 @@ pub enum FinanceError {
     OccurrenceNotOpen,
     #[error("a recorrência terminou e não tem ocorrência aberta")]
     RecurrenceEnded,
-    #[error("a conta tem movimentações ou transferências")]
+    #[error("a conta tem movimentações e precisa de uma conta de destino")]
     AccountHasTransactions,
+    #[error("a conta de destino é de outra moeda")]
+    CurrencyMismatch,
     #[error("a Idempotency-Key já foi usada com outro corpo")]
     IdempotencyKeyReused,
     #[error("dados inválidos")]
@@ -56,6 +58,7 @@ impl FinanceError {
             Self::OccurrenceNotOpen => "occurrence_not_open",
             Self::RecurrenceEnded => "recurrence_ended",
             Self::AccountHasTransactions => "account_has_transactions",
+            Self::CurrencyMismatch => "currency_mismatch",
             Self::IdempotencyKeyReused => "idempotency_key_reused",
             Self::Validation(_) => "validation_failed",
             Self::Storage(_) => "internal_error",
@@ -70,6 +73,7 @@ mod tests {
     #[test]
     fn codes_are_stable() {
         assert_eq!(FinanceError::NotFound.code(), "not_found");
+        assert_eq!(FinanceError::CurrencyMismatch.code(), "currency_mismatch");
         assert_eq!(
             FinanceError::invalid("name", "required").code(),
             "validation_failed"

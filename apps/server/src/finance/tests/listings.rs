@@ -118,10 +118,10 @@ async fn transactions_filter_by_category() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let market = t
-        .create_category(&t.alice, "Mercado", "expense", "warning")
+        .create_category(&t.alice, "Mercado", "expense", "#92400e")
         .await;
     let fuel = t
-        .create_category(&t.alice, "Combustível", "expense", "info")
+        .create_category(&t.alice, "Combustível", "expense", "#0369a1")
         .await;
     for (category, amount) in [(&market, 1_000), (&fuel, 2_000), (&market, 3_000)] {
         let body = json!({

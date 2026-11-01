@@ -36,13 +36,14 @@ use crate::shared::visibility::Visibility;
         handlers::create_recurring_transaction,
         handlers::get_recurring_transaction,
         handlers::update_recurring_transaction,
+        handlers::delete_recurring_transaction,
         handlers::settle_occurrence,
         handlers::skip_occurrence,
         handlers::list_settled_transactions,
         handlers::get_financial_summary,
     ),
     components(schemas(
-        TransactionKindDto, DifferenceKindDto, CategoryColorDto, ItemStatusDto,
+        TransactionKindDto, DifferenceKindDto, ItemStatusDto,
         RepetitionDto,
         CreateAccountRequest, UpdateAccountRequest, AccountResponse, AccountPage,
         CreateCategoryRequest, UpdateCategoryRequest, CategoryResponse, CategoryPage,
@@ -54,7 +55,7 @@ use crate::shared::visibility::Visibility;
         RecurringTransactionResponse, RecurringTransactionPage, SettledTransactionPage,
         PeriodDto, FlowDto, PeriodTotalsDto, WhereGroupDto, WhereItemDto, PlannedDto,
         ExpectedVsSettledDto, SavingsAndLossesDto, AccountBalanceDto, BalanceDto,
-        FinancialSummaryResponse,
+        FinancialSummaryResponse, MonthlyTotalsDto,
         RecurrenceRule, Frequency, Weekday, Visibility, ProblemDetails, FieldError,
     )),
     tags((name = "finance", description = "Financeiro: contas, movimentações, recorrências e painel"))
@@ -79,7 +80,10 @@ mod tests {
             ("/api/v1/transfers", &["get", "post"]),
             ("/api/v1/transfers/{id}", &["get", "delete"]),
             ("/api/v1/recurring-transactions", &["get", "post"]),
-            ("/api/v1/recurring-transactions/{id}", &["get", "patch"]),
+            (
+                "/api/v1/recurring-transactions/{id}",
+                &["get", "patch", "delete"],
+            ),
             ("/api/v1/recurring-transactions/{id}/settlement", &["post"]),
             ("/api/v1/recurring-transactions/{id}/skip", &["post"]),
             (
@@ -98,9 +102,23 @@ mod tests {
             }
         }
         assert_eq!(json["paths"].as_object().unwrap().len(), expected.len());
+        let parameters = json["paths"]["/api/v1/accounts/{id}"]["delete"]["parameters"]
+            .as_array()
+            .unwrap();
+        assert!(
+            parameters
+                .iter()
+                .any(|p| p["name"] == "move_to" && p["in"] == "query"),
+            "falta o move_to no DELETE /accounts/{{id}}"
+        );
         assert!(json["components"]["schemas"]["TransactionResponse"].is_object());
         assert!(json["components"]["schemas"]["TransactionItemResponse"].is_object());
         assert!(json["components"]["schemas"]["FinancialSummaryResponse"].is_object());
+        assert!(json["components"]["schemas"]["MonthlyTotalsDto"].is_object());
+        assert!(
+            json["components"]["schemas"]["FinancialSummaryResponse"]["properties"]["monthly"]
+                .is_object()
+        );
     }
 
     #[test]

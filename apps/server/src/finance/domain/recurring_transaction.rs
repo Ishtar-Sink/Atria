@@ -4,6 +4,9 @@
 //! depois dela e não é gravada como linha. Liquidar a aberta devolve uma cópia
 //! liquidada, sem recorrência; pular só avança. Mudar a recorrente vale para a aberta
 //! e as seguintes, e as cópias já liquidadas não mudam (RN-08, RN-09).
+//! Excluir a recorrente é exclusão lógica: a aberta some junto, porque não é gravada,
+//! e as cópias liquidadas perdem a ligação e ficam como movimentações pontuais do
+//! histórico, sem mudar o saldo (RF-01, RF-02, RF-03, RN-01).
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveTime, Utc};
 use chrono_tz::Tz;

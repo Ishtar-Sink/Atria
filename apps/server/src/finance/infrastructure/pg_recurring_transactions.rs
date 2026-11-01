@@ -1,6 +1,6 @@
 //! Repositório das recorrências: o modelo, a regra e `last_closed_on`. A liquidação
-//! e o pulo da ocorrência aberta acontecem numa transação, com a recorrente travada
-//! por `FOR UPDATE` ([project/database-03]).
+//! e o pulo da ocorrência aberta, e a exclusão da recorrente, acontecem numa
+//! transação, com a recorrente travada por `FOR UPDATE` ([project/database-03]).
 
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::PgPool;
@@ -236,5 +236,33 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         save_last_closed(&mut tx, &recurring).await?;
         commit(tx).await?;
         Ok(recurring)
+    }
+
+    async fn delete(&self, owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Outcome<()> {
+        let mut tx = begin(&self.pool, owner_id).await?;
+        lock_recurring(&mut tx, owner_id, id).await?;
+        // Todas as cópias, inclusive as já excluídas: nenhuma linha aponta para a
+        // recorrente excluída. Nenhum saldo muda, então nenhuma conta é travada.
+        sqlx::query!(
+            "UPDATE transactions SET generated_from = NULL, occurrence_date = NULL, \
+             updated_at = $1 WHERE generated_from = $2 AND owner_id = $3",
+            now as _,
+            id,
+            owner_id,
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(storage)?;
+        sqlx::query!(
+            "UPDATE recurring_transactions SET deleted_at = $1, updated_at = $1 \
+             WHERE id = $2 AND owner_id = $3",
+            now as _,
+            id,
+            owner_id,
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(storage)?;
+        commit(tx).await
     }
 }

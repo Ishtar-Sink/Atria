@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE transactions SET account_id = $1, updated_at = $2 WHERE account_id = $3 AND owner_id = $4 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9b52ba9809fca958cd6dafab6e9b46f805579fa83d358100f8b2ba096346352b"
+}

@@ -1,6 +1,6 @@
 //! Casos de uso das movimentações recorrentes (RF-31, PD-51, DEC-003): criação,
 //! mudança (vale para a aberta e as seguintes, RN-08), liquidação da aberta com
-//! cópia e pulo.
+//! cópia, pulo e exclusão.
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -166,4 +166,14 @@ pub async fn skip_occurrence<R: RecurringTransactionRepository>(
     recurring
         .skip_occurrence(owner_id, id, occurrence_date, env.clock.now())
         .await
+}
+
+/// Exclui a recorrente e a aberta; as cópias liquidadas ficam no histórico (RF-01, RF-02, RF-03).
+pub async fn delete<R: RecurringTransactionRepository>(
+    recurring: &R,
+    env: Env<'_>,
+    owner_id: Uuid,
+    id: Uuid,
+) -> Outcome<()> {
+    recurring.delete(owner_id, id, env.clock.now()).await
 }

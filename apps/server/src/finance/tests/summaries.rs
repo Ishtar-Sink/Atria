@@ -1,9 +1,11 @@
-//! Painel do Financeiro por período livre (CT-22, RF-35, PD-55, PD-58, DEC-004).
+//! Painel do Financeiro por período livre (CT-22, RF-35, PD-55, PD-58, DEC-004) e a
+//! série "Mês a mês" (RF-17, CT-11, CB-08 da SPEC-003).
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-use super::{FinanceTest, id_of, monthly_rule};
+use super::{ALICE, FinanceTest, id_of, monthly_rule};
+use crate::shared::db::begin_for_user;
 
 fn flow(realized: i64, forecast: i64) -> Value {
     json!({ "realized": realized, "forecast": forecast })
@@ -149,7 +151,7 @@ async fn where_it_went_groups_top_six_categories_plus_others_with_color() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     let colors = [
-        "primary", "accent", "success", "warning", "danger", "info", "primary", "accent",
+        "#6d28d9", "#0e7490", "#047857", "#92400e", "#be123c", "#0369a1", "#6d28d9", "#0e7490",
     ];
     let mut categories = Vec::new();
     for (index, color) in colors.iter().enumerate() {
@@ -162,7 +164,7 @@ async fn where_it_went_groups_top_six_categories_plus_others_with_color() {
     }
     expense_on(&t, &account, None, 500, "2026-11-06").await;
     let salary = t
-        .create_category(&t.alice, "Salário", "income", "success")
+        .create_category(&t.alice, "Salário", "income", "#047857")
         .await;
     let income = json!({
         "kind": "income",
@@ -383,4 +385,96 @@ async fn period_with_more_than_3660_days_is_refused() {
     assert_eq!(longest, StatusCode::OK);
     assert_eq!(too_long, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
     assert_eq!(problem["code"], "validation_failed");
+}
+
+fn month(month: &str, income: i64, expense: i64, balance: i64, projected: bool) -> Value {
+    json!({
+        "month": month,
+        "income": income,
+        "expense": expense,
+        "balance": balance,
+        "projected": projected,
+    })
+}
+
+async fn stored_transactions(t: &FinanceTest) -> i64 {
+    let mut tx = begin_for_user(t.pool(), ALICE).await.unwrap();
+    sqlx::query_scalar("SELECT count(*) FROM transactions")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn ct11_summary_monthly_series_has_6_realized_and_6_projected_months() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let salary = t
+        .create_transaction(&t.alice, &account, "income", 300_000, "2026-08-05")
+        .await;
+    let (status, body) = t
+        .settle(&t.alice, &id_of(&salary), 300_000, "2026-08-05")
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let market = t
+        .create_transaction(&t.alice, &account, "expense", 50_000, "2026-10-10")
+        .await;
+    let (status, body) = t
+        .settle(&t.alice, &id_of(&market), 45_000, "2026-10-12")
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    t.create_transaction(&t.alice, &account, "expense", 20_000, "2027-01-15")
+        .await;
+    t.create_recurring(
+        &t.alice,
+        &account,
+        "expense",
+        10_000,
+        monthly_rule("2026-12-05", 5),
+    )
+    .await;
+    assert_eq!(stored_transactions(&t).await, 3);
+
+    let body = summary(&t, "").await;
+
+    assert_eq!(stored_transactions(&t).await, 3);
+    assert_eq!(
+        body["monthly"],
+        json!([
+            month("2026-06", 0, 0, 0, false),
+            month("2026-07", 0, 0, 0, false),
+            month("2026-08", 300_000, 0, 300_000, false),
+            month("2026-09", 0, 0, 300_000, false),
+            month("2026-10", 0, 45_000, 255_000, false),
+            month("2026-11", 0, 0, 255_000, false),
+            month("2026-12", 0, 10_000, 245_000, true),
+            month("2027-01", 0, 30_000, 215_000, true),
+            month("2027-02", 0, 10_000, 205_000, true),
+            month("2027-03", 0, 10_000, 195_000, true),
+            month("2027-04", 0, 10_000, 185_000, true),
+            month("2027-05", 0, 10_000, 175_000, true),
+        ])
+    );
+    assert_eq!(
+        summary(&t, "?from=2026-01-01&to=2026-01-31").await["monthly"],
+        body["monthly"]
+    );
+}
+
+#[tokio::test]
+async fn monthly_series_without_movements_has_12_zero_months() {
+    let t = FinanceTest::new().await;
+
+    let body = summary(&t, "").await;
+
+    let months = [
+        "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01",
+        "2027-02", "2027-03", "2027-04", "2027-05",
+    ];
+    let expected: Vec<Value> = months
+        .iter()
+        .enumerate()
+        .map(|(index, name)| month(name, 0, 0, 0, index >= 6))
+        .collect();
+    assert_eq!(body["monthly"], json!(expected));
 }
