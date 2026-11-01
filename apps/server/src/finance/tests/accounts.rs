@@ -15,7 +15,7 @@ async fn creates_renames_and_deletes_account() {
         .await;
     assert_eq!(status, StatusCode::CREATED, "{created}");
     assert_eq!(created["name"], "Poupança");
-    assert_eq!(created["kind"], "standard");
+    assert!(created.get("kind").is_none());
     assert_eq!(created["balance_amount"], 0);
     assert_eq!(created["currency"], "BRL");
     assert_eq!(created["visibility"], "personal");
@@ -143,35 +143,30 @@ async fn database_refuses_deleting_default_account() {
 }
 
 #[tokio::test]
-async fn creates_credit_card_account() {
+async fn account_has_no_card_fields() {
     let t = FinanceTest::new().await;
 
-    let id = t.create_card(&t.alice, 10, 17).await;
-    let (status, card) = t.get(&t.alice, &format!("/accounts/{id}")).await;
-    let missing = json!({
-        "name": "Cartão sem vencimento",
-        "kind": "credit_card",
-        "credit_limit_amount": 100_000,
-        "closing_day": 10
-    });
-    let (missing_status, problem) = t.post(&t.alice, "/accounts", missing).await;
-    let (status_patch, patched) = t
-        .patch(
+    let (kind_status, _) = t
+        .post(
             &t.alice,
-            &format!("/accounts/{id}"),
-            json!({ "due_day": 20 }),
+            "/accounts",
+            json!({ "name": "Cartão", "kind": "credit_card" }),
         )
         .await;
+    let (limit_status, _) = t
+        .post(
+            &t.alice,
+            "/accounts",
+            json!({ "name": "Cartão", "credit_limit_amount": 100_000 }),
+        )
+        .await;
+    let id = t.create_account(&t.alice, "Poupança").await;
+    let (status, account) = t.get(&t.alice, &format!("/accounts/{id}")).await;
 
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(card["kind"], "credit_card");
-    assert_eq!(card["credit_limit_amount"], 500_000);
-    assert_eq!(card["closing_day"], 10);
-    assert_eq!(card["due_day"], 17);
-    assert_eq!(card["is_default"], false);
-    assert_eq!(missing_status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(problem["errors"][0]["field"], "due_day");
-    assert_eq!(status_patch, StatusCode::OK);
-    assert_eq!(patched["due_day"], 20);
-    assert_eq!(patched["closing_day"], 10);
+    assert_eq!(kind_status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(limit_status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(status, StatusCode::OK, "{account}");
+    for removed in ["kind", "credit_limit_amount", "closing_day", "due_day"] {
+        assert!(account.get(removed).is_none(), "{removed}");
+    }
 }

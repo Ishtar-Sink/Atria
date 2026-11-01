@@ -1,6 +1,6 @@
 //! Dados do painel do Financeiro num período livre (RF-35, PD-55, PD-58, DEC-004).
 //! Fechamento, comparação, "Para onde foi", previsto x realizado e economias seguem
-//! o período; saldo, cartões e próximas contas são o estado de hoje.
+//! o período; saldo e próximas contas são o estado de hoje.
 
 use std::collections::HashMap;
 
@@ -12,15 +12,14 @@ use crate::finance::application::ports::{
     TransactionFilter, TransactionRepository, TransferRepository,
 };
 use crate::finance::application::{Env, accounts, categories, transactions};
-use crate::finance::domain::account::{Account, AccountKind};
+use crate::finance::domain::account::Account;
 use crate::finance::domain::category::Category;
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::finance::domain::forecast::{FinanceItem, project};
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::summary::{
-    CardUsage, Entry, ExpectedVsSettled, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS,
-    WhereItem, card_usage, expected_vs_settled, forecast_balance, period_totals,
-    savings_and_losses, upcoming_movements, where_it_went,
+    Entry, ExpectedVsSettled, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS, WhereItem,
+    expected_vs_settled, forecast_balance, period_totals, savings_and_losses, upcoming_movements,
+    where_it_went,
 };
 use crate::shared::money::Currency;
 
@@ -39,15 +38,6 @@ pub struct WhereView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CardView {
-    pub account: Account,
-    pub credit_limit_amount: i64,
-    pub statement_period: StatementPeriod,
-    pub due_date: NaiveDate,
-    pub usage: CardUsage,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PeriodSummaryView {
     pub today: NaiveDate,
     pub currency: Currency,
@@ -60,9 +50,8 @@ pub struct PeriodSummaryView {
     pub savings_and_losses: SavingsAndLosses,
     pub current_balance: i64,
     pub forecast_at_period_end: Option<i64>,
-    /// Só as contas comuns; o saldo atual soma todas.
+    /// Todas as contas; o saldo atual soma todas.
     pub accounts: Vec<Account>,
-    pub credit_cards: Vec<CardView>,
     pub upcoming_bills: Vec<FinanceItem>,
 }
 
@@ -130,7 +119,6 @@ where
         forecast_balance(current_balance, &pending, period.to, today)
     };
     let category_list = categories::list_all(sources.categories, owner_id).await?;
-    let credit_cards = cards(sources.transactions, &all_accounts, owner_id, today).await?;
     let bills = upcoming(sources.transactions, &models, owner_id, now).await?;
     Ok(PeriodSummaryView {
         today,
@@ -146,12 +134,7 @@ where
         savings_and_losses: savings_and_losses(&entries),
         current_balance,
         forecast_at_period_end,
-        accounts: all_accounts
-            .iter()
-            .filter(|account| account.kind == AccountKind::Standard)
-            .cloned()
-            .collect(),
-        credit_cards,
+        accounts: all_accounts,
         upcoming_bills: bills,
     })
 }
@@ -256,30 +239,6 @@ async fn upcoming<T: TransactionRepository>(
         .chain(projected(models, None, until, now))
         .collect();
     Ok(upcoming_movements(items, today))
-}
-
-async fn cards<T: TransactionRepository>(
-    transactions: &T,
-    all_accounts: &[Account],
-    owner_id: Uuid,
-    today: NaiveDate,
-) -> Outcome<Vec<CardView>> {
-    let mut views = Vec::new();
-    for account in all_accounts {
-        let Some(terms) = account.card else {
-            continue;
-        };
-        let open = terms.cycle.statement_for(today);
-        let items = transactions.statement_items(owner_id, account.id).await?;
-        views.push(CardView {
-            account: account.clone(),
-            credit_limit_amount: terms.credit_limit_amount,
-            statement_period: open,
-            due_date: terms.cycle.due_date(open),
-            usage: card_usage(&items, open),
-        });
-    }
-    Ok(views)
 }
 
 fn with_categories(items: Vec<WhereItem>, list: Vec<Category>) -> Vec<WhereView> {

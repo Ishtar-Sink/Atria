@@ -39,28 +39,25 @@ use crate::shared::visibility::Visibility;
         handlers::settle_occurrence,
         handlers::skip_occurrence,
         handlers::list_settled_transactions,
-        handlers::list_statements,
-        handlers::pay_statement,
         handlers::get_financial_summary,
     ),
     components(schemas(
-        AccountKindDto, TransactionKindDto, DifferenceKindDto, CategoryColorDto, ItemStatusDto,
+        TransactionKindDto, DifferenceKindDto, CategoryColorDto, ItemStatusDto,
         RepetitionDto,
         CreateAccountRequest, UpdateAccountRequest, AccountResponse, AccountPage,
         CreateCategoryRequest, UpdateCategoryRequest, CategoryResponse, CategoryPage,
-        CreateTransactionRequest, UpdateTransactionRequest, SettleTransactionRequest, InstallmentDto, TransactionResponse,
+        CreateTransactionRequest, UpdateTransactionRequest, SettleTransactionRequest, TransactionResponse,
         TransactionItemResponse, CreatedTransactions, TransactionPage,
         CreateTransferRequest, TransferResponse, TransferPage,
         CreateRecurringTransactionRequest, UpdateRecurringTransactionRequest,
         SettleOccurrenceRequest, SkipOccurrenceRequest, OpenOccurrenceDto,
         RecurringTransactionResponse, RecurringTransactionPage, SettledTransactionPage,
-        StatementResponse, StatementList, PayStatementRequest, StatementPaymentResponse,
         PeriodDto, FlowDto, PeriodTotalsDto, WhereGroupDto, WhereItemDto, PlannedDto,
         ExpectedVsSettledDto, SavingsAndLossesDto, AccountBalanceDto, BalanceDto,
-        CreditCardSummaryDto, FinancialSummaryResponse,
+        FinancialSummaryResponse,
         RecurrenceRule, Frequency, Weekday, Visibility, ProblemDetails, FieldError,
     )),
-    tags((name = "finance", description = "Financeiro: contas, movimentações, cartões, recorrências e painel"))
+    tags((name = "finance", description = "Financeiro: contas, movimentações, recorrências e painel"))
 )]
 pub struct FinanceApi;
 
@@ -89,11 +86,6 @@ mod tests {
                 "/api/v1/recurring-transactions/{id}/settled-transactions",
                 &["get"],
             ),
-            ("/api/v1/credit-cards/{id}/statements", &["get"]),
-            (
-                "/api/v1/credit-cards/{id}/statements/{period}/payment",
-                &["post"],
-            ),
             ("/api/v1/financial-summaries", &["get"]),
         ];
         let json = serde_json::to_value(&document).unwrap();
@@ -109,5 +101,43 @@ mod tests {
         assert!(json["components"]["schemas"]["TransactionResponse"].is_object());
         assert!(json["components"]["schemas"]["TransactionItemResponse"].is_object());
         assert!(json["components"]["schemas"]["FinancialSummaryResponse"].is_object());
+    }
+
+    #[test]
+    fn card_schemas_are_gone_from_contract() {
+        let json = serde_json::to_value(FinanceApi::openapi()).unwrap();
+        let schemas = &json["components"]["schemas"];
+        let lacks = |schema: &str, fields: &[&str]| {
+            let properties = &schemas[schema]["properties"];
+            assert!(properties.is_object(), "falta o schema {schema}");
+            for field in fields {
+                assert!(properties.get(*field).is_none(), "{schema}.{field}");
+            }
+        };
+
+        for removed in [
+            "AccountKindDto",
+            "InstallmentDto",
+            "StatementResponse",
+            "StatementList",
+            "PayStatementRequest",
+            "StatementPaymentResponse",
+            "CreditCardSummaryDto",
+        ] {
+            assert!(schemas.get(removed).is_none(), "{removed}");
+        }
+        lacks(
+            "AccountResponse",
+            &["kind", "credit_limit_amount", "closing_day", "due_day"],
+        );
+        lacks("CreateTransactionRequest", &["installments"]);
+        lacks("TransactionResponse", &["installment", "statement_period"]);
+        lacks(
+            "TransactionItemResponse",
+            &["installment", "statement_period"],
+        );
+        lacks("TransferResponse", &["statement_period"]);
+        lacks("FinancialSummaryResponse", &["credit_cards"]);
+        lacks("AccountBalanceDto", &["kind"]);
     }
 }

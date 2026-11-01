@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", name, is_default, balance_amount, currency, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM accounts WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::uuid IS NULL OR id > $2) ORDER BY id LIMIT $3",
   "describe": {
     "columns": [
       {
@@ -20,17 +20,17 @@
       },
       {
         "ordinal": 3,
-        "name": "from_account_id",
-        "type_info": "Uuid"
+        "name": "name",
+        "type_info": "Text"
       },
       {
         "ordinal": 4,
-        "name": "to_account_id",
-        "type_info": "Uuid"
+        "name": "is_default",
+        "type_info": "Bool"
       },
       {
         "ordinal": 5,
-        "name": "amount",
+        "name": "balance_amount",
         "type_info": "Int8"
       },
       {
@@ -40,26 +40,11 @@
       },
       {
         "ordinal": 7,
-        "name": "transferred_on: _",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 8,
-        "name": "description",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 9,
-        "name": "statement_period",
-        "type_info": "Bpchar"
-      },
-      {
-        "ordinal": 10,
         "name": "created_at: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 11,
+        "ordinal": 8,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
       }
@@ -67,7 +52,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "Int8"
       ]
     },
     "nullable": [
@@ -79,11 +65,8 @@
       false,
       false,
       false,
-      true,
-      true,
-      false,
       false
     ]
   },
-  "hash": "f648a21c3b992b3d566e849675be68b2ef67371d4158641537d5fd132eb414ad"
+  "hash": "3de8869500215edd33eb171aa40b67e85015f7bed9925975f7711597b403c68b"
 }

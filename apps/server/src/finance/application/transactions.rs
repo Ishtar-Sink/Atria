@@ -1,6 +1,6 @@
-//! Casos de uso de movimentações: registro, compra parcelada no cartão, liquidação,
-//! listagem por período livre com as ocorrências virtuais das recorrentes e exclusão
-//! (RF-27, RF-28, RF-32, RF-33, PD-51, PD-52, PD-55).
+//! Casos de uso de movimentações: registro, liquidação, listagem por período livre
+//! com as ocorrências virtuais das recorrentes e exclusão (RF-27, RF-28, RF-32,
+//! RF-33, PD-51, PD-52, PD-55).
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -10,15 +10,13 @@ use crate::finance::application::ports::{
     AccountRepository, CategoryRepository, Outcome, RecurringTransactionRepository, Repetition,
     SettlementRequest, TransactionFilter, TransactionRepository, UndoneSettlement,
 };
-use crate::finance::domain::account::Account;
 use crate::finance::domain::category::ensure_same_kind;
 use crate::finance::domain::forecast::{FinanceItem, VirtualOccurrence, project, sort_items};
+use crate::finance::domain::optional_text;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::transaction::{
-    DESCRIPTION_MAX_CHARS, Installment, Transaction, TransactionEdit, TransactionKind,
-    validate_expected_amount,
+    DESCRIPTION_MAX_CHARS, Transaction, TransactionEdit, TransactionKind, validate_expected_amount,
 };
-use crate::finance::domain::{FinanceError, optional_text};
 use crate::shared::visibility::Visibility;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,8 +27,6 @@ pub struct NewTransaction {
     pub description: Option<String>,
     pub expected_amount: i64,
     pub expected_date: NaiveDate,
-    /// Número de parcelas de uma compra no cartão (RF-28).
-    pub installments: Option<u32>,
     pub visibility: Visibility,
 }
 
@@ -48,7 +44,7 @@ pub async fn check_category<C: CategoryRepository>(
     ensure_same_kind(category.kind, kind)
 }
 
-/// Registra a movimentação, ou uma por parcela na compra parcelada.
+/// Registra a movimentação; a resposta é uma lista com um único item.
 pub async fn create<A, C, T>(
     accounts: &A,
     categories: &C,
@@ -70,7 +66,7 @@ where
     )?;
     let account = accounts.get(owner_id, input.account_id).await?;
     check_category(categories, owner_id, input.category_id, input.kind).await?;
-    let base = Transaction {
+    let item = Transaction {
         id: env.ids.new_id(),
         owner_id,
         visibility: input.visibility,
@@ -84,60 +80,12 @@ where
         settlement: None,
         generated_from: None,
         occurrence_date: None,
-        installment: None,
-        installment_group_id: None,
-        statement_period: account
-            .card
-            .map(|terms| terms.cycle.statement_for(input.expected_date)),
         created_at: env.clock.now(),
         updated_at: env.clock.now(),
     };
-    let items = match input.installments {
-        None => vec![base],
-        Some(count) => installments(&account, base, count, env)?,
-    };
+    let items = vec![item];
     transactions.insert_many(&items).await?;
     Ok(items)
-}
-
-fn installments(
-    account: &Account,
-    base: Transaction,
-    count: u32,
-    env: Env<'_>,
-) -> Outcome<Vec<Transaction>> {
-    let Some(terms) = account.card else {
-        return Err(FinanceError::invalid(
-            "installments",
-            "requires_credit_card",
-        ));
-    };
-    if base.kind != TransactionKind::Expense {
-        return Err(FinanceError::invalid("installments", "requires_expense"));
-    }
-    let plan = terms
-        .cycle
-        .plan_installments(base.expected_date, base.expected_amount, count)?;
-    let group_id = base.id;
-    Ok(plan
-        .into_iter()
-        .map(|planned| Transaction {
-            id: if planned.number == 1 {
-                base.id
-            } else {
-                env.ids.new_id()
-            },
-            expected_amount: planned.amount,
-            expected_date: planned.expected_date,
-            installment: Some(Installment {
-                number: planned.number,
-                total: planned.total,
-            }),
-            installment_group_id: Some(group_id),
-            statement_period: Some(planned.period),
-            ..base.clone()
-        })
-        .collect())
 }
 
 /// A recorrente entra numa listagem com este filtro?

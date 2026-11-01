@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO accounts (id, owner_id, visibility, name, is_default, balance_amount, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, true, 0, $5, $6, $7) ON CONFLICT (owner_id) WHERE is_default AND deleted_at IS NULL DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Bpchar",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0581ac4151f0f4187858eef768620ba463502f568eef8258655652c23baf5664"
+}

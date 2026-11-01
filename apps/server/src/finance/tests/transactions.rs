@@ -210,11 +210,27 @@ async fn transaction_with_category_of_other_kind_is_refused() {
 }
 
 #[tokio::test]
+async fn installments_are_no_longer_accepted() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let body = json!({
+        "kind": "expense",
+        "account_id": account,
+        "expected_amount": 30_000,
+        "expected_date": "2026-11-05",
+        "installments": 3,
+    });
+
+    let (status, problem) = t.post(&t.alice, "/transactions", body).await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
+}
+
+#[tokio::test]
 async fn updates_unsettled_transaction_fields() {
     let t = FinanceTest::new().await;
     let checking = t.default_account(&t.alice).await;
     let savings = t.create_account(&t.alice, "Poupança").await;
-    let card = t.create_card(&t.alice, 10, 17).await;
     let rent = t
         .create_category(&t.alice, "Moradia", "expense", "primary")
         .await;
@@ -234,13 +250,6 @@ async fn updates_unsettled_transaction_fields() {
     let (status, updated) = t
         .patch(&t.alice, &format!("/transactions/{id}"), change)
         .await;
-    let (card_status, on_card) = t
-        .patch(
-            &t.alice,
-            &format!("/transactions/{id}"),
-            json!({ "account_id": card, "expected_date": "2026-11-15" }),
-        )
-        .await;
     let (_, fetched) = t.get(&t.alice, &format!("/transactions/{id}")).await;
 
     assert_eq!(status, StatusCode::OK, "{updated}");
@@ -250,14 +259,10 @@ async fn updates_unsettled_transaction_fields() {
     assert_eq!(updated["account_id"], savings.as_str());
     assert_eq!(updated["category_id"], rent.as_str());
     assert_eq!(updated["visibility"], "shared");
-    assert_eq!(updated["statement_period"], serde_json::Value::Null);
-    assert_eq!(card_status, StatusCode::OK, "{on_card}");
-    assert_eq!(
-        on_card["statement_period"], "2026-12",
-        "fatura pela data nova"
-    );
-    assert_eq!(fetched, on_card);
-    for account in [&checking, &savings, &card] {
+    assert!(updated.get("statement_period").is_none());
+    assert!(updated.get("installment").is_none());
+    assert_eq!(fetched, updated);
+    for account in [&checking, &savings] {
         assert_eq!(
             t.balance(&t.alice, account).await,
             0,

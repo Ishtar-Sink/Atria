@@ -5,7 +5,6 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
-use crate::finance::domain::credit_card::{CardCycle, StatementPeriod};
 use crate::finance::domain::settlement::{self, Settlement};
 use crate::finance::domain::{FinanceError, optional_text};
 use crate::shared::money::Currency;
@@ -82,16 +81,6 @@ impl TransactionEdit {
     fn touches_settled_fields(&self) -> bool {
         self.expected_amount.is_some() || self.expected_date.is_some() || self.account.is_some()
     }
-
-    fn moves_installment(&self) -> bool {
-        self.expected_date.is_some() || self.account.is_some()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Installment {
-    pub number: u32,
-    pub total: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,9 +100,6 @@ pub struct Transaction {
     pub generated_from: Option<Uuid>,
     /// Data da ocorrência que a cópia liquidou.
     pub occurrence_date: Option<NaiveDate>,
-    pub installment: Option<Installment>,
-    pub installment_group_id: Option<Uuid>,
-    pub statement_period: Option<StatementPeriod>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -149,19 +135,14 @@ impl Transaction {
     }
 
     /// Aplica a edição sem mexer no saldo (RN-01). A liquidada só muda descrição,
-    /// categoria e visibilidade; a parcela não muda de conta nem de data. `cycle` é o
-    /// ciclo da conta final, quando ela é um cartão, para recalcular a fatura.
+    /// categoria e visibilidade.
     pub fn apply_edit(
         &mut self,
         edit: &TransactionEdit,
-        cycle: Option<CardCycle>,
         now: DateTime<Utc>,
     ) -> Result<(), FinanceError> {
         if self.is_settled() && edit.touches_settled_fields() {
             return Err(FinanceError::TransactionAlreadySettled);
-        }
-        if self.installment_group_id.is_some() && edit.moves_installment() {
-            return Err(FinanceError::InstallmentNotEditable);
         }
         if let Some(amount) = edit.expected_amount {
             validate_expected_amount(amount)?;
@@ -176,9 +157,6 @@ impl Transaction {
         }
         if let Some(date) = edit.expected_date {
             self.expected_date = date;
-        }
-        if edit.moves_installment() {
-            self.statement_period = cycle.map(|cycle| cycle.statement_for(self.expected_date));
         }
         if let Some(category_id) = edit.category_id {
             self.category_id = Some(category_id);
@@ -206,12 +184,6 @@ impl Transaction {
     pub fn effective_date(&self) -> NaiveDate {
         self.settlement
             .map_or(self.expected_date, |done| done.settled_at)
-    }
-
-    /// O valor liquidado, quando liquidada, e o previsto nos outros casos.
-    pub fn value(&self) -> i64 {
-        self.settlement
-            .map_or(self.expected_amount, |done| done.settled_amount)
     }
 
     pub fn status(&self, today: NaiveDate) -> ItemStatus {
@@ -256,9 +228,6 @@ pub(crate) mod fixtures {
             settlement: None,
             generated_from: None,
             occurrence_date: None,
-            installment: None,
-            installment_group_id: None,
-            statement_period: None,
             created_at: instant(),
             updated_at: instant(),
         }
@@ -296,7 +265,6 @@ mod tests {
     #[test]
     fn unsettled_transaction_edit_accepts_all_editable_fields() {
         let mut item = transaction(TransactionKind::Expense, 10_000);
-        let card = CardCycle::new(10, 17).unwrap();
         let edit = TransactionEdit {
             description: Some("  Conta de luz ".to_owned()),
             expected_amount: Some(12_000),
@@ -306,7 +274,7 @@ mod tests {
             visibility: Some(Visibility::Shared),
         };
 
-        item.apply_edit(&edit, Some(card), instant()).unwrap();
+        item.apply_edit(&edit, instant()).unwrap();
 
         assert_eq!(item.description.as_deref(), Some("Conta de luz"));
         assert_eq!(item.expected_amount, 12_000);
@@ -314,13 +282,12 @@ mod tests {
         assert_eq!(item.account_id, Uuid::from_u128(3));
         assert_eq!(item.category_id, Some(Uuid::from_u128(4)));
         assert_eq!(item.visibility, Visibility::Shared);
-        assert_eq!(item.statement_period, StatementPeriod::parse("2026-12"));
         assert_eq!(item.applied_balance_delta(), 0);
         let invalid = TransactionEdit {
             expected_amount: Some(0),
             ..TransactionEdit::default()
         };
-        assert!(item.apply_edit(&invalid, None, instant()).is_err());
+        assert!(item.apply_edit(&invalid, instant()).is_err());
     }
 
     #[test]
@@ -334,7 +301,7 @@ mod tests {
             ..TransactionEdit::default()
         };
 
-        item.apply_edit(&allowed, None, instant()).unwrap();
+        item.apply_edit(&allowed, instant()).unwrap();
 
         assert_eq!(item.description.as_deref(), Some("Feira"));
         for refused in [
@@ -352,50 +319,12 @@ mod tests {
             },
         ] {
             assert!(matches!(
-                item.apply_edit(&refused, None, instant()),
+                item.apply_edit(&refused, instant()),
                 Err(FinanceError::TransactionAlreadySettled)
             ));
         }
         assert_eq!(item.expected_amount, 10_000);
         assert_eq!(item.applied_balance_delta(), -9_000);
-    }
-
-    #[test]
-    fn installment_edit_refuses_account_and_date() {
-        let mut item = Transaction {
-            installment: Some(Installment {
-                number: 2,
-                total: 3,
-            }),
-            installment_group_id: Some(Uuid::from_u128(9)),
-            statement_period: StatementPeriod::parse("2026-12"),
-            ..transaction(TransactionKind::Expense, 10_000)
-        };
-        let description = TransactionEdit {
-            description: Some("Parcela".to_owned()),
-            expected_amount: Some(11_000),
-            ..TransactionEdit::default()
-        };
-
-        item.apply_edit(&description, None, instant()).unwrap();
-
-        assert_eq!(item.expected_amount, 11_000);
-        assert_eq!(item.statement_period, StatementPeriod::parse("2026-12"));
-        for refused in [
-            TransactionEdit {
-                expected_date: Some(date("2026-12-20")),
-                ..TransactionEdit::default()
-            },
-            TransactionEdit {
-                account: Some((Uuid::from_u128(3), Currency::default())),
-                ..TransactionEdit::default()
-            },
-        ] {
-            assert!(matches!(
-                item.apply_edit(&refused, None, instant()),
-                Err(FinanceError::InstallmentNotEditable)
-            ));
-        }
     }
 
     #[test]

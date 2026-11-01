@@ -18,10 +18,6 @@ pub enum FinanceError {
     TransactionAlreadySettled,
     #[error("a movimentação não está liquidada")]
     TransactionNotSettled,
-    #[error("a fatura do período já foi paga")]
-    StatementAlreadyPaid,
-    #[error("a parcela não muda de conta nem de data")]
-    InstallmentNotEditable,
     #[error("a categoria está em uso e precisa de uma categoria de destino")]
     CategoryReplacementRequired,
     #[error("a categoria é de outro tipo")]
@@ -55,8 +51,6 @@ impl FinanceError {
             Self::DefaultAccountNotDeletable => "default_account_not_deletable",
             Self::TransactionAlreadySettled => "transaction_already_settled",
             Self::TransactionNotSettled => "transaction_not_settled",
-            Self::StatementAlreadyPaid => "statement_already_paid",
-            Self::InstallmentNotEditable => "installment_not_editable",
             Self::CategoryReplacementRequired => "category_replacement_required",
             Self::CategoryKindMismatch => "category_kind_mismatch",
             Self::OccurrenceNotOpen => "occurrence_not_open",
@@ -89,14 +83,6 @@ mod tests {
             "occurrence_not_open"
         );
         assert_eq!(FinanceError::RecurrenceEnded.code(), "recurrence_ended");
-        assert_eq!(
-            FinanceError::StatementAlreadyPaid.code(),
-            "statement_already_paid"
-        );
-        assert_eq!(
-            FinanceError::InstallmentNotEditable.code(),
-            "installment_not_editable"
-        );
         assert_eq!(
             FinanceError::TransactionNotSettled.code(),
             "transaction_not_settled"

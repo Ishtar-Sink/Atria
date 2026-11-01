@@ -1,21 +1,17 @@
-//! Casos de uso de contas e cartões (RF-24, RF-25, RF-26). Toda chamada garante,
+//! Casos de uso de contas (RF-24, RF-25, RF-26). Toda chamada garante,
 //! antes, a "Conta principal" do usuário, criada uma única vez.
 
 use uuid::Uuid;
 
 use crate::finance::application::Env;
 use crate::finance::application::ports::{AccountRepository, Outcome};
-use crate::finance::domain::account::{
-    Account, AccountKind, CardFields, credit_card_terms, validate_name,
-};
+use crate::finance::domain::account::{Account, validate_name};
 use crate::shared::money::Currency;
 use crate::shared::visibility::Visibility;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewAccount {
     pub name: String,
-    pub kind: AccountKind,
-    pub card: CardFields,
     pub visibility: Visibility,
 }
 
@@ -23,7 +19,6 @@ pub struct NewAccount {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AccountPatch {
     pub name: Option<String>,
-    pub card: CardFields,
     pub visibility: Option<Visibility>,
 }
 
@@ -84,18 +79,15 @@ pub async fn create<R: AccountRepository>(
 ) -> Outcome<Account> {
     ensure_default(repo, env, owner_id).await?;
     let name = validate_name(&input.name)?;
-    let card = credit_card_terms(input.kind, input.card)?;
     let now = env.clock.now();
     let account = Account {
         id: env.ids.new_id(),
         owner_id,
         visibility: input.visibility,
         name,
-        kind: input.kind,
         is_default: false,
         balance_amount: 0,
         currency: Currency::default(),
-        card,
         created_at: now,
         updated_at: now,
     };
@@ -114,24 +106,6 @@ pub async fn update<R: AccountRepository>(
     let now = env.clock.now();
     if let Some(name) = patch.name.as_deref() {
         account.rename(name, now)?;
-    }
-    if patch.card != CardFields::default() {
-        let current = account.card;
-        let merged = CardFields {
-            credit_limit_amount: patch
-                .card
-                .credit_limit_amount
-                .or(current.map(|terms| terms.credit_limit_amount)),
-            closing_day: patch
-                .card
-                .closing_day
-                .or(current.map(|terms| terms.cycle.closing_day)),
-            due_day: patch
-                .card
-                .due_day
-                .or(current.map(|terms| terms.cycle.due_day)),
-        };
-        account.card = credit_card_terms(account.kind, merged)?;
     }
     if let Some(visibility) = patch.visibility {
         account.visibility = visibility;

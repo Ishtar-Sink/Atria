@@ -71,10 +71,5 @@ pub fn routes() -> Router<AppState> {
             "/recurring-transactions/{id}/settled-transactions",
             get(h::list_settled_transactions),
         )
-        .route("/credit-cards/{id}/statements", get(h::list_statements))
-        .route(
-            "/credit-cards/{id}/statements/{period}/payment",
-            post(h::pay_statement),
-        )
         .route("/financial-summaries", get(h::get_financial_summary))
 }

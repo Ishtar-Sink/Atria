@@ -1,5 +1,4 @@
-//! Repositório de movimentações: a liquidação, a exclusão e o pagamento da fatura
-//! mudam o saldo da conta na mesma transação ([project/database-03]). As listagens
+//! Repositório de movimentações: a liquidação e a exclusão mudam o saldo da conta na mesma transação ([project/database-03]). As listagens
 //! usam a coluna gerada `effective_date`, a da liquidação ou a prevista (PD-55).
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -7,18 +6,14 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::finance::application::ports::{
-    Outcome, SettlementRequest, StatementPayment, TransactionFilter, TransactionRepository,
-    UndoneSettlement,
+    Outcome, SettlementRequest, TransactionFilter, TransactionRepository, UndoneSettlement,
 };
 use crate::finance::domain::FinanceError;
-use crate::finance::domain::credit_card::{StatementPeriod, outstanding_amount};
 use crate::finance::domain::transaction::{Transaction, TransactionEdit};
-use crate::finance::domain::transfer::Transfer;
 use crate::finance::infrastructure::pg_recurring_transactions::{lock_recurring, save_last_closed};
-use crate::finance::infrastructure::pg_transfers::insert_transfer;
 use crate::finance::infrastructure::{
-    TransactionRow, Tx, add_to_balance, begin, card_cycle, commit, corrupt, escape_like,
-    insert_transaction, lock_account, period, save_settlement, storage,
+    TransactionRow, Tx, add_to_balance, begin, commit, escape_like, insert_transaction,
+    lock_account, save_settlement, storage,
 };
 
 #[derive(Debug, Clone)]
@@ -36,7 +31,6 @@ async fn lock_transaction(tx: &mut Tx<'_>, owner_id: Uuid, id: Uuid) -> Outcome<
     let row: Option<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
     category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
          WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE", id, owner_id)
     .fetch_optional(&mut **tx)
@@ -50,7 +44,7 @@ async fn save_edit(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
     sqlx::query!(
         "UPDATE transactions SET description = $1, expected_amount = $2, expected_date = $3, \
          account_id = $4, currency = $5, category_id = $6, visibility = $7, \
-         statement_period = $8, updated_at = $9 WHERE id = $10 AND owner_id = $11",
+         updated_at = $8 WHERE id = $9 AND owner_id = $10",
         item.description.as_deref(),
         item.expected_amount,
         item.expected_date as _,
@@ -58,7 +52,6 @@ async fn save_edit(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
         item.currency.as_str(),
         item.category_id,
         item.visibility as _,
-        item.statement_period.map(|p| p.to_string()),
         item.updated_at as _,
         item.id,
         item.owner_id
@@ -67,23 +60,6 @@ async fn save_edit(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
     .await
     .map_err(storage)?;
     Ok(())
-}
-
-/// A fatura do período da movimentação já foi paga por uma transferência (RN-06)?
-async fn statement_paid(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<bool> {
-    let Some(statement) = item.statement_period else {
-        return Ok(false);
-    };
-    sqlx::query_scalar!(
-        "SELECT EXISTS (SELECT 1 FROM transfers WHERE owner_id = $1 AND to_account_id = $2 \
-         AND statement_period = $3 AND deleted_at IS NULL) AS \"paid!\"",
-        item.owner_id,
-        item.account_id,
-        statement.to_string()
-    )
-    .fetch_one(&mut **tx)
-    .await
-    .map_err(storage)
 }
 
 async fn soft_delete(tx: &mut Tx<'_>, item: &Transaction, now: DateTime<Utc>) -> Outcome<()> {
@@ -150,7 +126,6 @@ impl TransactionRepository for PgTransactions {
         let row: Option<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
     category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
              WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
         .fetch_optional(&mut *tx)
@@ -175,7 +150,6 @@ impl TransactionRepository for PgTransactions {
             "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
     category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" \
              FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 \
              AND ($2::uuid IS NULL OR account_id = $2) \
@@ -235,8 +209,7 @@ impl TransactionRepository for PgTransactions {
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
         let account_id = edit.account.map_or(item.account_id, |(account, _)| account);
         lock_account(&mut tx, owner_id, account_id).await?;
-        let cycle = card_cycle(&mut tx, owner_id, account_id).await?;
-        item.apply_edit(edit, cycle, now)?;
+        item.apply_edit(edit, now)?;
         save_edit(&mut tx, &item).await?;
         commit(tx).await?;
         Ok(item)
@@ -252,9 +225,6 @@ impl TransactionRepository for PgTransactions {
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
         if !item.is_settled() {
             return Err(FinanceError::TransactionNotSettled);
-        }
-        if statement_paid(&mut tx, &item).await? {
-            return Err(FinanceError::StatementAlreadyPaid);
         }
         // Mesma ordem de travas da exclusão: movimentação, recorrente e conta.
         reopen_occurrence(&mut tx, &item, now).await?;
@@ -284,89 +254,5 @@ impl TransactionRepository for PgTransactions {
         soft_delete(&mut tx, &item, now).await?;
         add_to_balance(&mut tx, owner_id, item.account_id, revert, now).await?;
         commit(tx).await
-    }
-
-    async fn statement_items(&self, owner_id: Uuid, card_id: Uuid) -> Outcome<Vec<Transaction>> {
-        let mut tx = begin(&self.pool, owner_id).await?;
-        let rows: Vec<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
-    difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
-             WHERE owner_id = $1 AND account_id = $2 AND statement_period IS NOT NULL \
-             AND deleted_at IS NULL ORDER BY expected_date, id", owner_id, card_id)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(storage)?;
-        commit(tx).await?;
-        rows.into_iter().map(TransactionRow::into_domain).collect()
-    }
-
-    async fn paid_periods(&self, owner_id: Uuid, card_id: Uuid) -> Outcome<Vec<StatementPeriod>> {
-        let mut tx = begin(&self.pool, owner_id).await?;
-        let rows: Vec<String> = sqlx::query_scalar!(
-            "SELECT DISTINCT statement_period AS \"statement_period!\" FROM transfers \
-             WHERE owner_id = $1 AND to_account_id = $2 AND statement_period IS NOT NULL \
-             AND deleted_at IS NULL",
-            owner_id,
-            card_id
-        )
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(storage)?;
-        commit(tx).await?;
-        rows.iter()
-            .map(|text| period(Some(text))?.ok_or_else(|| corrupt("statement_period")))
-            .collect()
-    }
-
-    async fn pay_statement(
-        &self,
-        draft: Transfer,
-        statement: StatementPeriod,
-        now: DateTime<Utc>,
-    ) -> Outcome<StatementPayment> {
-        let owner_id = draft.owner_id;
-        let card_id = draft.to_account_id;
-        let mut tx = begin(&self.pool, owner_id).await?;
-        // Ordem fixa das travas, para dois pedidos simultâneos não se travarem.
-        let mut accounts = [draft.from_account_id, card_id];
-        accounts.sort();
-        for account_id in accounts {
-            lock_account(&mut tx, owner_id, account_id).await?;
-        }
-        let rows: Vec<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
-    difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
-             WHERE owner_id = $1 AND account_id = $2 AND statement_period = $3 \
-             AND settled_at IS NULL AND deleted_at IS NULL ORDER BY expected_date, id FOR UPDATE", owner_id, card_id, statement.to_string())
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(storage)?;
-        let mut items = rows
-            .into_iter()
-            .map(TransactionRow::into_domain)
-            .collect::<Outcome<Vec<Transaction>>>()?;
-        let amount = outstanding_amount(&items);
-        if amount <= 0 {
-            return Err(FinanceError::invalid("period", "nothing_to_pay"));
-        }
-        let mut card_delta = amount;
-        for item in &mut items {
-            let expected = item.expected_amount;
-            card_delta += item.settle(expected, draft.transferred_on, now)?;
-            save_settlement(&mut tx, item).await?;
-        }
-        let transfer = Transfer { amount, ..draft };
-        insert_transfer(&mut tx, &transfer).await?;
-        add_to_balance(&mut tx, owner_id, transfer.from_account_id, -amount, now).await?;
-        add_to_balance(&mut tx, owner_id, card_id, card_delta, now).await?;
-        commit(tx).await?;
-        Ok(StatementPayment {
-            transfer,
-            settled_transaction_ids: items.iter().map(|item| item.id).collect(),
-        })
     }
 }

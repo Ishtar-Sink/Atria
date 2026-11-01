@@ -11,7 +11,6 @@ use uuid::Uuid;
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::account::Account;
 use crate::finance::domain::category::Category;
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionEdit, TransactionKind};
 use crate::finance::domain::transfer::Transfer;
@@ -147,13 +146,6 @@ pub struct SettlementRequest {
     pub settled_at: NaiveDate,
 }
 
-/// Resultado do pagamento da fatura: a transferência e as movimentações liquidadas.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StatementPayment {
-    pub transfer: Transfer,
-    pub settled_transaction_ids: Vec<Uuid>,
-}
-
 pub trait TransactionRepository: Send + Sync {
     fn insert_many(&self, items: &[Transaction]) -> impl Future<Output = Outcome<()>> + Send;
     fn get(&self, owner_id: Uuid, id: Uuid) -> impl Future<Output = Outcome<Transaction>> + Send;
@@ -182,8 +174,7 @@ pub trait TransactionRepository: Send + Sync {
         edit: &TransactionEdit,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<Transaction>> + Send;
-    /// Desfaz a liquidação numa transação, revertendo o saldo; recusa a de uma fatura
-    /// já paga (DEC-005).
+    /// Desfaz a liquidação numa transação, revertendo o saldo (DEC-005).
     fn undo_settlement(
         &self,
         owner_id: Uuid,
@@ -198,27 +189,6 @@ pub trait TransactionRepository: Send + Sync {
         id: Uuid,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<()>> + Send;
-    /// Movimentações do cartão com período de fatura, para montar as faturas.
-    fn statement_items(
-        &self,
-        owner_id: Uuid,
-        card_id: Uuid,
-    ) -> impl Future<Output = Outcome<Vec<Transaction>>> + Send;
-    /// Períodos de fatura do cartão já pagos por transferência.
-    fn paid_periods(
-        &self,
-        owner_id: Uuid,
-        card_id: Uuid,
-    ) -> impl Future<Output = Outcome<Vec<StatementPeriod>>> + Send;
-    /// Paga a fatura (RN-06): cria a transferência para o cartão e liquida pelo
-    /// valor previsto as movimentações não liquidadas do período, numa transação.
-    /// A transferência chega sem valor; o valor sai das movimentações em aberto.
-    fn pay_statement(
-        &self,
-        draft: Transfer,
-        period: StatementPeriod,
-        now: DateTime<Utc>,
-    ) -> impl Future<Output = Outcome<StatementPayment>> + Send;
 }
 
 pub trait TransferRepository: Send + Sync {

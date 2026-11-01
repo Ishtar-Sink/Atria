@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, transferred_on AS \"transferred_on: _\", description, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::uuid IS NULL OR id > $2) AND ($3::date IS NULL OR transferred_on >= $3) AND ($4::date IS NULL OR transferred_on <= $4) AND ($5::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($5)) || '%' ESCAPE '\\') ORDER BY id LIMIT $6",
   "describe": {
     "columns": [
       {
@@ -50,16 +50,11 @@
       },
       {
         "ordinal": 9,
-        "name": "statement_period",
-        "type_info": "Bpchar"
-      },
-      {
-        "ordinal": 10,
         "name": "created_at: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 11,
+        "ordinal": 10,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
       }
@@ -67,7 +62,11 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "Date",
+        "Date",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
@@ -80,10 +79,9 @@
       false,
       false,
       true,
-      true,
       false,
       false
     ]
   },
-  "hash": "1081d116d3ed83a8976ea599ef2d35b9935777a41a5d64287605f5e18f21ab1f"
+  "hash": "92bd6b755850980f9ab7ae5562dede1ba280dc66c84e9ff9e7b1f62e25278df0"
 }

@@ -10,7 +10,6 @@ use chrono_tz::Tz;
 use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKind};
 use crate::shared::money::Currency;
 use crate::shared::recurrence::{Frequency, RecurrenceError, RecurrenceRule};
@@ -155,7 +154,6 @@ impl RecurringTransaction {
         &mut self,
         copy_id: Uuid,
         request: OccurrenceSettlement,
-        statement_period: Option<StatementPeriod>,
         now: DateTime<Utc>,
     ) -> Result<(Transaction, i64), FinanceError> {
         self.ensure_open(request.occurrence_date)?;
@@ -173,9 +171,6 @@ impl RecurringTransaction {
             settlement: None,
             generated_from: Some(self.id),
             occurrence_date: Some(request.occurrence_date),
-            installment: None,
-            installment_group_id: None,
-            statement_period,
             created_at: now,
             updated_at: now,
         };
@@ -322,7 +317,6 @@ mod tests {
                     settled_amount: 190_000,
                     settled_at: date("2027-01-30"),
                 },
-                None,
                 instant(),
             )
             .unwrap();
@@ -384,7 +378,6 @@ mod tests {
         rent.settle_open(
             Uuid::from_u128(100),
             settlement("2027-01-31", 200_000),
-            None,
             instant(),
         )
         .unwrap();
@@ -403,7 +396,6 @@ mod tests {
             .settle_open(
                 Uuid::from_u128(100),
                 settlement("2027-01-31", 200_000),
-                None,
                 instant(),
             )
             .unwrap();
@@ -432,21 +424,18 @@ mod tests {
             .settle_open(
                 Uuid::from_u128(100),
                 settlement("2027-01-31", 200_000),
-                None,
                 instant(),
             )
             .unwrap();
         let again = rent.settle_open(
             Uuid::from_u128(101),
             settlement("2027-01-31", 200_000),
-            None,
             instant(),
         );
         let (february, _) = rent
             .settle_open(
                 Uuid::from_u128(102),
                 settlement("2027-02-28", 205_000),
-                None,
                 instant(),
             )
             .unwrap();

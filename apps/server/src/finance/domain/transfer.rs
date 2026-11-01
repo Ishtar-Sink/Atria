@@ -5,7 +5,6 @@ use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::shared::money::Currency;
 use crate::shared::visibility::Visibility;
 
@@ -20,8 +19,6 @@ pub struct Transfer {
     pub currency: Currency,
     pub transferred_on: NaiveDate,
     pub description: Option<String>,
-    /// Preenchido quando a transferência paga a fatura desse período (RN-06).
-    pub statement_period: Option<StatementPeriod>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

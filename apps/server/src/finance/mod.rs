@@ -1,4 +1,4 @@
-//! Contexto Financeiro: contas, cartões, movimentações, liquidação, transferências,
+//! Contexto Financeiro: contas, movimentações, liquidação, transferências,
 //! categorias, recorrências com ocorrência aberta e o painel por período (RF-24 a
 //! RF-35, PD-49, PD-51, PD-55, PD-58).
 

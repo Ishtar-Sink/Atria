@@ -6,10 +6,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::finance::application::credit_cards::Statement;
-use crate::finance::application::ports::{Repetition, StatementPayment};
-use crate::finance::application::summaries::{CardView, PeriodSummaryView, WhereView};
-use crate::finance::domain::account::{Account, AccountKind};
+use crate::finance::application::ports::Repetition;
+use crate::finance::application::summaries::{PeriodSummaryView, WhereView};
+use crate::finance::domain::account::Account;
 use crate::finance::domain::category::{Category, CategoryColor, SystemCategory};
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
@@ -21,32 +20,6 @@ use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKi
 use crate::finance::domain::transfer::Transfer;
 use crate::shared::recurrence::RecurrenceRule;
 use crate::shared::visibility::Visibility;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AccountKindDto {
-    #[default]
-    Standard,
-    CreditCard,
-}
-
-impl From<AccountKindDto> for AccountKind {
-    fn from(value: AccountKindDto) -> Self {
-        match value {
-            AccountKindDto::Standard => Self::Standard,
-            AccountKindDto::CreditCard => Self::CreditCard,
-        }
-    }
-}
-
-impl From<AccountKind> for AccountKindDto {
-    fn from(value: AccountKind) -> Self {
-        match value {
-            AccountKind::Standard => Self::Standard,
-            AccountKind::CreditCard => Self::CreditCard,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -176,11 +149,6 @@ impl From<RepetitionDto> for Repetition {
 #[serde(deny_unknown_fields)]
 pub struct CreateAccountRequest {
     pub name: String,
-    #[serde(default)]
-    pub kind: AccountKindDto,
-    pub credit_limit_amount: Option<i64>,
-    pub closing_day: Option<u32>,
-    pub due_day: Option<u32>,
     pub visibility: Option<Visibility>,
 }
 
@@ -188,9 +156,6 @@ pub struct CreateAccountRequest {
 #[serde(deny_unknown_fields)]
 pub struct UpdateAccountRequest {
     pub name: Option<String>,
-    pub credit_limit_amount: Option<i64>,
-    pub closing_day: Option<u32>,
-    pub due_day: Option<u32>,
     pub visibility: Option<Visibility>,
 }
 
@@ -202,14 +167,10 @@ pub struct AccountResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub name: String,
-    pub kind: AccountKindDto,
     pub is_default: bool,
     pub balance_amount: i64,
     #[schema(example = "BRL")]
     pub currency: String,
-    pub credit_limit_amount: Option<i64>,
-    pub closing_day: Option<u32>,
-    pub due_day: Option<u32>,
 }
 
 impl From<Account> for AccountResponse {
@@ -221,13 +182,9 @@ impl From<Account> for AccountResponse {
             created_at: account.created_at,
             updated_at: account.updated_at,
             name: account.name,
-            kind: account.kind.into(),
             is_default: account.is_default,
             balance_amount: account.balance_amount,
             currency: account.currency.to_string(),
-            credit_limit_amount: account.card.map(|terms| terms.credit_limit_amount),
-            closing_day: account.card.map(|terms| terms.cycle.closing_day),
-            due_day: account.card.map(|terms| terms.cycle.due_day),
         }
     }
 }
@@ -348,13 +305,11 @@ pub struct CreateTransactionRequest {
     pub description: Option<String>,
     pub expected_amount: i64,
     pub expected_date: NaiveDate,
-    /// Número de parcelas de uma compra no cartão (RF-28).
-    pub installments: Option<u32>,
     pub visibility: Option<Visibility>,
 }
 
 /// Edição (DEC-005): a liquidada só aceita `description`, `category_id` e
-/// `visibility`; a parcela não muda `account_id` nem `expected_date`.
+/// `visibility`.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateTransactionRequest {
@@ -393,12 +348,6 @@ pub struct TransactionQuery {
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct InstallmentDto {
-    pub number: u32,
-    pub total: u32,
-}
-
 /// Movimentação gravada (contrato "Movimentação financeira").
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TransactionResponse {
@@ -427,9 +376,6 @@ pub struct TransactionResponse {
     /// Recorrente de onde veio a cópia liquidada.
     pub generated_from: Option<Uuid>,
     pub occurrence_date: Option<NaiveDate>,
-    pub installment: Option<InstallmentDto>,
-    #[schema(example = "2026-11")]
-    pub statement_period: Option<String>,
 }
 
 impl TransactionResponse {
@@ -460,11 +406,6 @@ impl TransactionResponse {
             recurrence_id: None,
             generated_from: item.generated_from,
             occurrence_date: item.occurrence_date,
-            installment: item.installment.map(|i| InstallmentDto {
-                number: i.number,
-                total: i.total,
-            }),
-            statement_period: item.statement_period.map(|p| p.to_string()),
         }
     }
 }
@@ -501,9 +442,6 @@ pub struct TransactionItemResponse {
     pub recurrence_id: Option<Uuid>,
     pub generated_from: Option<Uuid>,
     pub occurrence_date: Option<NaiveDate>,
-    pub installment: Option<InstallmentDto>,
-    #[schema(example = "2026-11")]
-    pub statement_period: Option<String>,
 }
 
 impl TransactionItemResponse {
@@ -532,8 +470,6 @@ impl TransactionItemResponse {
                 recurrence_id: Some(projected.recurrence_id),
                 generated_from: None,
                 occurrence_date: Some(projected.occurrence_date),
-                installment: None,
-                statement_period: None,
             },
         }
     }
@@ -563,8 +499,6 @@ impl From<TransactionResponse> for TransactionItemResponse {
             recurrence_id: item.recurrence_id,
             generated_from: item.generated_from,
             occurrence_date: item.occurrence_date,
-            installment: item.installment,
-            statement_period: item.statement_period,
         }
     }
 }
@@ -620,8 +554,6 @@ pub struct TransferResponse {
     pub currency: String,
     pub transferred_on: NaiveDate,
     pub description: Option<String>,
-    /// Período da fatura que a transferência pagou, quando paga uma fatura.
-    pub statement_period: Option<String>,
 }
 
 impl From<Transfer> for TransferResponse {
@@ -638,7 +570,6 @@ impl From<Transfer> for TransferResponse {
             currency: transfer.currency.to_string(),
             transferred_on: transfer.transferred_on,
             description: transfer.description,
-            statement_period: transfer.statement_period.map(|p| p.to_string()),
         }
     }
 }
@@ -759,61 +690,6 @@ pub struct SettledTransactionPage {
 pub struct RecurringTransactionPage {
     pub items: Vec<RecurringTransactionResponse>,
     pub next_cursor: Option<String>,
-}
-
-// Faturas ------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct StatementResponse {
-    #[schema(example = "2026-11")]
-    pub period: String,
-    pub closing_date: NaiveDate,
-    pub due_date: NaiveDate,
-    pub total_amount: i64,
-    pub outstanding_amount: i64,
-    pub transaction_count: usize,
-    pub paid: bool,
-}
-
-impl From<Statement> for StatementResponse {
-    fn from(statement: Statement) -> Self {
-        Self {
-            period: statement.period.to_string(),
-            closing_date: statement.closing_date,
-            due_date: statement.due_date,
-            total_amount: statement.total_amount,
-            outstanding_amount: statement.outstanding_amount,
-            transaction_count: statement.transaction_count,
-            paid: statement.paid,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct StatementList {
-    pub items: Vec<StatementResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PayStatementRequest {
-    pub from_account_id: Uuid,
-    pub paid_on: NaiveDate,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct StatementPaymentResponse {
-    pub transfer: TransferResponse,
-    pub settled_transaction_ids: Vec<Uuid>,
-}
-
-impl From<StatementPayment> for StatementPaymentResponse {
-    fn from(payment: StatementPayment) -> Self {
-        Self {
-            transfer: payment.transfer.into(),
-            settled_transaction_ids: payment.settled_transaction_ids,
-        }
-    }
 }
 
 // Resumo do período --------------------------------------------------------
@@ -967,44 +843,16 @@ impl From<SavingsAndLosses> for SavingsAndLossesDto {
 pub struct AccountBalanceDto {
     pub id: Uuid,
     pub name: String,
-    pub kind: AccountKindDto,
     pub balance_amount: i64,
 }
 
-/// Saldo de agora, fora do período: o atual soma todas as contas, a lista traz só as
-/// comuns, e o previsto no fim do período é nulo quando ele já terminou.
+/// Saldo de agora, fora do período: o atual soma todas as contas, a lista traz todas,
+/// e o previsto no fim do período é nulo quando ele já terminou.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BalanceDto {
     pub current: i64,
     pub forecast_at_period_end: Option<i64>,
     pub accounts: Vec<AccountBalanceDto>,
-}
-
-/// Fatura aberta e limite usado de um cartão, fora do período.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CreditCardSummaryDto {
-    pub account_id: Uuid,
-    pub name: String,
-    #[schema(example = "2026-11")]
-    pub statement_period: String,
-    pub open_statement_amount: i64,
-    pub due_date: NaiveDate,
-    pub credit_limit_amount: i64,
-    pub used_limit_amount: i64,
-}
-
-impl From<CardView> for CreditCardSummaryDto {
-    fn from(view: CardView) -> Self {
-        Self {
-            account_id: view.account.id,
-            name: view.account.name,
-            statement_period: view.statement_period.to_string(),
-            open_statement_amount: view.usage.open_statement_amount,
-            due_date: view.due_date,
-            credit_limit_amount: view.credit_limit_amount,
-            used_limit_amount: view.usage.used_limit_amount,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -1017,7 +865,6 @@ pub struct FinancialSummaryResponse {
     pub expected_vs_settled: ExpectedVsSettledDto,
     pub savings_and_losses: SavingsAndLossesDto,
     pub balance: BalanceDto,
-    pub credit_cards: Vec<CreditCardSummaryDto>,
     /// Entradas e saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas, com as ocorrências abertas das recorrentes (RF-15).
     pub upcoming_bills: Vec<TransactionItemResponse>,
     #[schema(example = "BRL")]
@@ -1044,12 +891,10 @@ impl From<PeriodSummaryView> for FinancialSummaryResponse {
                     .map(|account| AccountBalanceDto {
                         id: account.id,
                         name: account.name,
-                        kind: account.kind.into(),
                         balance_amount: account.balance_amount,
                     })
                     .collect(),
             },
-            credit_cards: view.credit_cards.into_iter().map(Into::into).collect(),
             upcoming_bills: view
                 .upcoming_bills
                 .into_iter()

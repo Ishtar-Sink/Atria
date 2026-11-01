@@ -2,7 +2,6 @@
 
 pub mod accounts;
 pub mod categories;
-pub mod credit_cards;
 pub mod ports;
 pub mod recurring_transactions;
 pub mod summaries;

@@ -1,6 +1,6 @@
 //! Painel do Financeiro por período livre (RF-35, PD-55, PD-58): fechamento realizado
 //! e previsto, comparação com o período anterior, "Para onde foi", previsto x
-//! realizado, economias e perdas, saldo previsto, cartões e próximas movimentações. As
+//! realizado, economias e perdas, saldo previsto e próximas movimentações. As
 //! transferências ficam fora de todos os totais (RN-05).
 
 use std::collections::HashMap;
@@ -8,10 +8,9 @@ use std::collections::HashMap;
 use chrono::{Duration, NaiveDate};
 use uuid::Uuid;
 
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::settlement::DifferenceKind;
-use crate::finance::domain::transaction::{Transaction, TransactionKind};
+use crate::finance::domain::transaction::TransactionKind;
 
 /// Maior período do resumo, para limitar a projeção das recorrentes.
 pub const MAX_PERIOD_DAYS: i64 = 3660;
@@ -229,34 +228,6 @@ pub fn forecast_balance(
     )
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct CardUsage {
-    /// Saídas menos entradas da fatura aberta, pelo valor liquidado ou previsto.
-    pub open_statement_amount: i64,
-    /// As não liquidadas do cartão mais as liquidadas da fatura aberta.
-    pub used_limit_amount: i64,
-}
-
-/// Uso do cartão a partir das movimentações dele e do período da fatura aberta.
-pub fn card_usage(items: &[Transaction], open: StatementPeriod) -> CardUsage {
-    let charge = |item: &Transaction, amount: i64| -item.kind.signed(amount);
-    let mut usage = CardUsage::default();
-    for item in items {
-        let in_open = item.statement_period == Some(open);
-        if in_open {
-            usage.open_statement_amount = usage
-                .open_statement_amount
-                .saturating_add(charge(item, item.value()));
-        }
-        if !item.is_settled() || in_open {
-            usage.used_limit_amount = usage
-                .used_limit_amount
-                .saturating_add(charge(item, item.value()));
-        }
-    }
-    usage
-}
-
 /// Próximas movimentações: entradas e saídas não liquidadas até hoje + 30 dias,
 /// inclusive as atrasadas, pela data prevista (RF-15).
 pub fn upcoming_movements(items: Vec<FinanceItem>, today: NaiveDate) -> Vec<FinanceItem> {
@@ -274,6 +245,7 @@ mod tests {
     use super::*;
     use crate::finance::domain::forecast::project;
     use crate::finance::domain::recurring_transaction::fixtures::rent;
+    use crate::finance::domain::transaction::Transaction;
     use crate::finance::domain::transaction::fixtures::{date, instant, transaction};
 
     fn stored(kind: TransactionKind, expected: i64, day: &str) -> Transaction {
@@ -495,44 +467,6 @@ mod tests {
         assert_eq!(
             forecast_balance(5_000, &pending, date("2026-11-01"), date("2026-11-01")),
             Some(4_000)
-        );
-    }
-
-    #[test]
-    fn card_used_limit_sums_unsettled_and_settled_in_open_statement() {
-        let open = StatementPeriod::parse("2026-11").unwrap();
-        let period = |text: &str| StatementPeriod::parse(text);
-        let on_card = |amount: i64, statement: &str| Transaction {
-            statement_period: period(statement),
-            ..transaction(TransactionKind::Expense, amount)
-        };
-        let mut paid_now = on_card(30_000, "2026-11");
-        paid_now
-            .settle(30_000, date("2026-11-08"), instant())
-            .unwrap();
-        let mut paid_before = on_card(5_000, "2026-10");
-        paid_before
-            .settle(5_000, date("2026-10-17"), instant())
-            .unwrap();
-        let refund = Transaction {
-            statement_period: period("2026-11"),
-            ..transaction(TransactionKind::Income, 2_000)
-        };
-        let items = [
-            on_card(10_000, "2026-10"),
-            on_card(20_000, "2026-11"),
-            paid_now,
-            on_card(40_000, "2026-12"),
-            paid_before,
-            refund,
-        ];
-
-        let usage = card_usage(&items, open);
-
-        assert_eq!(usage.open_statement_amount, 20_000 + 30_000 - 2_000);
-        assert_eq!(
-            usage.used_limit_amount,
-            10_000 + 20_000 + 40_000 - 2_000 + 30_000
         );
     }
 

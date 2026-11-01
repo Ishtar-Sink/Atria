@@ -12,7 +12,7 @@ use crate::finance::domain::FinanceError;
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionKind};
 use crate::finance::infrastructure::{
-    TransactionRow, Tx, add_to_balance, begin, card_cycle, commit, corrupt, currency, escape_like,
+    TransactionRow, Tx, add_to_balance, begin, commit, corrupt, currency, escape_like,
     insert_transaction, lock_account, save_settlement, storage,
 };
 use crate::shared::recurrence::RecurrenceRule;
@@ -167,7 +167,6 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         let rows: Vec<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
     category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    installment_number, installment_total, installment_group_id, statement_period, \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE owner_id = $1 \
              AND generated_from = $2 AND deleted_at IS NULL \
              AND ($3::date IS NULL OR occurrence_date < $3 \
@@ -214,9 +213,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
     ) -> Outcome<Transaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut recurring = lock_recurring(&mut tx, owner_id, id).await?;
-        let cycle = card_cycle(&mut tx, owner_id, recurring.account_id).await?;
-        let period = cycle.map(|cycle| cycle.statement_for(request.occurrence_date));
-        let (copy, delta) = recurring.settle_open(copy_id, request, period, now)?;
+        let (copy, delta) = recurring.settle_open(copy_id, request, now)?;
         lock_account(&mut tx, owner_id, copy.account_id).await?;
         insert_transaction(&mut tx, &copy).await?;
         save_settlement(&mut tx, &copy).await?;

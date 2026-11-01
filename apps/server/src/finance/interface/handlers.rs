@@ -21,11 +21,8 @@ use crate::finance::application::ports::{
     TransactionFilter, TransactionRepository, TransferFilter, TransferRepository, UndoneSettlement,
 };
 use crate::finance::application::{
-    Env, accounts, categories, credit_cards, recurring_transactions, summaries, transactions,
-    transfers,
+    Env, accounts, categories, recurring_transactions, summaries, transactions, transfers,
 };
-use crate::finance::domain::account::CardFields;
-use crate::finance::domain::credit_card::StatementPeriod;
 use crate::finance::domain::recurring_transaction::OccurrenceSettlement;
 use crate::finance::domain::summary::{MAX_PERIOD_DAYS, Period};
 use crate::finance::domain::{FieldIssue, FinanceError};
@@ -313,17 +310,8 @@ pub async fn create_account(
     user: CurrentUser,
     Body(body): Body<CreateAccountRequest>,
 ) -> ApiResult<(StatusCode, Json<AccountResponse>)> {
-    if let Some(limit) = body.credit_limit_amount {
-        check_amount("credit_limit_amount", limit)?;
-    }
     let input = accounts::NewAccount {
         name: body.name,
-        kind: body.kind.into(),
-        card: CardFields {
-            credit_limit_amount: body.credit_limit_amount,
-            closing_day: body.closing_day,
-            due_day: body.due_day,
-        },
         visibility: body.visibility.unwrap_or_default(),
     };
     let repo = PgAccounts::new(state.pool.clone());
@@ -357,16 +345,8 @@ pub async fn update_account(
     Id(id): Id,
     Body(body): Body<UpdateAccountRequest>,
 ) -> ApiResult<Json<AccountResponse>> {
-    if let Some(limit) = body.credit_limit_amount {
-        check_amount("credit_limit_amount", limit)?;
-    }
     let patch = accounts::AccountPatch {
         name: body.name,
-        card: CardFields {
-            credit_limit_amount: body.credit_limit_amount,
-            closing_day: body.closing_day,
-            due_day: body.due_day,
-        },
         visibility: body.visibility,
     };
     let repo = PgAccounts::new(state.pool.clone());
@@ -587,7 +567,6 @@ pub async fn create_transactions(
             description: body.description.clone(),
             expected_amount: body.expected_amount,
             expected_date: body.expected_date,
-            installments: body.installments,
             visibility: body.visibility.unwrap_or_default(),
         };
         let items = transactions::create(
@@ -1055,76 +1034,6 @@ pub async fn list_settled_transactions(
             .collect(),
         next_cursor,
     }))
-}
-
-// Faturas -------------------------------------------------------------------
-
-fn statement_period(text: &str) -> ApiResult<StatementPeriod> {
-    StatementPeriod::parse(text).ok_or_else(|| ApiError::not_found("not_found"))
-}
-
-#[utoipa::path(get, path = "/api/v1/credit-cards/{id}/statements", tag = "finance",
-    params(("id" = Uuid, Path)),
-    responses((status = 200, body = StatementList), (status = 404, body = ProblemDetails)))]
-pub async fn list_statements(
-    State(state): State<AppState>,
-    user: CurrentUser,
-    Id(id): Id,
-) -> ApiResult<Json<StatementList>> {
-    let items = credit_cards::statements(
-        &PgAccounts::new(state.pool.clone()),
-        &PgTransactions::new(state.pool.clone()),
-        user.user_id,
-        id,
-    )
-    .await
-    .map_err(api_error)?;
-    Ok(Json(StatementList {
-        items: items.into_iter().map(Into::into).collect(),
-    }))
-}
-
-#[utoipa::path(post, path = "/api/v1/credit-cards/{id}/statements/{period}/payment",
-    tag = "finance",
-    params(("id" = Uuid, Path), ("period" = String, Path, example = "2026-11"),
-        ("Idempotency-Key" = Option<String>, Header)),
-    request_body = PayStatementRequest,
-    responses((status = 201, body = StatementPaymentResponse),
-        (status = 404, body = ProblemDetails), (status = 422, body = ProblemDetails)))]
-pub async fn pay_statement(
-    State(state): State<AppState>,
-    user: CurrentUser,
-    headers: HeaderMap,
-    path: Result<Path<(Uuid, String)>, axum::extract::rejection::PathRejection>,
-    Body(body): Body<PayStatementRequest>,
-) -> ApiResult<Response> {
-    let Ok(Path((card_id, period_text))) = path else {
-        return Err(ApiError::not_found("not_found"));
-    };
-    let period = statement_period(&period_text)?;
-    let scope = format!("POST /credit-cards/{card_id}/statements/{period}/payment");
-    idempotent(&state, user.user_id, &headers, scope, &body, || async {
-        let input = credit_cards::StatementPaymentInput {
-            from_account_id: body.from_account_id,
-            paid_on: body.paid_on,
-        };
-        let payment = credit_cards::pay(
-            &PgAccounts::new(state.pool.clone()),
-            &PgTransactions::new(state.pool.clone()),
-            env(&state),
-            user.user_id,
-            card_id,
-            period,
-            input,
-        )
-        .await
-        .map_err(api_error)?;
-        Ok((
-            StatusCode::CREATED,
-            to_json(StatementPaymentResponse::from(payment))?,
-        ))
-    })
-    .await
 }
 
 // Resumo do período ---------------------------------------------------------

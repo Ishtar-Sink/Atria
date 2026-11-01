@@ -200,14 +200,14 @@ async fn where_it_went_groups_top_six_categories_plus_others_with_color() {
 async fn summary_balance_has_current_forecast_at_period_end_and_per_account() {
     let t = FinanceTest::new().await;
     let checking = t.default_account(&t.alice).await;
-    let card = t.create_card(&t.alice, 10, 17).await;
+    let savings = t.create_account(&t.alice, "Poupança").await;
     let salary = t
         .create_transaction(&t.alice, &checking, "income", 100_000, "2026-11-01")
         .await;
     t.settle(&t.alice, &id_of(&salary), 100_000, "2026-11-01")
         .await;
     let purchase = t
-        .create_transaction(&t.alice, &card, "expense", 5_000, "2026-11-02")
+        .create_transaction(&t.alice, &savings, "expense", 5_000, "2026-11-02")
         .await;
     t.settle(&t.alice, &id_of(&purchase), 5_000, "2026-11-02")
         .await;
@@ -238,43 +238,14 @@ async fn summary_balance_has_current_forecast_at_period_end_and_per_account() {
         95_000 - 30_000 + 10_000 - 5_000 - 5_000
     );
     let accounts = balance["accounts"].as_array().unwrap();
-    assert_eq!(accounts.len(), 1, "só as contas comuns");
+    assert_eq!(accounts.len(), 2, "todas as contas");
     assert_eq!(id_of(&accounts[0]), checking);
     assert_eq!(accounts[0]["balance_amount"], 100_000);
+    assert_eq!(id_of(&accounts[1]), savings);
+    assert_eq!(accounts[1]["balance_amount"], -5_000);
+    assert!(body.get("credit_cards").is_none());
     assert_eq!(ended["balance"]["forecast_at_period_end"], Value::Null);
     assert_eq!(ended["balance"]["current"], 95_000);
-}
-
-#[tokio::test]
-async fn summary_cards_show_open_statement_due_date_and_used_limit() {
-    let t = FinanceTest::new().await;
-    let card = t.create_card(&t.alice, 10, 17).await;
-    t.create_transaction(&t.alice, &card, "expense", 10_000, "2026-10-05")
-        .await;
-    t.create_transaction(&t.alice, &card, "expense", 20_000, "2026-11-03")
-        .await;
-    let paid = t
-        .create_transaction(&t.alice, &card, "expense", 30_000, "2026-11-08")
-        .await;
-    t.settle(&t.alice, &id_of(&paid), 30_000, "2026-11-08")
-        .await;
-    t.create_transaction(&t.alice, &card, "expense", 40_000, "2026-11-15")
-        .await;
-
-    let body = summary(&t, "?from=2026-01-01&to=2026-01-31").await;
-
-    assert_eq!(
-        body["credit_cards"],
-        json!([{
-            "account_id": card,
-            "name": "Cartão",
-            "statement_period": "2026-11",
-            "open_statement_amount": 50_000,
-            "due_date": "2026-11-17",
-            "credit_limit_amount": 500_000,
-            "used_limit_amount": 10_000 + 20_000 + 40_000 + 30_000,
-        }])
-    );
 }
 
 #[tokio::test]

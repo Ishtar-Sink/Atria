@@ -9,7 +9,7 @@ use crate::finance::application::ports::{Outcome, TransferFilter, TransferReposi
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::transfer::Transfer;
 use crate::finance::infrastructure::{
-    Tx, add_to_balance, begin, commit, currency, escape_like, lock_account, period, storage,
+    Tx, add_to_balance, begin, commit, currency, escape_like, lock_account, storage,
 };
 use crate::shared::visibility::Visibility;
 
@@ -35,7 +35,6 @@ struct TransferRow {
     currency: String,
     transferred_on: NaiveDate,
     description: Option<String>,
-    statement_period: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -52,18 +51,17 @@ impl TransferRow {
             currency: currency(&self.currency)?,
             transferred_on: self.transferred_on,
             description: self.description,
-            statement_period: period(self.statement_period.as_deref())?,
             created_at: self.created_at,
             updated_at: self.updated_at,
         })
     }
 }
 
-pub(crate) async fn insert_transfer(tx: &mut Tx<'_>, transfer: &Transfer) -> Outcome<()> {
+async fn insert_transfer(tx: &mut Tx<'_>, transfer: &Transfer) -> Outcome<()> {
     sqlx::query!(
         "INSERT INTO transfers (id, owner_id, visibility, from_account_id, to_account_id, amount, \
-         currency, transferred_on, description, statement_period, created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+         currency, transferred_on, description, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         transfer.id,
         transfer.owner_id,
         transfer.visibility as _,
@@ -73,7 +71,6 @@ pub(crate) async fn insert_transfer(tx: &mut Tx<'_>, transfer: &Transfer) -> Out
         transfer.currency.as_str(),
         transfer.transferred_on as _,
         transfer.description.as_deref(),
-        transfer.statement_period.map(|p| p.to_string()),
         transfer.created_at as _,
         transfer.updated_at as _
     )
@@ -127,7 +124,7 @@ impl TransferRepository for PgTransfers {
     async fn get(&self, owner_id: Uuid, id: Uuid) -> Outcome<Transfer> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let row: Option<TransferRow> = sqlx::query_as!(TransferRow, "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, \
-    transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
+    transferred_on AS \"transferred_on: _\", description, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(storage)?;
@@ -144,7 +141,7 @@ impl TransferRepository for PgTransfers {
     ) -> Outcome<Vec<Transfer>> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let rows: Vec<TransferRow> = sqlx::query_as!(TransferRow, "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, \
-    transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL \
+    transferred_on AS \"transferred_on: _\", description, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL \
              AND ($2::uuid IS NULL OR id > $2) \
              AND ($3::date IS NULL OR transferred_on >= $3) \
              AND ($4::date IS NULL OR transferred_on <= $4) \
@@ -166,7 +163,7 @@ impl TransferRepository for PgTransfers {
     ) -> Outcome<Vec<Transfer>> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let rows: Vec<TransferRow> = sqlx::query_as!(TransferRow, "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, \
-    transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL \
+    transferred_on AS \"transferred_on: _\", description, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE owner_id = $1 AND deleted_at IS NULL \
              AND transferred_on BETWEEN $2 AND $3 ORDER BY transferred_on, id", owner_id, from as _, to as _)
         .fetch_all(&mut *tx)
         .await
@@ -178,7 +175,7 @@ impl TransferRepository for PgTransfers {
     async fn delete(&self, owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Outcome<()> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let row: Option<TransferRow> = sqlx::query_as!(TransferRow, "SELECT id, owner_id, visibility AS \"visibility: _\", from_account_id, to_account_id, amount, currency, \
-    transferred_on AS \"transferred_on: _\", description, statement_period, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL \
+    transferred_on AS \"transferred_on: _\", description, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transfers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL \
              FOR UPDATE", id, owner_id)
         .fetch_optional(&mut *tx)
         .await

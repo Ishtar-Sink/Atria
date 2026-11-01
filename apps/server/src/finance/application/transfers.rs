@@ -54,7 +54,6 @@ pub async fn create<A: AccountRepository, T: TransferRepository>(
         currency: from.currency,
         transferred_on: input.transferred_on,
         description,
-        statement_period: None,
         created_at: now,
         updated_at: now,
     };

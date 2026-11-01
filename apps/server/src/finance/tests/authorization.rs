@@ -22,14 +22,11 @@ const TABLES: [&str; 6] = [
 async fn seed(t: &FinanceTest) -> Value {
     let checking = t.default_account(&t.alice).await;
     let savings = t.create_account(&t.alice, "Poupança").await;
-    let card = t.create_card(&t.alice, 10, 17).await;
     let category = t
         .create_category(&t.alice, "Mercado", "expense", "warning")
         .await;
     let item = t
         .create_transaction(&t.alice, &checking, "expense", 10_000, "2026-11-05")
-        .await;
-    t.create_transaction(&t.alice, &card, "expense", 10_000, "2026-11-05")
         .await;
     let transfer = json!({
         "from_account_id": checking,
@@ -50,7 +47,6 @@ async fn seed(t: &FinanceTest) -> Value {
     json!({
         "checking": checking,
         "savings": savings,
-        "card": card,
         "category": category,
         "transaction": id_of(&item),
         "transfer": id_of(&transfer),
@@ -147,16 +143,6 @@ async fn other_user_resources_return_404() {
             Some(json!({ "occurrence_date": "2026-11-10" })),
         ),
         (
-            Method::GET,
-            format!("/credit-cards/{}/statements", id("card")),
-            None,
-        ),
-        (
-            Method::POST,
-            format!("/credit-cards/{}/statements/2026-11/payment", id("card")),
-            Some(json!({ "from_account_id": bob_account, "paid_on": "2026-11-17" })),
-        ),
-        (
             Method::POST,
             "/transactions".to_owned(),
             Some(json!({
@@ -212,7 +198,28 @@ async fn other_user_resources_return_404() {
         .get(&t.bob, "/transactions?from=2026-01-01&to=2027-12-31")
         .await;
     assert_eq!(bob_list["items"], json!([]));
-    assert_eq!(t.accounts(&t.alice).await.len(), 3);
+    assert_eq!(t.accounts(&t.alice).await.len(), 2);
+}
+
+#[tokio::test]
+async fn statement_routes_are_gone() {
+    let t = FinanceTest::new().await;
+    let savings = t.create_account(&t.alice, "Poupança").await;
+    let checking = t.default_account(&t.alice).await;
+
+    let (list_status, _) = t
+        .get(&t.alice, &format!("/credit-cards/{savings}/statements"))
+        .await;
+    let (pay_status, _) = t
+        .post(
+            &t.alice,
+            &format!("/credit-cards/{savings}/statements/2026-11/payment"),
+            json!({ "from_account_id": checking, "paid_on": "2026-11-17" }),
+        )
+        .await;
+
+    assert_eq!(list_status, StatusCode::NOT_FOUND);
+    assert_eq!(pay_status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

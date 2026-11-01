@@ -4,7 +4,7 @@
 mod accounts;
 mod authorization;
 mod categories;
-mod credit_cards;
+mod credit_card_migration;
 mod deletion_hook;
 mod listings;
 mod recurring_transactions;
@@ -135,24 +135,6 @@ impl FinanceTest {
         let (status, body) = self
             .post(session, "/accounts", json!({ "name": name }))
             .await;
-        assert_eq!(status, StatusCode::CREATED, "{body}");
-        id_of(&body)
-    }
-
-    pub async fn create_card(
-        &self,
-        session: &TestSession,
-        closing_day: u32,
-        due_day: u32,
-    ) -> String {
-        let body = json!({
-            "name": "Cartão",
-            "kind": "credit_card",
-            "credit_limit_amount": 500_000,
-            "closing_day": closing_day,
-            "due_day": due_day,
-        });
-        let (status, body) = self.post(session, "/accounts", body).await;
         assert_eq!(status, StatusCode::CREATED, "{body}");
         id_of(&body)
     }
