@@ -17,6 +17,7 @@ import { renderWithProviders } from '../../shared/test/render';
 import { APP_SHELL } from '../app-shell';
 import { AppProviders } from '../providers';
 import { createAppRouter, rootRoute } from '../router';
+import layout_css from './app-layout.module.css?raw';
 import { useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 
@@ -260,5 +261,52 @@ describe('AppLayout', () => {
     await waitFor(() => {
       expect(heading).toHaveFocus();
     });
+  });
+
+  it('rf23 lets the window scroll with no inner scroll area', () => {
+    const block = (name: string) =>
+      new RegExp(`(^|\\n)\\.${name} \\{([^}]*)\\}`).exec(layout_css)?.[2] ?? '';
+    const shell = block('shell');
+    expect(shell).toContain('min-height: 100vh');
+    expect(shell).not.toContain('overflow: hidden');
+    expect(shell).not.toMatch(/(^|[^-])height: 100vh/);
+    expect(block('page')).not.toContain('overflow');
+    expect(block('topbar')).toContain('position: sticky');
+    expect(block('topbar')).toContain('top: 0');
+    const sidebar = block('sidebar');
+    expect(sidebar).toContain('position: sticky');
+    expect(sidebar).toContain('top: 0');
+    expect(sidebar).toContain('height: 100vh');
+  });
+
+  it('rf23 marks the main as the page area', async () => {
+    renderWithProviders(<PaletteProbe />, { nav_items });
+    const main = await screen.findByRole('main');
+    expect(main).toHaveAttribute('id', 'conteudo');
+    expect(main).toHaveAttribute('data-page-area');
+    expect(main).not.toHaveAttribute('data-scroll-area');
+  });
+
+  it('rf24 exposes the topbar height to the sticky header', async () => {
+    let height = 65;
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).tagName === 'HEADER' ? height : 0;
+      },
+    });
+    try {
+      renderWithProviders(<PaletteProbe />, { nav_items });
+      const shell = (await screen.findByRole('link', { name: /pular para o conteúdo/i }))
+        .parentElement;
+      expect(shell?.style.getPropertyValue('--topbar-h')).toBe('65px');
+      height = 98;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(shell?.style.getPropertyValue('--topbar-h')).toBe('98px');
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight');
+    }
   });
 });

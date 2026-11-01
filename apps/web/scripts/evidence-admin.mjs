@@ -399,7 +399,7 @@ const scenarios = [
         const form = document.querySelector('form');
         let col = heading;
         while (col && !col.contains(form)) col = col.parentElement;
-        const area = document.querySelector('[data-scroll-area]');
+        const area = document.querySelector('[data-page-area]');
         const a = area.getBoundingClientRect();
         const pad =
           parseFloat(getComputedStyle(area).paddingLeft) -

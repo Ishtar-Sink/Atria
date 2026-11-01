@@ -6,7 +6,8 @@
 }
 
 /* Ao focar um campo (Tab ou o primeiro erro), o navegador o rola para baixo do cabeçalho fixo,
-   e não para trás do texto dele (Bugs 9, 16, 25 e 28). */
+   e não para trás do texto dele (Bugs 9, 16, 25 e 28). A topbar também fica sobre a janela,
+   então a margem soma a altura dela à do cabeçalho fixo. */
 .screen :is(input, select, textarea, button, a, [tabindex]) {
-  scroll-margin-top: calc(var(--space) * 36);
+  scroll-margin-top: calc(var(--topbar-h, 0px) + var(--space) * 36);
 }

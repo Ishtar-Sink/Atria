@@ -185,6 +185,25 @@ export function FinanceShell({ tab, children }: FinanceShellProps) {
         eyebrow={t('finance.shell.eyebrow')}
         title={t('finance.shell.title')}
         subtitle={t('finance.shell.subtitle')}
+        below={
+          <nav aria-label={t('finance.tabs.label')} className={styles.tabs}>
+            <ul className={styles.tabList}>
+              {FINANCE_TABS.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    to={item.path}
+                    search={item.with_period ? period : {}}
+                    className={styles.tab}
+                    aria-current={item.id === tab ? 'page' : undefined}
+                    activeOptions={{ exact: true, includeSearch: false }}
+                  >
+                    {t(item.label_key)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        }
         actions={
           <div className={styles.actions}>
             <MenuButton
@@ -233,23 +252,6 @@ export function FinanceShell({ tab, children }: FinanceShellProps) {
           </div>
         }
       />
-      <nav aria-label={t('finance.tabs.label')} className={styles.tabs}>
-        <ul className={styles.tabList}>
-          {FINANCE_TABS.map((item) => (
-            <li key={item.id}>
-              <Link
-                to={item.path}
-                search={item.with_period ? period : {}}
-                className={styles.tab}
-                aria-current={item.id === tab ? 'page' : undefined}
-                activeOptions={{ exact: true, includeSearch: false }}
-              >
-                {t(item.label_key)}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
       {children}
       <CreateTypeDialog
         types={createTypes(t)}

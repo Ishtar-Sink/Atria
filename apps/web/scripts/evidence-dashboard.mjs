@@ -273,11 +273,10 @@ const EMPTY_REPLY = json(EMPTY);
 const noOverflow = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-/** Aumenta a janela até caber o conteúdo da área rolável, para fotografar a tela inteira. */
+/** Aumenta a janela até caber o conteúdo da página, para fotografar a tela inteira. */
 async function fitViewport(page, size) {
   const extra = await page.evaluate(() => {
-    const area = document.querySelector('[data-scroll-area]');
-    return area ? area.scrollHeight - area.clientHeight : 0;
+    return document.documentElement.scrollHeight - window.innerHeight;
   });
   if (extra > 0)
     await page.setViewportSize({

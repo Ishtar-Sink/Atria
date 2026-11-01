@@ -1,5 +1,13 @@
 import { Outlet, useRouter } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { breakpoints } from '@atria/theme';
 import { useT } from '../../shared/i18n/i18n';
 import { useRouteFocus } from './route-focus';
@@ -24,6 +32,29 @@ function useDrawerMode(): boolean {
   return drawer;
 }
 
+/** Como a `syncTopbar` do protótipo: o cabeçalho fixo cola logo abaixo da topbar, que muda de
+ *  altura quando quebra de linha abaixo de 720 px (PD-20). */
+function useTopbarHeight(
+  shell: RefObject<HTMLDivElement | null>,
+  column: RefObject<HTMLDivElement | null>,
+) {
+  useLayoutEffect(() => {
+    const topbar = column.current?.querySelector<HTMLElement>(':scope > header');
+    if (!topbar) return;
+    const measure = () => {
+      shell.current?.style.setProperty('--topbar-h', `${String(topbar.offsetHeight)}px`);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(topbar);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  });
+}
+
 function Passthrough({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
@@ -35,6 +66,9 @@ export function AppLayout() {
   useRouteFocus();
   const [open, setOpen] = useState(false);
   const opener = useRef<Element | null>(null);
+  const shell_ref = useRef<HTMLDivElement>(null);
+  const column = useRef<HTMLDivElement>(null);
+  useTopbarHeight(shell_ref, column);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -63,7 +97,7 @@ export function AppLayout() {
 
   return (
     <Services>
-      <div className={styles.shell}>
+      <div ref={shell_ref} className={styles.shell}>
         <a href="#conteudo" className={styles.skipLink}>
           {t('common.skip_to_content')}
         </a>
@@ -82,14 +116,14 @@ export function AppLayout() {
             onClick={close}
           />
         ) : null}
-        <div className={styles.main}>
+        <div ref={column} className={styles.main}>
           <Topbar
             drawer={drawer}
             drawer_open={drawer_open}
             onToggleDrawer={toggle}
             {...(shell ? { SearchTrigger: shell.SearchTrigger } : {})}
           />
-          <main id="conteudo" tabIndex={-1} className={styles.page} data-scroll-area="">
+          <main id="conteudo" tabIndex={-1} className={styles.page} data-page-area="">
             <div className={styles.pageInner}>
               <Outlet />
             </div>

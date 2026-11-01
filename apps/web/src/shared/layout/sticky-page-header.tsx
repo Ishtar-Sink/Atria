@@ -1,34 +1,35 @@
 import { PageHeader, type PageHeaderProps } from '@atria/ui';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import styles from './sticky-page-header.module.css';
 
 const COMPACT_AFTER = 48;
 
-type Props = Omit<PageHeaderProps, 'stuck' | 'compact'>;
+type Props = Omit<PageHeaderProps, 'stuck' | 'compact'> & {
+  /** Conteúdo que fica preso junto do título, como as abas do Financeiro. */
+  below?: ReactNode;
+};
 
 /** `PageHeader` preso sob a topbar, que compacta depois de 48 px de rolagem (PD-20). */
-export function StickyPageHeader(props: Props) {
+export function StickyPageHeader({ below, ...props }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
-    const area = wrap.current?.closest<HTMLElement>('[data-scroll-area]');
-    if (!area) return;
     const update = () => {
-      const top = area.scrollTop;
+      const top = window.scrollY;
       setStuck(top > 0);
       setCompact((current) => {
         if (top <= COMPACT_AFTER) return false;
         if (current) return true;
         // Página curta: compactar encolheria a própria rolagem e faria o cabeçalho piscar.
-        return area.scrollHeight - area.clientHeight > COMPACT_AFTER;
+        return document.documentElement.scrollHeight - window.innerHeight > COMPACT_AFTER;
       });
     };
     update();
-    area.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', update, { passive: true });
     return () => {
-      area.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', update);
     };
   }, []);
 
@@ -36,7 +37,7 @@ export function StickyPageHeader(props: Props) {
   // formulário de 880 px ou da página de 1360 px (PD-20).
   useEffect(() => {
     const node = wrap.current;
-    const area = node?.closest<HTMLElement>('[data-scroll-area]');
+    const area = node?.closest<HTMLElement>('[data-page-area]');
     if (!node || !area) return;
     const measure = () => {
       const left = area.getBoundingClientRect().left - node.getBoundingClientRect().left;
@@ -57,6 +58,7 @@ export function StickyPageHeader(props: Props) {
   return (
     <div ref={wrap} data-sticky-header="" className={styles.sticky}>
       <PageHeader {...props} stuck={stuck} compact={compact} />
+      {below}
     </div>
   );
 }

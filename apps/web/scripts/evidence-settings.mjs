@@ -254,7 +254,7 @@ async function checkColumn(page, tag, size) {
     const form = document.querySelector('main form, form');
     let col = heading;
     while (col && form && !col.contains(form)) col = col.parentElement;
-    const area = document.querySelector('[data-scroll-area]');
+    const area = document.querySelector('[data-page-area]');
     const a = area.getBoundingClientRect();
     const cs = getComputedStyle(area);
     const pad = parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
@@ -279,7 +279,7 @@ async function checkColumn(page, tag, size) {
 /** Nenhum campo, caixa ou botão do conteúdo passa da janela (campos sem corte em 360 px). */
 async function checkNoClip(page, tag) {
   const clipped = await page.evaluate(() => {
-    const area = document.querySelector('[data-scroll-area]');
+    const area = document.querySelector('[data-page-area]');
     return [...area.querySelectorAll('input, button, [role="radiogroup"], label')]
       .filter((el) => {
         const r = el.getBoundingClientRect();
@@ -525,7 +525,7 @@ const scenarios = {
         await text.waitFor();
         await page.waitForTimeout(300);
         const editable = await page
-          .locator('[data-scroll-area]')
+          .locator('[data-page-area]')
           .locator('input, textarea, select')
           .count();
         check(

@@ -1,34 +1,31 @@
 .sticky {
   position: sticky;
-  /* Cola na topbar: o `sticky` conta a partir do padding da área de rolagem (24 px). */
-  top: calc(var(--space) * -6);
+  /* Cola logo abaixo da topbar, medida pelo `AppLayout` (PD-20). */
+  top: var(--topbar-h, 0px);
   z-index: 10;
   margin: 0 calc(var(--space) * -6);
   padding: var(--s2) calc(var(--space) * 6) 0;
   isolation: isolate;
 }
 
-/* Fundo tingido com a cor da página e desfoque, de ponta a ponta da área, que some em degradê
-   embaixo (PD-20). `--bd-l` e `--bd-w` vêm da medida da área de rolagem. */
+/* Fundo que cobre o conteúdo com a cor da página, da barra lateral à borda, mesmo onde o desfoque
+   não é desenhado, e termina numa linha logo abaixo das abas (PD-20). `--bd-l` e `--bd-w` vêm da
+   medida da área da página. */
 .sticky::before {
   content: '';
   position: absolute;
   z-index: -1;
   top: 0;
-  bottom: calc(var(--space) * -6);
+  bottom: 0;
   left: var(--bd-l, 0px);
   width: var(--bd-w, 100%);
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--motion-fast) var(--motion-ease-standard);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg) 55%, transparent),
-    transparent
-  );
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
   /* Escrever só a forma sem prefixo: o build acrescenta o `-webkit-` (ISS-001). */
   backdrop-filter: blur(14px);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space) * 10), transparent);
 }
 
 .sticky:has([data-stuck])::before {
@@ -37,7 +34,6 @@
 
 @media (max-width: 720px) {
   .sticky {
-    top: calc(var(--space) * -4);
     margin: 0 calc(var(--space) * -3);
     padding: var(--s2) calc(var(--space) * 3) 0;
   }

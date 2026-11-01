@@ -1,8 +1,7 @@
 .shell {
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 .skipLink {
@@ -21,9 +20,11 @@
   transform: none;
 }
 
+/* A barra lateral fica na altura da tela enquanto a janela rola (RF-23). */
 .sidebar {
   position: sticky;
   top: 0;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) * 5);
@@ -94,6 +95,8 @@
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
   z-index: 20;
   display: flex;
   flex-wrap: wrap;
@@ -147,9 +150,7 @@
 
 .page {
   flex: 1;
-  min-height: 0;
   padding: calc(var(--space) * 6) calc(var(--space) * 6);
-  overflow-y: auto;
 }
 
 /* Conteúdo limitado a 1360 px, centralizado na área à direita da sidebar (PD-18). */

@@ -225,7 +225,7 @@ const layoutScenarios = [
       if (size === 'desktop') {
         check(`${tag}: sidebar visível com a marca`, await brand.isVisible());
         const width = await page.evaluate(() => {
-          const area = document.querySelector('[data-scroll-area]');
+          const area = document.querySelector('[data-page-area]');
           return Math.max(...[...area.children].map((c) => c.getBoundingClientRect().width));
         });
         check(`${tag}: conteúdo limitado a 1360 px`, width <= 1360, `${Math.round(width)} px`);
@@ -307,8 +307,9 @@ const layoutScenarios = [
     name: '/dev/forms rolada (cabeçalho compacto)',
     path: '/dev/forms',
     run: async (page, tag) => {
-      const area = page.locator('[data-scroll-area]');
-      await area.evaluate((el) => el.scrollTo(0, 400));
+      await page.evaluate(() => {
+        window.scrollTo(0, 400);
+      });
       await page.waitForFunction(() => document.querySelector('header[data-stuck]') !== null);
       await page.waitForTimeout(400);
       const header = page.locator('header[data-stuck]');
@@ -321,14 +322,13 @@ const layoutScenarios = [
         (await header.getByText('Todos os campos do Atria').count()) === 0,
       );
       const gap = await header.evaluate((el) => {
-        const area = document.querySelector('[data-scroll-area]');
-        const pad = parseFloat(getComputedStyle(area).paddingTop);
-        return (
-          el.parentElement.getBoundingClientRect().top - area.getBoundingClientRect().top - pad
-        );
+        const topbar = document
+          .querySelector('[data-page-area]')
+          .parentElement.querySelector(':scope > header');
+        return el.parentElement.getBoundingClientRect().top - topbar.getBoundingClientRect().bottom;
       });
       check(
-        `${tag}: cabeçalho preso no topo da área rolável`,
+        `${tag}: cabeçalho preso logo abaixo da topbar`,
         Math.abs(gap) <= 1,
         `${Math.round(gap)} px`,
       );

@@ -231,7 +231,7 @@ async function cardChecks(page, tag, size) {
       el.getBoundingClientRect(),
     );
     const lefts = new Set(controls.map((c) => Math.round(c.left)));
-    const body = document.querySelector('[data-scroll-area]') ?? document.documentElement;
+    const body = document.querySelector('[data-page-area]') ?? document.documentElement;
     const area = body.getBoundingClientRect();
     const wide = [...document.querySelectorAll('*')].some((el) => {
       const w = el.getBoundingClientRect().width;

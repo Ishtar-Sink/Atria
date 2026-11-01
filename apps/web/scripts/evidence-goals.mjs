@@ -616,7 +616,7 @@ const scenarios = [
       );
       const centered = await page.locator('form').evaluate((el) => {
         const r = el.getBoundingClientRect();
-        const area = document.querySelector('[data-scroll-area]') ?? document.body;
+        const area = document.querySelector('[data-page-area]') ?? document.body;
         const a = area.getBoundingClientRect();
         return Math.abs(r.left - a.left - (a.right - r.right)) <= 40;
       });

@@ -191,6 +191,23 @@ describe('finance components', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('rf24 keeps the tabs inside the sticky header', async () => {
+    quietApi();
+    const page = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/finance/$',
+      component: () => (
+        <FinanceShell tab="panel">
+          <p>conteúdo</p>
+        </FinanceShell>
+      ),
+      staticData: { title_key: 'finance.nav.title', breadcrumb_key: 'finance.nav.title' },
+    });
+    renderWithProviders(null, { route: '/finance/x', routes: [page] });
+    const tabs = await screen.findByRole('navigation', { name: 'Seções do Financeiro' });
+    expect(tabs.closest('[data-sticky-header]')).not.toBeNull();
+  });
+
   it('opens the type dialog with the type of the open tab focused', async () => {
     quietApi();
     const cases: [FinanceTab, string][] = [
