@@ -3,9 +3,11 @@
 // (as rotas do leitor num roteador em memória, com os providers do app e fora do layout), simula a API
 // no navegador com fixtures em memória (o PDF é montado em bytes aqui), confere o estado no DOM antes
 // de cada captura e monta a prancha (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-29/.
-// Uso: node apps/web/scripts/evidence-reader.mjs themes-widths|states-focus
+// Uso: node apps/web/scripts/evidence-reader.mjs themes-widths|states-focus|highlight-color
+// Grava em $VOSTOK_EVIDENCE (ou na pasta da TASK-29). O modo highlight-color (TASK-14, RF-19, CT-13) confere
+// os atalhos em HEX e grava o vídeo do destaque numa cor do color picker.
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +18,9 @@ import { createServer } from 'vite';
 const AxeBuilder = axePackage.default ?? axePackage.AxeBuilder;
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-29');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-29');
 
 const THEMES = ['light', 'dark'];
 const SIZES = {
@@ -150,7 +154,7 @@ const HIGHLIGHT = {
   owner_id: U,
   file_id: FILE_OK,
   page: OPEN_PAGE,
-  color: 'warning',
+  color: '#92400e',
   text: `Página ${OPEN_PAGE}`,
   rects: [{ x: 72 / PAGE_W, y: 50 / PAGE_H, width: 120 / PAGE_W, height: 28 / PAGE_H }],
   is_current_file: true,
@@ -159,7 +163,7 @@ const HIGHLIGHT = {
 
 /** Modos: normal, loading (arquivo segurado) e corrupted (bytes inválidos no lugar do PDF). */
 async function installApi(context, mode, gate) {
-  const state = { calls: [] };
+  const state = { calls: [], bodies: [], created: [] };
   await context.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
@@ -202,7 +206,20 @@ async function installApi(context, mode, gate) {
         return reply({ page: OPEN_PAGE });
       }
       if (path === `/books/${BOOK}/highlights` && method === 'GET')
-        return reply({ items: [HIGHLIGHT] });
+        return reply({ items: [HIGHLIGHT, ...state.created] });
+      if (path === `/books/${BOOK}/highlights` && method === 'POST') {
+        const body = JSON.parse(request.postData() ?? '{}');
+        state.bodies.push(`POST ${path} ${JSON.stringify(body)}`);
+        const created = {
+          ...body,
+          id: `7c3e1a90-5b2d-4e68-8f41-0a9d6c2b7e${String(30 + state.created.length)}`,
+          owner_id: U,
+          is_current_file: true,
+          created_at: '2026-10-30T11:00:00Z',
+        };
+        state.created.push(created);
+        return reply(created, 201);
+      }
       return reply({ title: 'Não encontrado', code: 'not_found' }, 404);
     },
   );
@@ -416,7 +433,7 @@ const themesScenarios = [
         input === String(OPEN_PAGE),
         `campo ${input}`,
       );
-      const mark = pageRegion(page, OPEN_PAGE).locator('[data-color="warning"]');
+      const mark = pageRegion(page, OPEN_PAGE).locator('[data-color="#92400e"]');
       await mark.first().waitFor();
       const box = await mark.first().boundingBox();
       check(`${tag}: destaque visível na página`, !!box && box.width > 8 && box.height > 4);
@@ -560,6 +577,156 @@ const statesScenarios = [
   },
 ];
 
+// ---------- evidência: cor do destaque ----------
+
+const PRESET_HEX = ['#0e7490', '#6d28d9', '#047857', '#92400e', '#0369a1'];
+const CHOSEN = '#db2777';
+
+/** Marcador do cursor no vídeo: o Playwright não desenha o ponteiro. */
+const CURSOR_MARKER = () => {
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;left:0;top:0;display:none;';
+  dot.innerHTML =
+    '<div style="width:12px;height:12px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 1px #000"></div>';
+  const place = (event) => {
+    dot.style.display = 'block';
+    dot.style.transform = `translate(${event.clientX - 6}px, ${event.clientY - 6}px)`;
+  };
+  window.addEventListener('mousemove', place, true);
+  window.addEventListener('mousedown', place, true);
+  window.addEventListener('mouseup', place, true);
+  document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
+};
+
+/** Seleciona o trecho da página 40 com o mouse e devolve a barra de seleção. */
+async function selectPassage(page, slow) {
+  const text = pageRegion(page, OPEN_PAGE).getByText('Trecho de exemplo da página 40', {
+    exact: false,
+  });
+  if (slow) {
+    const box = await text.first().boundingBox();
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + 2, y, { steps: 25 });
+    await page.waitForTimeout(500);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 2, y, { steps: 30 });
+    await page.mouse.up();
+  } else {
+    // Em 360 px o texto passa da largura da janela: seleciona o trecho pelo DOM.
+    await text.first().evaluate((el) => {
+      window.getSelection().selectAllChildren(el);
+    });
+  }
+  const toolbar = page.getByRole('toolbar', { name: 'Ações do trecho selecionado' });
+  await toolbar.waitFor();
+  return toolbar;
+}
+
+const highlightColorScenarios = [
+  {
+    name: 'barra de seleção com cinco atalhos em HEX',
+    run: async (page, tag) => {
+      await waitPageDrawn(page, OPEN_PAGE);
+      const toolbar = await selectPassage(page, false);
+      const swatches = await toolbar
+        .locator('button[data-color]')
+        .evaluateAll((els) => els.map((el) => el.style.getPropertyValue('--swatch-color')));
+      check(
+        `${tag}: cinco atalhos na cor HEX`,
+        JSON.stringify(swatches) === JSON.stringify(PRESET_HEX),
+        swatches.join(' '),
+      );
+      check(
+        `${tag}: botão Destacar em outra cor`,
+        await toolbar.getByRole('button', { name: 'Destacar em outra cor' }).isVisible(),
+      );
+    },
+  },
+];
+
+async function recordHighlightColorVideo(browser, base) {
+  mkdirSync(OUT, { recursive: true });
+  const size = { width: 1280, height: 800 };
+  const recording = await browser.newContext({
+    viewport: size,
+    locale: 'pt-BR',
+    timezoneId: ZONE,
+    recordVideo: { dir: join(OUT, 'video-tmp'), size },
+  });
+  await recording.addInitScript(CURSOR_MARKER);
+  await recording.addInitScript(
+    ([k, t]) => {
+      try {
+        localStorage.setItem(k, t);
+      } catch {
+        /* sem armazenamento */
+      }
+    },
+    ['atria_theme', 'light'],
+  );
+  const recState = await installApi(recording, 'normal', Promise.resolve());
+  const rec = await recording.newPage();
+  const recErrors = [];
+  rec.on('pageerror', (e) => recErrors.push(e.message));
+  const video = rec.video();
+  const pause = (ms) => rec.waitForTimeout(ms);
+  const click = async (locator) => {
+    const box = await locator.boundingBox();
+    await rec.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 25 });
+    await pause(500);
+    await rec.mouse.down();
+    await rec.mouse.up();
+    await pause(900);
+  };
+  try {
+    await gotoReader(rec, base);
+    await waitPageDrawn(rec, OPEN_PAGE);
+    await rec.mouse.move(640, 700);
+    await pause(1200);
+    const toolbar = await selectPassage(rec, true);
+    await pause(1200);
+    await click(toolbar.getByRole('button', { name: 'Destacar em outra cor' }));
+    const panel = rec.getByRole('group', { name: 'Cor do novo destaque' });
+    await panel.waitFor();
+    await pause(800);
+    await click(panel.getByRole('button', { name: /^Cor do destaque/ }));
+    const dialog = rec.getByRole('dialog', { name: 'Escolher cor' });
+    await dialog.waitFor();
+    await pause(800);
+    const hex = dialog.getByLabel('HEX');
+    await hex.fill('');
+    await hex.pressSequentially(CHOSEN.toUpperCase(), { delay: 120 });
+    await pause(1000);
+    await click(dialog.getByRole('button', { name: 'Aplicar' }));
+    await click(panel.getByRole('button', { name: 'Destacar', exact: true }));
+    const mark = pageRegion(rec, OPEN_PAGE).locator(`span[data-color="${CHOSEN}"]`);
+    await mark.first().waitFor();
+    await pause(500);
+    check(
+      'vídeo: POST com color #db2777',
+      recState.bodies.some((c) => c.startsWith('POST') && c.includes(`"color":"${CHOSEN}"`)),
+      recState.bodies.join(' | '),
+    );
+    const background = await mark.first().evaluate((el) => getComputedStyle(el).backgroundColor);
+    check(
+      'vídeo: marca na cor escolhida',
+      background !== 'rgba(0, 0, 0, 0)' && background !== 'transparent',
+      background,
+    );
+    check('vídeo: sem erro de JS', recErrors.length === 0, recErrors.join(' | '));
+    await pause(2500);
+  } catch (e) {
+    check('vídeo: cenário executou', false, String(e.message).split('\n')[0]);
+  } finally {
+    await recording.close();
+  }
+  const path = join(OUT, 'reader-highlight-color.webm');
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
 // ---------- principal ----------
 
 const EVIDENCES = {
@@ -581,6 +748,11 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  'highlight-color': async (browser, base) => {
+    const shots = await runScenarios(browser, base, highlightColorScenarios);
+    check('barra de seleção: capturas feitas', shots.length > 0, `${shots.length} capturas`);
+    await recordHighlightColorVideo(browser, base);
+  },
 };
 
 const wanted = process.argv.slice(2);
@@ -588,7 +760,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use themes-widths ou states-focus.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use themes-widths, states-focus ou highlight-color.`,
   );
   process.exit(2);
 }

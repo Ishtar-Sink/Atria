@@ -157,26 +157,6 @@
   border-radius: 2px;
 }
 
-.mark[data-color='accent'] {
-  --mark-color: var(--accent-fill);
-}
-
-.mark[data-color='primary'] {
-  --mark-color: var(--primary-bright);
-}
-
-.mark[data-color='success'] {
-  --mark-color: var(--success);
-}
-
-.mark[data-color='warning'] {
-  --mark-color: var(--warning);
-}
-
-.mark[data-color='info'] {
-  --mark-color: var(--info);
-}
-
 .status {
   flex: 1;
   display: flex;
@@ -241,29 +221,24 @@
   gap: calc(var(--space) * 3);
 }
 
+.highlightPicker {
+  min-width: 0;
+}
+
+.pickerFieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
 .highlightColors {
   display: flex;
   gap: calc(var(--space) * 2);
-}
-
-.swatch[data-color='accent'] {
-  --swatch-color: var(--accent-fill);
-}
-
-.swatch[data-color='primary'] {
-  --swatch-color: var(--primary-bright);
-}
-
-.swatch[data-color='success'] {
-  --swatch-color: var(--success);
-}
-
-.swatch[data-color='warning'] {
-  --swatch-color: var(--warning);
-}
-
-.swatch[data-color='info'] {
-  --swatch-color: var(--info);
 }
 
 .panel {
@@ -360,26 +335,6 @@
   height: calc(var(--space) * 3);
   border-radius: var(--radius-pill);
   background: var(--swatch-color);
-}
-
-.dot[data-color='accent'] {
-  --swatch-color: var(--accent-fill);
-}
-
-.dot[data-color='primary'] {
-  --swatch-color: var(--primary-bright);
-}
-
-.dot[data-color='success'] {
-  --swatch-color: var(--success);
-}
-
-.dot[data-color='warning'] {
-  --swatch-color: var(--warning);
-}
-
-.dot[data-color='info'] {
-  --swatch-color: var(--info);
 }
 
 @media (max-width: 720px) {

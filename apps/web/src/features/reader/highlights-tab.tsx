@@ -1,12 +1,23 @@
-import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@atria/ui';
-import { useState } from 'react';
+import {
+  Badge,
+  Button,
+  ColorField,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@atria/ui';
+import { useState, type CSSProperties } from 'react';
 import { registerMessages, useT } from '../../shared/i18n/i18n';
 import messages from './i18n/pt-br.json';
 import styles from './reader.module.css';
 import {
-  HIGHLIGHT_COLORS,
+  HIGHLIGHT_PRESETS,
+  highlightColorName,
+  normalizeHex,
   useChangeHighlightColor,
   useDeleteHighlight,
+  useHighlightColorLabels,
   useHighlights,
   type Highlight,
 } from './use-highlights';
@@ -23,6 +34,7 @@ export interface HighlightsTabProps {
 export function HighlightsTab({ item_type, item_id }: HighlightsTabProps) {
   const t = useT();
   const highlights = useHighlights(item_type, item_id);
+  const labels = useHighlightColorLabels();
   const change = useChangeHighlightColor(item_type, item_id);
   const remove = useDeleteHighlight(item_type, item_id);
   const [removing, setRemoving] = useState<Highlight>();
@@ -46,8 +58,13 @@ export function HighlightsTab({ item_type, item_id }: HighlightsTabProps) {
           return (
             <li key={item.id} className={styles.highlightItem}>
               <div className={styles.highlightMeta}>
-                <span className={styles.dot} data-color={item.color} aria-hidden="true" />
-                <span>{t(`reader.highlight_color_${item.color}`)}</span>
+                <span
+                  className={styles.dot}
+                  data-color={item.color}
+                  style={{ '--swatch-color': item.color } as CSSProperties}
+                  aria-hidden="true"
+                />
+                <span>{highlightColorName(item.color, t)}</span>
                 <span>{t('reader.highlights_page', { page: item.page })}</span>
                 {item.is_current_file ? null : (
                   <Badge tone="warning">{t('reader.highlights_other_file')}</Badge>
@@ -60,22 +77,35 @@ export function HighlightsTab({ item_type, item_id }: HighlightsTabProps) {
                   aria-label={t('reader.highlight_color_group', { page: item.page })}
                   className={styles.highlightColors}
                 >
-                  {HIGHLIGHT_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={styles.swatch}
-                      data-color={color}
-                      disabled={pending}
-                      aria-pressed={item.color === color}
-                      aria-label={t('reader.highlight_change_to', {
-                        color: t(`reader.highlight_color_${color}`),
-                      })}
-                      onClick={() => {
-                        if (item.color !== color) change.mutate({ highlight_id: item.id, color });
+                  <fieldset disabled={pending} className={styles.pickerFieldset}>
+                    {HIGHLIGHT_PRESETS.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        className={styles.swatch}
+                        data-color={preset.hex}
+                        style={{ '--swatch-color': preset.hex } as CSSProperties}
+                        aria-pressed={item.color === preset.hex}
+                        aria-label={t('reader.highlight_change_to', {
+                          color: t(`reader.highlight_color_${preset.name}`),
+                        })}
+                        onClick={() => {
+                          if (item.color !== preset.hex)
+                            change.mutate({ highlight_id: item.id, color: preset.hex });
+                        }}
+                      />
+                    ))}
+                    <ColorField
+                      label={t('reader.highlight_change_other')}
+                      value={item.color}
+                      labels={labels}
+                      className={styles.highlightPicker}
+                      onChange={(hex) => {
+                        const color = normalizeHex(hex);
+                        if (color !== item.color) change.mutate({ highlight_id: item.id, color });
                       }}
                     />
-                  ))}
+                  </fieldset>
                 </div>
                 <Button
                   variant="ghost"

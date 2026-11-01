@@ -222,6 +222,31 @@ for (const size of SIZES) {
       await expectNoAxeViolations(page);
     });
 
+    test('CT-13 highlights with a hex color from the picker and marks the pdf with it', async ({
+      page,
+    }) => {
+      const { book } = await signIn(page);
+      await page.goto(`/library/books/${book}/read`);
+      await passage(page).dblclick();
+      await page.getByRole('button', { name: 'Destacar em outra cor' }).click();
+      const panel = page.getByRole('group', { name: 'Cor do novo destaque' });
+      await panel.getByRole('button', { name: /^Cor do destaque/ }).click();
+      const dialog = page.getByRole('dialog', { name: 'Escolher cor' });
+      await dialog.getByLabel('HEX').fill('#DB2777');
+      await dialog.getByRole('button', { name: 'Aplicar' }).click();
+      await panel.getByRole('button', { name: 'Destacar', exact: true }).click();
+      const mark = page.locator('span[data-color="#db2777"][class*="mark"]');
+      await expect(mark).toHaveCount(1);
+      await page.reload();
+      await expect(mark).toHaveCount(1);
+      await closeReader(page);
+      await page.getByRole('tab', { name: 'Destaques' }).click();
+      await expect(
+        page.getByRole('list', { name: 'Destaques do item' }).getByText('#db2777'),
+      ).toBeVisible();
+      await expectNoAxeViolations(page);
+    });
+
     test('CT-31 changes the color and deletes a highlight of a book and an article', async ({
       page,
     }) => {

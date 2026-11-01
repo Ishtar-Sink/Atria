@@ -9,9 +9,9 @@ import { PassageNotePanel } from './passage-note-panel';
 import { PdfViewer, type TextSelection } from './pdf-viewer';
 import { ReaderToolbar } from './reader-toolbar';
 import styles from './reader.module.css';
-import { SelectionToolbar } from './selection-toolbar';
+import { HighlightColorPanel, SelectionToolbar } from './selection-toolbar';
 import { SessionOfferDialog } from './session-offer-dialog';
-import { useCreateHighlight, useHighlights, type HighlightColor } from './use-highlights';
+import { HIGHLIGHT_PRESETS, useCreateHighlight, useHighlights } from './use-highlights';
 import { usePdfDocument, type PdfStatus, type ReaderItemType } from './use-pdf-document';
 import { useReadingPosition } from './use-reading-position';
 import { useReadingSessionOffer, type SessionOffer } from './use-reading-session-offer';
@@ -68,6 +68,7 @@ export function ReaderPage({ item_type, item_id }: ReaderPageProps) {
   const [page, setPage] = useState<number>();
   const [goto, setGoto] = useState<{ page: number; nonce: number }>();
   const [selection, setSelection] = useState<TextSelection>();
+  const [picking, setPicking] = useState<TextSelection>();
   const [note, setNote] = useState<NoteTarget>();
   const [offer, setOffer] = useState<SessionOffer>();
   const closing_page = useRef(1);
@@ -146,14 +147,14 @@ export function ReaderPage({ item_type, item_id }: ReaderPageProps) {
     leave('reader.session_skipped', { page: closing_page.current });
   }
 
-  function highlight(color: HighlightColor) {
-    if (!selection || document_state.file_id === undefined || selection.rects.length === 0) return;
+  function highlightSelection(target: TextSelection, color: string) {
+    if (document_state.file_id === undefined || target.rects.length === 0) return;
     create_highlight.mutate({
       color,
       file_id: document_state.file_id,
-      page: selection.page,
-      text: selection.text,
-      rects: selection.rects,
+      page: target.page,
+      text: target.text,
+      rects: target.rects,
     });
     document.getSelection()?.removeAllRanges();
     setSelection(undefined);
@@ -233,13 +234,30 @@ export function ReaderPage({ item_type, item_id }: ReaderPageProps) {
               <LoadingState label={t('reader.loading')} />
             </div>
           )}
-          {selection && ready && !note ? (
+          {selection && ready && !note && !picking ? (
             <SelectionToolbar
               can_highlight={selection.rects.length > 0}
               onNote={() => {
                 setNote({ page: selection.page, quote: selection.text });
               }}
-              onHighlight={highlight}
+              onHighlight={(hex) => {
+                highlightSelection(selection, hex);
+              }}
+              onPickColor={() => {
+                setPicking(selection);
+              }}
+            />
+          ) : null}
+          {picking && ready && !note ? (
+            <HighlightColorPanel
+              value={HIGHLIGHT_PRESETS[0].hex}
+              onApply={(hex) => {
+                highlightSelection(picking, hex);
+                setPicking(undefined);
+              }}
+              onCancel={() => {
+                setPicking(undefined);
+              }}
             />
           ) : null}
           {note ? (

@@ -2,10 +2,27 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
+import commonMessages from '../../shared/i18n/pt-br.json';
+import { registerMessages } from '../../shared/i18n/i18n';
 import { clearToasts, getToasts } from '../../shared/toast/toast-store';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HighlightsTab } from './highlights-tab';
 import type { Highlight } from './use-highlights';
+
+registerMessages('common', commonMessages);
+
+const ACCENT = '#0e7490';
+const SUCCESS = '#047857';
+const WARNING = '#92400e';
+
+async function pickHex(group: HTMLElement, hex: string) {
+  await userEvent.click(within(group).getByRole('button', { name: /^Outra cor/ }));
+  const dialog = await screen.findByRole('dialog', { name: 'Escolher cor' });
+  const field = within(dialog).getByLabelText('HEX');
+  await userEvent.clear(field);
+  await userEvent.type(field, hex);
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Aplicar' }));
+}
 
 function highlight(overrides: Partial<Highlight>): Highlight {
   return {
@@ -14,7 +31,7 @@ function highlight(overrides: Partial<Highlight>): Highlight {
     file_id: 'f-1',
     is_current_file: true,
     page: 3,
-    color: 'accent',
+    color: ACCENT,
     text: 'Primeiro trecho',
     rects: [{ x: 0.1, y: 0.1, width: 0.5, height: 0.02 }],
     created_at: '2026-10-30T10:00:00Z',
@@ -87,7 +104,7 @@ describe('HighlightsTab', () => {
   it('lists highlights with their color and page', async () => {
     stubApi([
       highlight({}),
-      highlight({ id: 'h-2', page: 9, color: 'warning', text: 'Segundo trecho' }),
+      highlight({ id: 'h-2', page: 9, color: WARNING, text: 'Segundo trecho' }),
     ]);
     renderTab();
     const items = await screen.findAllByRole('listitem');
@@ -138,7 +155,7 @@ describe('HighlightsTab', () => {
             (call) =>
               call.method === 'PATCH' && call.path === `/api/v1/${collection}/${id}/highlights/h-1`,
           )?.body,
-        ).toEqual({ color: 'success' });
+        ).toEqual({ color: SUCCESS });
       });
     });
 
@@ -190,9 +207,46 @@ describe('HighlightsTab', () => {
   });
 
   it('rf32 has no axe violations with the actions', async () => {
-    stubApi([highlight({}), highlight({ id: 'h-2', page: 9, color: 'warning' })]);
+    stubApi([highlight({}), highlight({ id: 'h-2', page: 9, color: WARNING })]);
     const { container } = renderTab();
     await screen.findAllByRole('listitem');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('rf19 changes the color of a highlight in the color picker', async () => {
+    const api = stubApi([highlight({})]);
+    renderTab();
+    const group = await screen.findByRole('group', { name: 'Cor do destaque da página 3' });
+    await pickHex(group, '#DB2777');
+    await waitFor(() => {
+      expect(api.calls.find((call) => call.method === 'PATCH')?.body).toEqual({
+        color: '#db2777',
+      });
+    });
+    const item = screen.getByRole('listitem');
+    expect(item.querySelector('[style*="--swatch-color: #db2777"]')).not.toBeNull();
+    expect(within(item).getByText('#db2777')).toBeInTheDocument();
+    for (const button of within(group).getAllByRole('button', { name: /^Trocar para/ })) {
+      expect(button).not.toHaveAttribute('aria-pressed', 'true');
+    }
+  });
+
+  it('rf19 shows the preset name for a preset hex color', async () => {
+    stubApi([highlight({})]);
+    renderTab();
+    expect(await screen.findByText('ciano')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Trocar para ciano' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('rf19 has no axe violations with the color picker open', async () => {
+    stubApi([highlight({})]);
+    const { container } = renderTab();
+    const group = await screen.findByRole('group', { name: 'Cor do destaque da página 3' });
+    await userEvent.click(within(group).getByRole('button', { name: /^Outra cor/ }));
+    await screen.findByRole('dialog', { name: 'Escolher cor' });
     expect(await axe(container)).toHaveNoViolations();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { registerMessages, useT } from '../../shared/i18n/i18n';
 import messages from './i18n/pt-br.json';
 import type { Highlight } from './use-highlights';
@@ -76,12 +76,15 @@ export function PdfPage({ doc, page_number, scale, near, highlights }: PdfPagePr
                 key={`${item.id}-${String(index)}`}
                 className={styles.mark}
                 data-color={item.color}
-                style={{
-                  left: `${String(rect.x * 100)}%`,
-                  top: `${String(rect.y * 100)}%`,
-                  width: `${String(rect.width * 100)}%`,
-                  height: `${String(rect.height * 100)}%`,
-                }}
+                style={
+                  {
+                    '--mark-color': item.color,
+                    left: `${String(rect.x * 100)}%`,
+                    top: `${String(rect.y * 100)}%`,
+                    width: `${String(rect.width * 100)}%`,
+                    height: `${String(rect.height * 100)}%`,
+                  } as CSSProperties
+                }
               />
             )),
           )}

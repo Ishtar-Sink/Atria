@@ -3,7 +3,8 @@
 // (as rotas da feature num roteador em memória, com os providers e o layout do app), simula a API no
 // navegador com fixtures em memória, confere o estado no DOM antes de cada captura e monta a prancha
 // (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-28/ (ou na pasta de VOSTOK_EVIDENCE).
-// Uso: node apps/web/scripts/evidence-library.mjs themes-widths|states-focus|notes-highlights
+// Uso: node apps/web/scripts/evidence-library.mjs themes-widths|states-focus|notes-highlights|highlight-color
+// (highlight-color: TASK-14 da SPEC-003; aba Destaques com o ponto em HEX e a troca no color picker, prancha highlights-color.png).
 // (notes-highlights: TASK-25 da SPEC-002; verificações nos dois temas e larguras e vídeo .webm das notas e destaques).
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { deflateSync } from 'node:zlib';
@@ -315,8 +316,8 @@ async function installApi(context, mode, gate) {
     created_at: '2026-10-21T10:00:00Z',
   });
   data.highlights = [
-    mark('mark-1', 3, 'accent', 'A memória é a única forma de voltar ao que passou.'),
-    mark('mark-2', 9, 'warning', 'Há leituras que só se completam na segunda vez.'),
+    mark('mark-1', 3, '#0e7490', 'A memória é a única forma de voltar ao que passou.'),
+    mark('mark-2', 9, '#92400e', 'Há leituras que só se completam na segunda vez.'),
   ];
   const state = { calls: [], bodies: [] };
   await context.route(
@@ -1018,7 +1019,7 @@ const notesHighlightsScenarios = [
         () =>
           document
             .querySelector(
-              '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="success"]',
+              '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="#047857"]',
             )
             ?.getAttribute('aria-pressed') === 'true',
       );
@@ -1027,7 +1028,7 @@ const notesHighlightsScenarios = [
         `${tag}: cor do destaque trocada`,
         (await green.getAttribute('aria-pressed')) === 'true' &&
           patch.length === 1 &&
-          patch[0].endsWith('{"color":"success"}'),
+          patch[0].endsWith('{"color":"#047857"}'),
         patch.join(', '),
       );
       await group.getByRole('button', { name: 'Trocar para azul' }).focus();
@@ -1058,6 +1059,84 @@ const notesHighlightsScenarios = [
           .getByRole('listitem')
           .count()) === 1 && state.calls.some((c) => /^DELETE .*highlights\/mark-2$/.test(c)),
       );
+    },
+  },
+];
+
+// ---------- cor do destaque (TASK-14) ----------
+
+const CHOSEN_HEX = '#db2777';
+
+/** Item da lista de destaques pela página. */
+const markItem = (page, number) =>
+  page
+    .getByRole('list', { name: 'Destaques do item' })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('group', { name: `Cor do destaque da página ${number}` }) });
+
+const highlightColorScenarios = [
+  {
+    name: 'destaques com a cor em HEX',
+    path: marksPath,
+    tall: true,
+    run: async (page, tag, { theme, size, state }) => {
+      const dots = await page
+        .locator('li [aria-hidden="true"][data-color]')
+        .evaluateAll((els) =>
+          els.map((el) => [el.dataset.color, el.style.getPropertyValue('--swatch-color')]),
+        );
+      check(
+        `${tag}: ponto na cor do destaque`,
+        dots.length === 2 &&
+          dots.every(([color, swatch]) => color === swatch) &&
+          dots[0][0] === '#0e7490' &&
+          dots[1][0] === '#92400e',
+        JSON.stringify(dots),
+      );
+      const group = page.getByRole('group', { name: 'Cor do destaque da página 3' });
+      check(
+        `${tag}: atalho da cor atual marcado`,
+        (await group
+          .getByRole('button', { name: 'Trocar para ciano' })
+          .getAttribute('aria-pressed')) === 'true',
+      );
+      const trigger = group.getByRole('button', { name: /^Outra cor/ });
+      check(`${tag}: botão Outra cor com o HEX`, /#0E7490/i.test(await trigger.innerText()));
+
+      const picks =
+        (theme === 'light' && size === 'desktop') || (theme === 'dark' && size === 'mobile');
+      if (!picks) return;
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Escolher cor' });
+      await dialog.waitFor();
+      await dialog.getByLabel('HEX').fill(CHOSEN_HEX.toUpperCase());
+      await dialog.getByRole('button', { name: 'Aplicar' }).click();
+      const item = markItem(page, 3);
+      await item.getByText(CHOSEN_HEX, { exact: true }).waitFor();
+      const patch = state.bodies.filter((c) => /^PATCH .*highlights\/mark-1 /.test(c));
+      check(
+        `${tag}: PATCH com color #db2777`,
+        patch.length === 1 && patch[0].endsWith(`{"color":"${CHOSEN_HEX}"}`),
+        patch.join(', '),
+      );
+      const dot = await item
+        .locator('[aria-hidden="true"][data-color]')
+        .evaluate((el) => el.style.getPropertyValue('--swatch-color'));
+      check(`${tag}: ponto na cor escolhida`, dot === CHOSEN_HEX, dot);
+      check(
+        `${tag}: nome #db2777 no item`,
+        (await item.getByText(CHOSEN_HEX, { exact: true }).count()) === 1,
+      );
+      check(
+        `${tag}: nenhum atalho marcado`,
+        (await item.locator('button[aria-pressed="true"]').count()) === 0,
+      );
+      // Reabre o picker para a prancha mostrá-lo aberto.
+      await item
+        .getByRole('group')
+        .getByRole('button', { name: /^Outra cor/ })
+        .click();
+      await dialog.waitFor();
     },
   },
 ];
@@ -1170,14 +1249,14 @@ async function recordNotesHighlightsVideo(browser, base) {
       () =>
         document
           .querySelector(
-            '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="success"]',
+            '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="#047857"]',
           )
           ?.getAttribute('aria-pressed') === 'true',
     );
     check(
       'vídeo: cor do destaque trocada',
       (await green.getAttribute('aria-pressed')) === 'true' &&
-        state.bodies.some((c) => /^PATCH .*highlights\/mark-1 .*"success"/.test(c)),
+        state.bodies.some((c) => /^PATCH .*highlights\/mark-1 .*"#047857"/.test(c)),
     );
     await pause(1800);
 
@@ -1223,6 +1302,15 @@ const EVIDENCES = {
     await runScenarios(browser, base, notesHighlightsScenarios);
     await recordNotesHighlightsVideo(browser, base);
   },
+  'highlight-color': async (browser, base) => {
+    const shots = await runScenarios(browser, base, highlightColorScenarios);
+    await sheet(browser, {
+      title: 'TASK-14 · cor do destaque na aba Destaques (RF-19, CT-13, RNF-02)',
+      file: 'highlights-color.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   'states-focus': async (browser, base) => {
     const shots = await runScenarios(browser, base, statesScenarios);
     await sheet(browser, {
@@ -1238,7 +1326,7 @@ const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
   console.error(
-    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths, states-focus ou notes-highlights.`,
+    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths, states-focus, notes-highlights ou highlight-color.`,
   );
   process.exit(2);
 }
