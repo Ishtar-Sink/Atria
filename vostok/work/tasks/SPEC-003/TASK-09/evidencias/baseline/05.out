@@ -1,0 +1,3 @@
+$ pnpm --filter @atria/web typecheck
+exit: 0
+$ tsc --noEmit

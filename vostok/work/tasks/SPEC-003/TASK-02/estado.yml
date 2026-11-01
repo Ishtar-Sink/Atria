@@ -1,0 +1,25 @@
+id: TASK-02
+spec: SPEC-003
+title: "Excluir recorrência no servidor"
+description: "DELETE da recorrência, com a ocorrência aberta, mantendo as cópias liquidadas como histórico."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-01]
+wave: 2
+covers: [RF-01, RF-02, RF-03, CT-01, CT-02, CB-01, CB-02]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 9c801914edc64747482168b5dcedcba06c7fd0071e07a3fb9115dc21bcb2a8c3
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 9c801914edc64747482168b5dcedcba06c7fd0071e07a3fb9115dc21bcb2a8c3
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 0cdefcc34949b2ccd77cd87e12a36c5da777aad92a34e3e2f8fd68dff790f022
+verification_hash: 49b3600d137ff734c768627b9744bdf54cdb0117fb36f4ec537b4670d28edd48
+criteria_hash: 9d4b78c40c61d6a40691ca84e447594963f699e5fe67880f37fe6a0d16891679
+state_hash: df38b8ef3d52480a10836829276a6c47e781964229786b59d0cdaa645309e511

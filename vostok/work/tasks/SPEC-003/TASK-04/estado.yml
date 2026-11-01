@@ -1,0 +1,25 @@
+id: TASK-04
+spec: SPEC-003
+title: "Série mensal no resumo do Financeiro"
+description: "O resumo traz 6 meses realizados e 6 projetados pelas recorrências."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-03]
+wave: 4
+covers: [RF-17, CT-11, CB-08]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: f75bc3bc65b0f55405666378229b0a45ee8ec906954f4c317ffb632e5ccb8580
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: f75bc3bc65b0f55405666378229b0a45ee8ec906954f4c317ffb632e5ccb8580
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: f9d7948e2eb4f1500b10854e82a1068dd9e2a57e901f5681de676de1a2072c0c
+verification_hash: db1210e3d648b61acd82603d45efdfcce201f35f0082d9c6a2e997da0d61d5b6
+criteria_hash: d41a7b016dac96ef45dfe1faec62c8be21109aace30d3c27755bbbf3674c3cc7
+state_hash: c15856cdb3af70b44545751b489407d524db705597266f62e9c2431ccee3a03c

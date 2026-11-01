@@ -1,0 +1,26 @@
+id: TASK-08
+spec: SPEC-003
+title: "Autocomplete na @atria/ui"
+description: "Componente de autocomplete com busca, seleção única e múltipla, operável pelo teclado."
+profile: padrao
+persona: ui-ux-designer
+depends_on: []
+wave: 1
+covers: [RF-21, CT-16, CB-10]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: done
+content_hash: f52be9ccd8609aad3bdc483f833d8bc77e6283df8c2c9bdf6c9e2aa0d7d20035
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 7c7563f8b8fcf88a0dfab95b213d034161623813d0d7786011a3fe4087af876e
+attempts: 0
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+execution_hash: 80c7ff312766f57e43a455646fe054d74e790a0e03f867ca30e97e4dc493cc73
+verification_hash: 5258a792c717f7fe358e72211f30b1b7aaec8e15fbba0384d9f0864bffbf10ff
+criteria_hash: f7cc50faa05a6286c00aeec8efb97f1548fae64b6d1eb63e3d2d43687fc88364
+state_hash: 14d0fe663dbb8222f317ef944c383ebc798aee3f26776973ccefcaa9cd73333b
+model: claude-sonnet-5-5

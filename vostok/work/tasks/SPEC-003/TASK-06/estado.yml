@@ -1,0 +1,25 @@
+id: TASK-06
+spec: SPEC-003
+title: "Cor do destaque em HEX no servidor"
+description: "O destaque guarda `#rrggbb`, com a migração das cores por nome."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-05]
+wave: 6
+covers: [RF-19, RF-20, CT-13, CT-14]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 2e95091888a178414965a105aa20e8b31f70dc743199a0b8a40d9415bc83ad45
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 2e95091888a178414965a105aa20e8b31f70dc743199a0b8a40d9415bc83ad45
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 5bf64b21baa8569e0920673afae2d1c955c5956f52a43d64180d86b6d589097b
+verification_hash: 07fc3290d904be5593a3b1f616c95d1dfb3ce4c8f07c0cbb819d5e6dd2d7eaa6
+criteria_hash: 3e6b475e8a644f5b1e32108b40cdde7414d20c11bb691e8b5c4642572272cab7
+state_hash: b40661f1bdd40e6106c5802fc818b0ad4fb86dc46ef3b14be3020eba544325b6

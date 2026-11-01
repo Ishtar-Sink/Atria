@@ -1,0 +1,25 @@
+id: TASK-07
+spec: SPEC-003
+title: "Contrato gerado da API"
+description: "O OpenAPI e os tipos TypeScript refletem as mudanças das TASK-01 a TASK-06."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-06]
+wave: 7
+covers: [RF-07, RF-17, RF-18, RF-19]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 6a66d77e0289b9248afd1216ecf9bee8ceb21475115ca22aebe65f52474331dc
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 6a66d77e0289b9248afd1216ecf9bee8ceb21475115ca22aebe65f52474331dc
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 344ab577ccd1ba8712b47b9a5117b2c0e99d49855e79471c199707eb9b55afe6
+verification_hash: 6a08cfcecdd50d798d3384d51cad295a5e12c327f615638bcd0c3bacf1365075
+criteria_hash: 57f629adfc4282a8e357b71900bbbcf947daa98252c35cde299d8c2bb774e332
+state_hash: 6793e73d5c63bed5745bfcfadfac357a1f844c473383fab647c09a10a17f07d4

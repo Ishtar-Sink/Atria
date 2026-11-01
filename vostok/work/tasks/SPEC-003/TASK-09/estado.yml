@@ -1,0 +1,27 @@
+id: TASK-09
+spec: SPEC-003
+title: "Rolagem única do app"
+description: "A janela rola, com a barra lateral e a topbar fixas, e o cabeçalho fixo segue funcionando."
+profile: padrao
+persona: ui-ux-designer
+depends_on: []
+wave: 1
+covers: [RF-23, RF-24, CT-17, CB-11]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: done
+content_hash: 6eb46ae103301fd5c7c694f1128572cf239f265d2be51482b7fda2a48fa1a8c8
+adjustments: 3
+adjusted_at: 2026-11-01T19:06:20Z
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 4387b315a0356e0e892fd0a74f5c7058a25779bab1a9766917ab3c271f05f159
+attempts: 0
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+execution_hash: 3ff00024ffbaac58d61941b982753e658e65caec01fe24b032cd44f42386fbcb
+verification_hash: cee2ee06f67a94b4f6bdc29de77cee8f7aab44d0a7b2be11bf8ae2872b236b25
+criteria_hash: bdad5652e9526b1c51bba158680030837f02d40425742b2e3df8f5e7f982bcc6
+state_hash: 954f26a68e18f4b7dad765f0cb9a0ad828a4678177771a94cd5008c200d5f394
+model: claude-sonnet-5-5
+updated_at: 2026-11-01T19:06:20Z

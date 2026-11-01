@@ -1,0 +1,2 @@
+$ cargo clippy -q -p atria-server --all-targets -- -D warnings
+exit: 0

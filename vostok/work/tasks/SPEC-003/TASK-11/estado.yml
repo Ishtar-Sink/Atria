@@ -1,0 +1,25 @@
+id: TASK-11
+spec: SPEC-003
+title: "Excluir recorrência e desfazer liquidação na tela"
+description: "A recorrência ganha Excluir, e a cópia liquidada ganha \"Desfazer liquidação\" com a explicação."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-10]
+wave: 9
+covers: [RF-01, RF-02, RF-03, RF-04, CT-01, CT-03]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: cadcc17ec134cc0eb3ed2a0b18e85d4bc07fca0b834b063933caf861c2f6684d
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: cadcc17ec134cc0eb3ed2a0b18e85d4bc07fca0b834b063933caf861c2f6684d
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 4f5fdafadaad064cddbfb8762c9685e22afe7fad7b57e10ece9ce1d05e5e932c
+verification_hash: 3e5d6cbbda94d9162c6959f155258ff8ad69324cac4c254f4d20c99ea395e6a2
+criteria_hash: 67ebbe3f3edec032a31a5e3e457fdd27fcb8d3c3d277a7c7530eb0c9b5eb67ed
+state_hash: 3387a84ae5844bb9e234b5e3cfb0e423b7f93b6efe5a631617ea80dfde3c34f7

@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 10 tests
+test finance::interface::openapi::tests::card_schemas_are_gone_from_contract ... ok
+test finance::interface::openapi::tests::documents_all_finance_routes ... ok
+test finance::tests::authorization::mutation_without_csrf_is_refused ... ok
+test finance::tests::accounts::account_has_no_card_fields ... ok
+test finance::tests::authorization::statement_routes_are_gone ... ok
+test finance::tests::authorization::other_user_resources_return_404 ... ok
+test finance::tests::authorization::row_level_security_hides_other_owner_rows ... ok
+test finance::tests::summaries::summary_balance_has_current_forecast_at_period_end_and_per_account ... ok
+test finance::tests::transactions::installments_are_no_longer_accepted ... ok
+test finance::tests::transactions::updates_unsettled_transaction_fields ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 745 filtered out; finished in 1.31s
+

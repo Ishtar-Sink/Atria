@@ -1,0 +1,25 @@
+id: TASK-16
+spec: SPEC-003
+title: "Autocomplete nos filtros de categoria"
+description: "Os filtros de categoria de Entradas, Saídas e Gastos por categoria usam o autocomplete."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-08, TASK-10]
+wave: 9
+covers: [RF-22, CT-15, CB-10]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: cb07fed44fc49af3e602eb7a8d1a95140d1d75fc11ec1bcb3ed5a55aa343df1c
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: cb07fed44fc49af3e602eb7a8d1a95140d1d75fc11ec1bcb3ed5a55aa343df1c
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: b8e316c9f09eb5cbe058d7a8cdff2c50608863dbf28f91c5d2bc676a3d810827
+verification_hash: 89ca654f232337731613b0b33683effc13a02dc9bf0a8750ee001980a1f57641
+criteria_hash: 963d261a1d8f71c762ea9285c342255982776d9d89fa42be68a2f6db3faf2799
+state_hash: 563cf78f6a7f226a8f488f4bf10df755d95f4e4083da90ba7ab8e60acfd55019

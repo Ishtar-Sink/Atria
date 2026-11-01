@@ -1,0 +1,179 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./src/app/e2e-sign-in-plugin" without a file extension (vite.config.ts:3:33). Add the file extension
+  - import "./e2e-totp" without a file extension (src/app/e2e-sign-in-plugin.ts:6:26). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.5 /home/victor/projetos/ishtar-sink/atria/apps/web
+
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > stays expanded near the top 36ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > compacts after 48 px of scroll and expands back near the top 11ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > does not compact on a short page 14ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > shows the blur whenever the header is stuck 10ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > keeps the unprefixed backdrop blur for the build to prefix 1ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > tints the background with the page color and fades it at the bottom 0ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > measures the backdrop from the page area 5ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > rf24 follows the window scroll without a page area 5ms
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > rf24 sticks right below the topbar 2ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the sidebar with the brand and the Principal navigation 162ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders registered nav items in order 31ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+stderr | src/app/layout/app-layout.test.tsx > AppLayout > opens the command palette from the topbar trigger
+An update to PaletteProbe inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to CommandPaletteProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to CommandPalette inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the PaletteTrigger in the topbar with the shortcut hint 44ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > shows the macOS hint on macOS 32ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > opens the command palette from the topbar trigger 67ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders breadcrumbs from the active routes 19ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > shows the screen info set by the page 27ms
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > toggles the drawer below 720 px with an accessible button 56ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > has no axe violations 126ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the profile button with the name and the initials 34ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > falls back to the email and its initials without a display name 19ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > opens the account menu with Configurações, Alternar tema and Sair 45ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > saves the theme toggle in the server preference 65ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > does not list Configurações in the Principal navigation 16ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > focuses the page heading on route change 86ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > rf23 lets the window scroll with no inner scroll area 1ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > rf23 marks the main as the page area 15ms
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > rf24 exposes the topbar height to the sticky header 21ms
+
+ Test Files  2 passed (2)
+      Tests  27 passed (27)
+   Start at  15:20:34
+   Duration  2.42s (environment 33%, tests 28%, import 22%, transform 9%, setup 8%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./src/app/e2e-sign-in-plugin" without a file extension (vite.config.ts:3:33). Add the file extension
+  - import "./e2e-totp" without a file extension (src/app/e2e-sign-in-plugin.ts:6:26). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.5 /home/victor/projetos/ishtar-sink/atria/apps/web
+
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+
+ Test Files  2 passed (2)
+      Tests  28 passed (28)
+   Start at  15:20:37
+   Duration  4.42s (tests 62%, import 16%, environment 14%, transform 5%, setup 3%)
+
+$ tsc --noEmit
+Checking formatting...
+All matched files use Prettier code style!
+Listing tests:
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:128:3 › cabeçalho fixo › formulário: fundo tingido com desfoque na largura da área da página
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:146:3 › cabeçalho fixo › listagem larga: fundo de ponta a ponta além dos 1360 px
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:167:3 › cabeçalho fixo › sem transição com reduzir movimento
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:179:3 › cabeçalho fixo › compacta o título depois de 48 px
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:192:3 › cabeçalho fixo › ct17 só a janela rola no painel, com a barra lateral e a topbar fixas
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:230:3 › cabeçalho fixo › ct17 só a janela rola no formulário e o cabeçalho cola na topbar
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:262:3 › cabeçalho fixo › cb11 página curta: sem rolagem e barra lateral na altura da tela
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:280:1 › ct17 vídeo da rolagem única
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:128:3 › cabeçalho fixo › formulário: fundo tingido com desfoque na largura da área da página
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:146:3 › cabeçalho fixo › listagem larga: fundo de ponta a ponta além dos 1360 px
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:167:3 › cabeçalho fixo › sem transição com reduzir movimento
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:179:3 › cabeçalho fixo › compacta o título depois de 48 px
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:192:3 › cabeçalho fixo › ct17 só a janela rola no painel, com a barra lateral e a topbar fixas
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:230:3 › cabeçalho fixo › ct17 só a janela rola no formulário e o cabeçalho cola na topbar
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:262:3 › cabeçalho fixo › cb11 página curta: sem rolagem e barra lateral na altura da tela
+Total: 15 tests in 1 file

@@ -1,0 +1,2 @@
+$ git grep -n -e 'mod credit_card;' -e 'mod credit_cards;' -- apps/server/src/finance
+exit: 1

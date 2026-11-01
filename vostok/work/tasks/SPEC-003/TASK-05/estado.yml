@@ -1,0 +1,25 @@
+id: TASK-05
+spec: SPEC-003
+title: "Cor da categoria em HEX no servidor"
+description: "A categoria guarda `#rrggbb`, com a migração das cores por nome."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-04]
+wave: 5
+covers: [RF-18, RF-20, CT-12, CT-14]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 8422b715cd36a094ce5503bca59fe928e3f9b1452f7b5bfdec4bab321e2ba172
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 8422b715cd36a094ce5503bca59fe928e3f9b1452f7b5bfdec4bab321e2ba172
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: db3a93bf2f6496dac8c5a9555b4c645886da08b0d5c087e50cf630424762a1e5
+verification_hash: 1de6606f037c3f81b66dbb3e7338ae5c25347ccbd43331c68ec51c7a13f03fcf
+criteria_hash: 54f85854ca42ad407ec7315c1520b49208271f20d13e647c2927018e848f3055
+state_hash: 6315c796a90433b92a8d75216a7640995d5b52b85de13db17b4b2de5fec90d6e

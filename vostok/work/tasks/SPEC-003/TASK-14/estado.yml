@@ -1,0 +1,25 @@
+id: TASK-14
+spec: SPEC-003
+title: "Cor do destaque no color picker"
+description: "O leitor cria e troca a cor do destaque no color picker e marca o PDF com a cor HEX."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-07]
+wave: 8
+covers: [RF-19, CT-13]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 00879c969c20adf26009900737368f5e6b19c7a1ef9fe626796f2a1eb747f3fe
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 00879c969c20adf26009900737368f5e6b19c7a1ef9fe626796f2a1eb747f3fe
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 694655e89897e79a0b5d49c4e77d2409ea501cbf9d2cf0414c4ffd3f61db7c6b
+verification_hash: 1ccfc0a4a7bb4629ab1cb78ed0691b3863295ae9255652443b8aa12696144d06
+criteria_hash: c143679c7f73d10eded0911eb9062a687648039a2a43a4f18fe3fce5cc519eb2
+state_hash: 98faadb18ef511011a82257bab3d1675abd022ea9d2248935284ced939855686

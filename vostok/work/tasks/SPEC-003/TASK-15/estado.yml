@@ -1,0 +1,25 @@
+id: TASK-15
+spec: SPEC-003
+title: "Gráficos interativos e Mês a mês"
+description: "Previsto x realizado em barras horizontais interativas e o card Mês a mês em barras verticais, com a biblioteca de gráficos."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-13]
+wave: 10
+covers: [RF-13, RF-14, RF-15, RF-16, CT-09, CT-10, CB-08]
+type: historia
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 66918ccc0cc185ad3b9ef58a6a6c4c9c3638f47574ea63ed43ae53d6f402110e
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 66918ccc0cc185ad3b9ef58a6a6c4c9c3638f47574ea63ed43ae53d6f402110e
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: c3e0a1475cdca5b243bffbd1c3a6b55e0d5095f1b4b4e02dd9838b4ea226640e
+verification_hash: 014e47f213e368ba60e0868d27667314a7d900240bf84e361bcf8e05eb079351
+criteria_hash: 42392c55d9c5c1f545680288cd26787da89ff22fa6352b1fbb84759bd1f663fd
+state_hash: 25fb024275f3c1104fbc163750877450ea88fb15afa9fc79e085f89692f857ce

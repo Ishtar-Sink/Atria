@@ -1,0 +1,23 @@
+$ pnpm --filter @atria/web exec vitest run src/app/layout src/shared/layout --reporter=verbose 2>&1 | grep -E '^\s*(✓|×|↓)' | grep -v -E '> (rf23|rf24) |measures the backdrop from the' | sed -E 's/ [0-9]+ms$//' | sort
+exit: 0
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > does not list Configurações in the Principal navigation
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > falls back to the email and its initials without a display name
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > focuses the page heading on route change
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > has no axe violations
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > opens the account menu with Configurações, Alternar tema and Sair
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > opens the command palette from the topbar trigger
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders breadcrumbs from the active routes
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders registered nav items in order
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the PaletteTrigger in the topbar with the shortcut hint
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the profile button with the name and the initials
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > renders the sidebar with the brand and the Principal navigation
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > saves the theme toggle in the server preference
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > shows the macOS hint on macOS
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > shows the screen info set by the page
+ ✓ src/app/layout/app-layout.test.tsx > AppLayout > toggles the drawer below 720 px with an accessible button
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > compacts after 48 px of scroll and expands back near the top
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > does not compact on a short page
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > keeps the unprefixed backdrop blur for the build to prefix
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > shows the blur whenever the header is stuck
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > stays expanded near the top
+ ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > tints the background with the page color and fades it at the bottom

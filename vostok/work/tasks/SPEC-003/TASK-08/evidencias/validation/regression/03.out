@@ -1,0 +1,4 @@
+$ pnpm --filter @atria/ui exec prettier --check src/index.ts
+exit: 0
+Checking formatting...
+All matched files use Prettier code style!

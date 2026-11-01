@@ -1,0 +1,25 @@
+id: TASK-13
+spec: SPEC-003
+title: "Cor da categoria no color picker"
+description: "O formulário de categoria usa o color picker e as telas mostram a cor HEX."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-10]
+wave: 9
+covers: [RF-18, CT-12, CB-09]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: a630f4d493d9c1e469a5219e2680191fd8a706ca36fcb4384bc77875f66a5950
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: a630f4d493d9c1e469a5219e2680191fd8a706ca36fcb4384bc77875f66a5950
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 9f353e5c83956d31d933c1c38f012b6d547cf5f86912e6da04e751025d8a0ddb
+verification_hash: f87b2d1a55ba6b0d4eaa06b01873caa2479d3524fa4d371e5e6f11fbbc6cdad9
+criteria_hash: bb8548997ddc3303f20db2ccd44a12d1ae90f3f531caa072d5b6f07409081f64
+state_hash: ba9c46b57ec1c9ae966b05a8a8330254c0c63a75bb26cdf124a2365d7212598c

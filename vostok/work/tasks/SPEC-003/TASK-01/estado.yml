@@ -1,0 +1,26 @@
+id: TASK-01
+spec: SPEC-003
+title: "Remover o cartão no servidor"
+description: "O servidor deixa de ter cartão, faturas, parcelas e limite, e a migração converte os cartões existentes em contas comuns."
+profile: julgamento
+persona: desenvolvedor
+depends_on: []
+wave: 1
+covers: [RF-07, RF-09, RF-10, CT-06, CB-05, CB-06]
+type: tarefa
+labels: [SPEC-003, julgamento]
+status: done
+content_hash: 69acbf4c036a15d96a3fa00258ab1c17a14a74a6e331dc5a22ffd132f3de5caf
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 03a86393f5e404299b40dcdf9d94fae42b21dc8e0462b4f3f3cf4a10b28e7a16
+attempts: 0
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+execution_hash: 512c5757d61ef715493e58c3071ac3d7ea946f6677a98f6d890abac02c7201de
+verification_hash: b99c87a9cfe7fecc1c6ff79c45feaedc54cf7ac680f9ecf8c1dd82242dd16f71
+criteria_hash: 66d18bda6f70e1dd766f3a079a6d9c5af27ccd1985d37098b74bf29e4e2e90ce
+state_hash: a8a35c2fe318c00cc7a55c3ff48fd76b7f76ec41622208aadedf6f0aaff78b74
+model: claude-opus-5-5

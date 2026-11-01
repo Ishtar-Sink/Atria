@@ -1,0 +1,25 @@
+id: TASK-17
+spec: SPEC-003
+title: "Valores com sinal e cor"
+description: "Entradas verdes com \"+\", saídas com \"−\" e saldos em verde ou âmbar no Financeiro."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-15, TASK-16]
+wave: 11
+covers: [RF-11, RF-12, CT-08, CB-07]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: c29eb27dc99ed4da520d85c336d75c6b884d29a79dc6287aea7ffce6193af56f
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: c29eb27dc99ed4da520d85c336d75c6b884d29a79dc6287aea7ffce6193af56f
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 179fa467f004f1e6e799a55ff0f78685a1745bc04e024c22b7981ff5bbda5ff4
+verification_hash: a92f187fb9700bfeb70aec0dface9c1c9fa5643d8a8ac14909b3db73dd45f1ad
+criteria_hash: b3a2657ecac1a2afacdf14473f0f610249e8c178337ce2f1e70ba42b4f10e47a
+state_hash: 760fe5aad315ee3ba0f3660041d0fc01f1ff4df1fc6bd85fbef21c0283e9eee6

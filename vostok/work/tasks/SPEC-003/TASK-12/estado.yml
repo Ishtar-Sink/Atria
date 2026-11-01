@@ -1,0 +1,25 @@
+id: TASK-12
+spec: SPEC-003
+title: "Excluir conta com conta de destino na tela"
+description: "A exclusão da conta pede a conta de destino quando houver movimentações."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-10]
+wave: 9
+covers: [RF-05, RF-06, CT-04, CT-05]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 2856d40d931ae91a567de85a1db5c9ee95062eaa525bcca150400d1e5e7d1408
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 2856d40d931ae91a567de85a1db5c9ee95062eaa525bcca150400d1e5e7d1408
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 32c9751eddcfe2d839aa332fe6cfc0a6a3e4249c9e59b6a834925eaa6207b1af
+verification_hash: 6efab228d9019b27a841bbf555786e86c4a6ca28a67e07071c218c98a9a24a17
+criteria_hash: 7af84b7fe50cb8a78452ad49dbe2942579445a1598914e13c6938607c3c52d64
+state_hash: 4deb334792ded1c6f83a1c6d489db57741d86bef026265b6c03496426fd433dc

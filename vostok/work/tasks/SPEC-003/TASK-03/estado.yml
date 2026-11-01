@@ -1,0 +1,25 @@
+id: TASK-03
+spec: SPEC-003
+title: "Excluir conta com conta de destino no servidor"
+description: "DELETE da conta com `move_to`, movendo movimentações, transferências e recorrências e recalculando os saldos."
+profile: julgamento
+persona: desenvolvedor
+depends_on: [TASK-02]
+wave: 3
+covers: [RF-05, RF-06, CT-04, CT-05, CB-03, CB-04]
+type: tarefa
+labels: [SPEC-003, julgamento]
+status: approved
+content_hash: 78cdf27001bf3c21078eb5dc35587355f53a2e85aced3db76ce3008afec8f57e
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 78cdf27001bf3c21078eb5dc35587355f53a2e85aced3db76ce3008afec8f57e
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: c2537820d983f14b4e3ea8f2ca4ac97b013b912b804d3e51a269fe62c07bcc80
+verification_hash: 7c54c867f4d67a1743499ea5bcb7531449473ff58d7c258ddfd3fc237b1a95ee
+criteria_hash: 5f99195c014b9eea96bf659c1eaeffd342b2bbddcf5b0eb3d6e642662a84f02e
+state_hash: fb063694b46cb128703171ff08262222bae5926c7a52afd25e07c0d29daa9db2

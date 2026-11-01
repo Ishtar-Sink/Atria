@@ -1,0 +1,22 @@
+$ ATRIA_E2E_FIREFOX=1 pnpm --filter @atria/web exec playwright test --list src/shared/layout/sticky-page-header.e2e.ts --project=desktop --project=firefox
+# data: 2026-11-01T19:16:52Z
+# commit: 54c3c2e (com mudanças não commitadas)
+# código de saída: 0
+
+Listing tests:
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:131:3 › cabeçalho fixo › formulário: fundo tingido com desfoque na largura da área da página
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:149:3 › cabeçalho fixo › listagem larga: fundo de ponta a ponta além dos 1360 px
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:170:3 › cabeçalho fixo › sem transição com reduzir movimento
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:182:3 › cabeçalho fixo › compacta o título depois de 48 px
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:195:3 › cabeçalho fixo › ct17 só a janela rola no painel, com a barra lateral e a topbar fixas
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:239:3 › cabeçalho fixo › ct17 só a janela rola no formulário e o cabeçalho cola na topbar
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:271:3 › cabeçalho fixo › cb11 página curta: sem rolagem e barra lateral na altura da tela
+  [desktop] › shared/layout/sticky-page-header.e2e.ts:289:1 › ct17 vídeo da rolagem única
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:131:3 › cabeçalho fixo › formulário: fundo tingido com desfoque na largura da área da página
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:149:3 › cabeçalho fixo › listagem larga: fundo de ponta a ponta além dos 1360 px
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:170:3 › cabeçalho fixo › sem transição com reduzir movimento
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:182:3 › cabeçalho fixo › compacta o título depois de 48 px
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:195:3 › cabeçalho fixo › ct17 só a janela rola no painel, com a barra lateral e a topbar fixas
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:239:3 › cabeçalho fixo › ct17 só a janela rola no formulário e o cabeçalho cola na topbar
+  [firefox] › shared/layout/sticky-page-header.e2e.ts:271:3 › cabeçalho fixo › cb11 página curta: sem rolagem e barra lateral na altura da tela
+Total: 15 tests in 1 file

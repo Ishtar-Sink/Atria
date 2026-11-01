@@ -1,0 +1,25 @@
+id: TASK-10
+spec: SPEC-003
+title: "Remover o cartão nas telas"
+description: "Saem a aba Faturas, o pagamento de fatura, o tipo cartão, as parcelas e o card Cartões."
+profile: padrao
+persona: desenvolvedor
+depends_on: [TASK-07]
+wave: 8
+covers: [RF-07, RF-08, RF-09, CT-07]
+type: tarefa
+labels: [SPEC-003, padrao]
+status: approved
+content_hash: 326b333e088a60198b8b9e376204b05218fd189346a11d6e5cd5f6271bce48e5
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-01T18:04:46Z
+approved_hash: 326b333e088a60198b8b9e376204b05218fd189346a11d6e5cd5f6271bce48e5
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: b666bdfd1e7851144f58bd9e9d49b2c21185f68b61b6946d39c78e3fb1b87f51
+verification_hash: fa3116ffd6be7c7b7ff26694f916f73212936162d86185d10bcafe7d7792f030
+criteria_hash: 2be33f3ef8f6e12db43b55c3f7ec35119eadcef7f929d3cf0f5b491ff6b37eb4
+state_hash: 6faf5295897c2e5e70e9f59b4ce5d8bc22600c339ab969c2a542750a6f436a9c

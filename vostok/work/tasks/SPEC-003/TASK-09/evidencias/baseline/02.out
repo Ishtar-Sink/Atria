@@ -1,0 +1,30 @@
+$ pnpm --filter @atria/web exec vitest run src/features/library/book-form-page src/features/notes/screens --reporter=verbose 2>&1 | grep -E '^\s*(✓|×|↓)' | sed -E 's/ [0-9]+ms$//' | sort
+exit: 0
+ ✓ src/features/library/book-form-page.test.tsx > book form > attaches an optional pdf
+ ✓ src/features/library/book-form-page.test.tsx > book form > creates a book with title, cover, author, publisher, pages and tags
+ ✓ src/features/library/book-form-page.test.tsx > book form > edits a book and keeps its data
+ ✓ src/features/library/book-form-page.test.tsx > book form > has no axe violations
+ ✓ src/features/library/book-form-page.test.tsx > book form > pd11 turns tags into pills with Enter and comma
+ ✓ src/features/library/book-form-page.test.tsx > book form > pd35 saves the book reading status
+ ✓ src/features/library/book-form-page.test.tsx > book form > pd37 places the cover on the left of the main fields and tags, notes and visibility below
+ ✓ src/features/library/book-form-page.test.tsx > book form > rejects a non pdf file inside the form with role alert
+ ✓ src/features/library/book-form-page.test.tsx > book form > requires the title and rejects invalid pages inside the form with role alert
+ ✓ src/features/library/book-form-page.test.tsx > book form > saves the book without a pdf and without a cover
+ ✓ src/features/library/book-form-page.test.tsx > book form > shows the progress of the pdf upload and a success notice after saving
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note form > cancels back to the list when creating and to the note when editing
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note form > pd19 centers the header and the form in the form column
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note form > pd62 lays the form in the grid with title, text and visibility on the full row
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note form > shows the validation error inside the form
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > asks for confirmation before deleting
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > creates, edits and deletes a note
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > pd14 shows Editar with the pencil and Excluir in danger tone inside Mais ações
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > pd59 shows the overview in cards with Texto and Registro
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > shows not found for a deleted note
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > shows the empty text and the extra tabs of another feature
+ ✓ src/features/notes/screens/notes-screens.test.tsx > note screen > warns and stays on the note when the deletion is refused
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > filters, sorts and searches notes through the url
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > reaches every control with the keyboard
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > shows a calm message when the search finds nothing
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > shows empty, loading and error states
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > switches between list and grid
+ ✓ src/features/notes/screens/notes-screens.test.tsx > notes list > uses the shared view icons with title and accessible name
