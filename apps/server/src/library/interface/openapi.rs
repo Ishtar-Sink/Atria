@@ -13,7 +13,7 @@ use super::dto::{
 use super::{articles, books, files, videos};
 use crate::library::domain::article::ReadingStatus;
 use crate::library::domain::book::BookStatus;
-use crate::library::domain::highlight::{HighlightColor, HighlightRect};
+use crate::library::domain::highlight::HighlightRect;
 use crate::library::domain::video::VideoStatus;
 use crate::shared::error::{FieldError, ProblemDetails};
 use crate::shared::visibility::Visibility;
@@ -88,7 +88,6 @@ use crate::shared::visibility::Visibility;
         CreateReadingSessionRequest,
         CreateVideoRequest,
         FieldError,
-        HighlightColor,
         HighlightList,
         HighlightRect,
         HighlightResponse,

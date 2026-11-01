@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::library::application::HighlightView;
 use crate::library::domain::article::{Article, ReadingStatus};
 use crate::library::domain::book::{Book, BookStatus};
-use crate::library::domain::highlight::{HighlightColor, HighlightRect};
+use crate::library::domain::highlight::HighlightRect;
 use crate::library::domain::item_note::ItemNote;
 use crate::library::domain::reading_session::ReadingSession;
 use crate::library::domain::video::{Video, VideoStatus};
@@ -448,7 +448,9 @@ pub struct CreateHighlightRequest {
     /// Tem de ser o PDF atual do item.
     pub file_id: Uuid,
     pub page: i32,
-    pub color: HighlightColor,
+    /// HEX `#rrggbb`; guardado em minúsculas (RN-09).
+    #[schema(example = "#0e7490")]
+    pub color: String,
     pub text: String,
     /// De 1 a 50 retângulos, em frações da página.
     pub rects: Vec<HighlightRect>,
@@ -458,7 +460,9 @@ pub struct CreateHighlightRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateHighlightRequest {
-    pub color: HighlightColor,
+    /// HEX `#rrggbb`; guardado em minúsculas (RN-09).
+    #[schema(example = "#0e7490")]
+    pub color: String,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -468,7 +472,8 @@ pub struct HighlightResponse {
     pub created_at: DateTime<Utc>,
     pub file_id: Uuid,
     pub page: i32,
-    pub color: HighlightColor,
+    /// HEX `#rrggbb`.
+    pub color: String,
     pub text: String,
     pub rects: Vec<HighlightRect>,
     /// `false` quando o destaque é de um PDF que foi trocado.
@@ -484,7 +489,7 @@ impl From<HighlightView> for HighlightResponse {
             created_at: highlight.created_at,
             file_id: highlight.file_id,
             page: highlight.page,
-            color: highlight.color,
+            color: highlight.color.as_str().to_owned(),
             text: highlight.text,
             rects: highlight.rects,
             is_current_file: view.is_current_file,

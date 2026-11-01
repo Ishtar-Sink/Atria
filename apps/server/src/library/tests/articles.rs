@@ -194,13 +194,13 @@ async fn ct38_article_highlights_are_listed() {
     h.create(
         &h.alice,
         &uri,
-        json!({ "file_id": file_id, "page": 2, "color": "success", "text": "a", "rects": rect() }),
+        json!({ "file_id": file_id, "page": 2, "color": "#047857", "text": "a", "rects": rect() }),
     )
     .await;
     h.create(
         &h.alice,
         &uri,
-        json!({ "file_id": file_id, "page": 3, "color": "primary", "text": "b", "rects": rect() }),
+        json!({ "file_id": file_id, "page": 3, "color": "#6d28d9", "text": "b", "rects": rect() }),
     )
     .await;
 
@@ -301,7 +301,7 @@ async fn other_user_article_resources_return_404() {
             Method::POST,
             format!("{base}/highlights"),
             Some(
-                json!({ "file_id": file_id, "page": 1, "color": "info", "text": "x", "rects": rect() }),
+                json!({ "file_id": file_id, "page": 1, "color": "#0369a1", "text": "x", "rects": rect() }),
             ),
         ),
     ];

@@ -368,8 +368,8 @@ async fn ct38_book_highlights_with_two_colors_are_listed() {
     let h = Harness::new().await;
     let (id, file_id) = book_with_pdf(&h).await;
 
-    highlight(&h, &id, &file_id, "accent", 3).await;
-    highlight(&h, &id, &file_id, "warning", 4).await;
+    highlight(&h, &id, &file_id, "#0e7490", 3).await;
+    highlight(&h, &id, &file_id, "#92400e", 4).await;
 
     let list = h
         .get(&h.alice, &format!("/api/v1/books/{id}/highlights"))
@@ -381,7 +381,7 @@ async fn ct38_book_highlights_with_two_colors_are_listed() {
         .map(|item| item["color"].as_str().unwrap().to_owned())
         .collect();
     assert_eq!(colors.len(), 2);
-    assert!(colors.contains(&"accent".to_owned()) && colors.contains(&"warning".to_owned()));
+    assert!(colors.contains(&"#0e7490".to_owned()) && colors.contains(&"#92400e".to_owned()));
     assert_eq!(list["items"][0]["is_current_file"], true);
     assert_eq!(list["items"][0]["rects"][0]["width"], 0.60);
 }
@@ -390,7 +390,7 @@ async fn ct38_book_highlights_with_two_colors_are_listed() {
 async fn cb19_highlights_of_replaced_pdf_are_marked_as_other_file() {
     let h = Harness::new().await;
     let (id, old_file_id) = book_with_pdf(&h).await;
-    highlight(&h, &id, &old_file_id, "info", 3).await;
+    highlight(&h, &id, &old_file_id, "#0369a1", 3).await;
 
     let replaced = h
         .upload_ok(&h.alice, &format!("/api/v1/books/{id}/pdf"), minimal_pdf())
@@ -408,7 +408,7 @@ async fn cb19_highlights_of_replaced_pdf_are_marked_as_other_file() {
             &h.alice,
             Method::POST,
             &format!("/api/v1/books/{id}/highlights"),
-            Some(json!({ "file_id": old_file_id, "page": 1, "color": "info", "text": "x", "rects": rect() })),
+            Some(json!({ "file_id": old_file_id, "page": 1, "color": "#0369a1", "text": "x", "rects": rect() })),
             StatusCode::UNPROCESSABLE_ENTITY,
         )
         .await;
@@ -430,7 +430,7 @@ async fn highlight_on_book_without_pdf_is_rejected() {
             &h.alice,
             Method::POST,
             &format!("/api/v1/books/{id}/highlights"),
-            Some(json!({ "file_id": Uuid::from_u128(9), "page": 1, "color": "info", "text": "x", "rects": rect() })),
+            Some(json!({ "file_id": Uuid::from_u128(9), "page": 1, "color": "#0369a1", "text": "x", "rects": rect() })),
             StatusCode::UNPROCESSABLE_ENTITY,
         )
         .await;
@@ -525,7 +525,7 @@ async fn other_user_book_resources_return_404() {
             Method::POST,
             format!("{base}/highlights"),
             Some(
-                json!({ "file_id": file_id, "page": 1, "color": "info", "text": "x", "rects": rect() }),
+                json!({ "file_id": file_id, "page": 1, "color": "#0369a1", "text": "x", "rects": rect() }),
             ),
         ),
         (Method::GET, format!("/api/v1/files/{file_id}"), None),

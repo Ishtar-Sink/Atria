@@ -14,36 +14,21 @@ pub const RECTS_MAX: usize = 50;
 // Tolerância de ponto flutuante nas bordas do quadrado unitário.
 const EPSILON: f64 = 1e-6;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HighlightColor {
-    Accent,
-    Primary,
-    Success,
-    Warning,
-    Info,
-}
+/// Cor do destaque: HEX `#rrggbb` livre (PD-12, RF-19), sempre em minúsculas (RN-09).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HighlightColor(String);
 
 impl HighlightColor {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Accent => "accent",
-            Self::Primary => "primary",
-            Self::Success => "success",
-            Self::Warning => "warning",
-            Self::Info => "info",
+    pub fn parse(text: &str) -> Result<Self, LibraryError> {
+        let digits = text.strip_prefix('#').unwrap_or_default();
+        if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(LibraryError::validation("color", "invalid"));
         }
+        Ok(Self(text.to_ascii_lowercase()))
     }
 
-    pub fn parse(text: &str) -> Result<Self, LibraryError> {
-        match text {
-            "accent" => Ok(Self::Accent),
-            "primary" => Ok(Self::Primary),
-            "success" => Ok(Self::Success),
-            "warning" => Ok(Self::Warning),
-            "info" => Ok(Self::Info),
-            _ => Err(LibraryError::validation("color", "invalid")),
-        }
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -166,19 +151,27 @@ mod tests {
             item: ItemRef::Book(Uuid::from_u128(3)),
             file_id: Uuid::from_u128(4),
             page: 42,
-            color: HighlightColor::Accent,
+            color: HighlightColor::parse("#0e7490").unwrap(),
             text: "trecho destacado".to_owned(),
             rects,
         }
     }
 
     #[test]
-    fn highlight_color_accepts_only_palette() {
-        for color in ["accent", "primary", "success", "warning", "info"] {
-            assert_eq!(HighlightColor::parse(color).unwrap().as_str(), color);
+    fn highlight_color_accepts_only_hex_rrggbb() {
+        assert_eq!(
+            HighlightColor::parse("#1A2b3C").unwrap().as_str(),
+            "#1a2b3c"
+        );
+        for other in ["accent", "#fff", "#12345g", "123456", "#1234567", ""] {
+            assert!(
+                matches!(
+                    HighlightColor::parse(other),
+                    Err(LibraryError::Validation { .. })
+                ),
+                "{other}"
+            );
         }
-        assert!(HighlightColor::parse("red").is_err());
-        assert!(serde_json::from_str::<HighlightColor>("\"Accent\"").is_err());
     }
 
     #[test]
@@ -224,12 +217,12 @@ mod tests {
             Highlight::new(new_highlight(vec![rect(0.1, 0.1, 0.1, 0.1)]), now()).unwrap();
         let mut highlight = original.clone();
 
-        highlight.recolor(HighlightColor::Warning);
+        highlight.recolor(HighlightColor::parse("#92400e").unwrap());
 
-        assert_eq!(highlight.color, HighlightColor::Warning);
+        assert_eq!(highlight.color, HighlightColor::parse("#92400e").unwrap());
         assert_eq!(
             Highlight {
-                color: original.color,
+                color: original.color.clone(),
                 ..highlight
             },
             original

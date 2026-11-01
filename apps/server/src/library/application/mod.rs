@@ -123,7 +123,7 @@ pub struct NoteInput {
 pub struct HighlightInput {
     pub file_id: Uuid,
     pub page: i32,
-    pub color: super::domain::highlight::HighlightColor,
+    pub color: String,
     pub text: String,
     pub rects: Vec<super::domain::highlight::HighlightRect>,
 }
@@ -271,6 +271,7 @@ impl<I: ItemRepository> ItemOps<I> {
         item: ItemRef,
         input: HighlightInput,
     ) -> Result<HighlightView, LibraryError> {
+        let color = HighlightColor::parse(&input.color)?;
         let current = self.ensure_item(owner_id, item).await?;
         let Some(current) = current else {
             return Err(LibraryError::PdfRequired);
@@ -285,7 +286,7 @@ impl<I: ItemRepository> ItemOps<I> {
                 item,
                 file_id: input.file_id,
                 page: input.page,
-                color: input.color,
+                color,
                 text: input.text,
                 rects: input.rects,
             },
@@ -303,8 +304,9 @@ impl<I: ItemRepository> ItemOps<I> {
         owner_id: Uuid,
         item: ItemRef,
         id: Uuid,
-        color: HighlightColor,
+        color: String,
     ) -> Result<HighlightView, LibraryError> {
+        let color = HighlightColor::parse(&color)?;
         let current = self.ensure_item(owner_id, item).await?;
         let mut highlight = self
             .items
