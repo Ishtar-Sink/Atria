@@ -203,8 +203,8 @@ describe('journal entry form', () => {
     const user = userEvent.setup();
     const { state, router } = open('/journal/new');
     await writeEntry(user, 'Um dia bom.');
-    await user.click(await screen.findByRole('checkbox', { name: 'Alegria' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Calma' }));
+    await user.click(await screen.findByRole('button', { name: 'Alegria' }));
+    await user.click(screen.getByRole('button', { name: 'Calma' }));
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -260,7 +260,10 @@ describe('journal entry form', () => {
     const { state } = open('/journal/e1/edit');
     const text = await screen.findByRole('textbox', { name: 'Texto' });
     expect(text).toHaveValue('Dia leve no parque.');
-    expect(await screen.findByRole('checkbox', { name: 'Alegria' })).toBeChecked();
+    expect(await screen.findByRole('button', { name: 'Alegria' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.getByRole('radio', { name: '4 de 5', checked: true })).toBeInTheDocument();
 
     await user.clear(text);

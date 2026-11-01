@@ -12,6 +12,9 @@ import worker_url from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // [project/architecture-12]) e só entra no chunk das rotas do leitor.
 GlobalWorkerOptions.workerSrc = worker_url;
 
+// A primeira página chega em poucos pedidos `Range` de 64 KB, sem baixar o arquivo inteiro (RF-28).
+const RANGE_CHUNK_SIZE = 65536;
+
 export type PdfErrorKind = 'corrupted' | 'protected';
 
 /** Erro tipado do carregamento: arquivo corrompido ou protegido por senha (CB-16). */
@@ -100,7 +103,13 @@ function wrap(pdf: PDFDocumentProxy, first_page_size: PdfPageSize): PdfDocument 
 /** Abre o PDF (com o cookie de sessão) ou lança `PdfLoadError` tipado. */
 export async function loadPdf(url: string): Promise<PdfDocument> {
   try {
-    const pdf = await getDocument({ url, withCredentials: true }).promise;
+    const pdf = await getDocument({
+      url,
+      withCredentials: true,
+      rangeChunkSize: RANGE_CHUNK_SIZE,
+      disableAutoFetch: true,
+      disableStream: true,
+    }).promise;
     const first = await pdf.getPage(1);
     const view = first.getViewport({ scale: 1 });
     return wrap(pdf, { width: view.width, height: view.height });

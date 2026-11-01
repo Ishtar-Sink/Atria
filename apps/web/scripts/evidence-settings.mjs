@@ -1,8 +1,8 @@
-// Evidências visuais da TASK-33 (telas de Configurações), sem passo manual: sobe o Vite numa porta
+// Evidências visuais da TASK-07 (SPEC-002: telas de Configurações), sem passo manual: sobe o Vite numa porta
 // livre com uma página virtual que carrega o harness da feature, simula a API no navegador, confere
 // o estado no DOM antes de cada captura e monta a prancha (PNG) em
-// vostok/work/tasks/SPEC-001/evidence/TASK-33/.
-// Uso: node apps/web/scripts/evidence-settings.mjs temas|estados
+// $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-07/).
+// Uso: node apps/web/scripts/evidence-settings.mjs temas|estados|tema
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -14,7 +14,9 @@ import { createServer as createViteServer } from 'vite';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-33');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-002', 'evidence', 'TASK-07');
 const PAGE_PATH = '/__evidence/settings';
 
 const THEMES = ['light', 'dark'];
@@ -103,10 +105,10 @@ const PROBLEM = { title: 'Erro interno', code: 'internal_error', status: 500 };
 /** Responde `/api/**` com fixtures em memória; `mode` escolhe o estado da instância. */
 async function mockApi(
   context,
-  { role = 'admin', mode = 'ok', patches = [], theme = 'light' } = {},
+  { role = 'admin', mode = 'ok', patches = [], theme = 'light', server_theme = theme } = {},
 ) {
   let prefs = {
-    theme,
+    theme: server_theme,
     locale: 'pt-BR',
     timezone: 'America/Sao_Paulo',
     currency: 'BRL',
@@ -166,11 +168,12 @@ async function mockApi(
 
 // ---------- captura ----------
 
-async function openPage(browser, { theme, size, role, mode }) {
+async function openPage(browser, { theme, size, role, mode, server_theme, prefers }) {
   const context = await browser.newContext({
     viewport: SIZES[size],
     reducedMotion: 'reduce',
     locale: 'pt-BR',
+    colorScheme: prefers ?? theme,
   });
   await context.addInitScript((t) => {
     try {
@@ -180,7 +183,7 @@ async function openPage(browser, { theme, size, role, mode }) {
     }
   }, theme);
   const patches = [];
-  await mockApi(context, { role, mode, patches, theme });
+  await mockApi(context, { role, mode, patches, theme, server_theme: server_theme ?? theme });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -318,6 +321,10 @@ const scenarios = {
           names === 'Em grade|Em lista',
           names,
         );
+        check(
+          `${tag}: cartão com o título "Suas preferências"`,
+          await page.getByRole('heading', { level: 2, name: 'Suas preferências' }).isVisible(),
+        );
         await checkColumn(page, tag, size);
         await checkNoClip(page, tag);
         const zone = page.getByRole('button', { name: /^Fuso horário/ });
@@ -393,11 +400,91 @@ const scenarios = {
         );
         await checkColumn(page, tag, size);
         await checkNoClip(page, tag);
+        const titles = ['Instância', 'E-mail (SMTP)', 'Papéis'];
+        const visible = [];
+        for (const name of titles) {
+          visible.push(await page.getByRole('heading', { level: 2, name }).isVisible());
+        }
+        const boxes = [];
+        for (const name of titles) {
+          boxes.push(
+            await page.getByRole('heading', { level: 2, name }).evaluate((el) => {
+              const r = el.closest('[class*="grid"]').getBoundingClientRect();
+              return { top: r.top, bottom: r.bottom };
+            }),
+          );
+        }
+        const gaps = [boxes[1].top - boxes[0].bottom, boxes[2].top - boxes[1].bottom];
+        check(
+          `${tag}: três cartões com título e 16 px entre eles`,
+          visible.every(Boolean) && gaps.every((g) => g >= 15 && g <= 17),
+          `espaços ${gaps.map((g) => g.toFixed(1)).join(' e ')}`,
+        );
         check(
           `${tag}: seção Papéis com o link de usuários`,
           await page.getByRole('link', { name: 'Gerenciar usuários e papéis' }).isVisible(),
         );
       },
+    },
+  ],
+  tema: [
+    {
+      name: 'abrir Configurações não muda o tema',
+      to: '/settings',
+      prefers: (theme) => (theme === 'light' ? 'dark' : 'light'),
+      run: async (page, tag, theme, _size, patches) => {
+        await page.getByRole('radiogroup', { name: 'Tema' }).waitFor();
+        await page.waitForTimeout(300);
+        const applied = await page.evaluate(() => document.documentElement.dataset.theme);
+        check(`${tag}: tema do servidor mantido ao abrir`, applied === theme, applied);
+        check(`${tag}: nenhum PATCH ao abrir`, patches.length === 0, patches.join(','));
+      },
+    },
+    {
+      name: 'Seguir o sistema acompanha o sistema',
+      to: '/settings',
+      run: async (page, tag, _theme, _size, patches) => {
+        const group = page.getByRole('radiogroup', { name: 'Tema' });
+        await group.waitFor();
+        await group.getByRole('radio', { name: 'Seguir o sistema' }).check({ force: true });
+        await page.waitForFunction(() => document.documentElement.dataset.theme);
+        await page.waitForTimeout(200);
+        check(
+          `${tag}: PATCH em /me/preferences`,
+          patches.includes('/me/preferences'),
+          patches.join(','),
+        );
+        await page.emulateMedia({ colorScheme: 'dark' });
+        await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+        check(`${tag}: sistema escuro, tema escuro sem recarregar`, true);
+        await page.emulateMedia({ colorScheme: 'light' });
+        await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+        check(`${tag}: sistema claro, tema claro sem recarregar`, true);
+      },
+      // O sistema termina claro: é o tema que a captura final mostra.
+      expected: () => 'light',
+    },
+    {
+      name: 'alternar tema grava no servidor',
+      to: '/settings',
+      run: async (page, tag, theme, size, patches) => {
+        await openSidebar(page, size);
+        await page
+          .getByRole('button', { name: 'Menu da conta' })
+          .or(page.getByRole('button', { name: USER_NAME }))
+          .first()
+          .click();
+        await page.getByRole('menuitem', { name: 'Alternar tema' }).click();
+        const other = theme === 'light' ? 'dark' : 'light';
+        await page.waitForFunction((t) => document.documentElement.dataset.theme === t, other);
+        await page.waitForTimeout(200);
+        check(
+          `${tag}: PATCH em /me/preferences e tema trocado`,
+          patches.includes('/me/preferences'),
+          patches.join(','),
+        );
+      },
+      expected: (theme) => (theme === 'light' ? 'dark' : 'light'),
     },
   ],
   estados: [
@@ -515,13 +602,14 @@ async function runScenarios(browser, base, group) {
           size,
           role: sc.role ?? 'admin',
           mode: sc.mode ?? 'ok',
+          ...(sc.prefers ? { prefers: sc.prefers(theme) } : {}),
         });
         try {
           await page.goto(`${base}${PAGE_PATH}?to=${encodeURIComponent(sc.to)}`);
           await page.locator('h1').first().waitFor();
           await page.evaluate(() => document.fonts.ready);
           await sc.run(page, tag, theme, size, patches);
-          await baseChecks(page, errors, tag, theme);
+          await baseChecks(page, errors, tag, sc.expected ? sc.expected(theme) : theme);
           shots.push({ group: sc.name, size, label, png: await page.screenshot() });
         } catch (e) {
           check(
@@ -580,15 +668,23 @@ const EVIDENCES = {
   temas: async (browser, base) => {
     const shots = await runScenarios(browser, base, 'temas');
     await sheet(browser, {
-      title: 'TASK-33 · Configurações: temas e larguras (RF-58, RNF-08, RNF-10, PD-19, PD-62)',
+      title: 'TASK-07 (SPEC-002) · Configurações: temas e larguras (RF-18, CT-17, RNF-02, RNF-03)',
       file: 'settings-themes-widths.png',
+      shots,
+    });
+  },
+  tema: async (browser, base) => {
+    const shots = await runScenarios(browser, base, 'tema');
+    await sheet(browser, {
+      title: 'TASK-07 (SPEC-002) · Configurações: tema do servidor e do sistema (RF-17, CB-08)',
+      file: 'settings-tema.png',
       shots,
     });
   },
   estados: async (browser, base) => {
     const shots = await runScenarios(browser, base, 'estados');
     await sheet(browser, {
-      title: 'TASK-33 · Configurações: estados, acesso e foco (RN-12, RNF-06)',
+      title: 'TASK-07 (SPEC-002) · Configurações: estados, acesso e foco (RN-12, RNF-06)',
       file: 'settings-states-focus.png',
       shots,
     });
@@ -598,7 +694,9 @@ const EVIDENCES = {
 const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
-  console.error(`Evidência desconhecida ou ausente: ${unknown.join(', ')}. Use temas ou estados.`);
+  console.error(
+    `Evidência desconhecida ou ausente: ${unknown.join(', ')}. Use temas, estados ou tema.`,
+  );
   process.exit(2);
 }
 

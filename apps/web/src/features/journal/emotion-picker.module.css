@@ -30,54 +30,56 @@
 
 .emo {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--s2);
+  min-width: 0;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: calc(var(--space) * 11);
   padding: var(--s2) var(--s3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
   transition:
     border-color var(--motion-fast) var(--motion-ease-standard),
     background var(--motion-fast) var(--motion-ease-standard);
 }
 
-.emo[data-on='true'] {
+.toggle svg {
+  flex: none;
+}
+
+.toggle[aria-pressed='true'] {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
-.chip {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--s2);
-  min-height: calc(var(--space) * 7);
-  min-width: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chip input {
-  width: calc(var(--space) * 4);
-  height: calc(var(--space) * 4);
-  margin: 0;
-  accent-color: var(--primary);
-}
-
-.chip input:focus-visible {
+.toggle:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-.dots {
-  display: flex;
-  gap: calc(var(--space) * 0.75);
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.emo[data-on='false'] .dots {
-  opacity: 0.35;
+.dots {
+  display: flex;
+  padding-inline: var(--s3);
+  gap: calc(var(--space) * 0.75);
 }
 
 .dot {
@@ -94,10 +96,6 @@
   margin: 0;
   opacity: 0;
   cursor: pointer;
-}
-
-.dot input:disabled {
-  pointer-events: none;
 }
 
 .mark {

@@ -219,6 +219,18 @@ describe('ReaderPage', () => {
     expect(document.querySelectorAll('[data-near="true"]')).toHaveLength(3);
   });
 
+  it('renders the first page at the reading width on a wide screen', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1888);
+    const doc = fakeDoc();
+    vi.mocked(loadPdf).mockResolvedValue(doc);
+    renderReader();
+    await readerReady();
+    setNearPages([12]);
+    await waitFor(() => {
+      expect(doc.render_page).toHaveBeenCalledWith(12, expect.objectContaining({ scale: 1.6 }));
+    });
+  });
+
   it('shows the loading state', async () => {
     vi.mocked(loadPdf).mockReturnValue(new Promise(() => undefined));
     renderReader();

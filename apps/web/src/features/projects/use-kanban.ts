@@ -1,3 +1,4 @@
+import { arrayMove } from '@dnd-kit/sortable';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/api/client';
 import type { Translate } from '../../shared/i18n/i18n';
@@ -57,6 +58,66 @@ export function useCard(project_id: string, card_id: string | undefined) {
 /** Cartões de uma raia, na ordem. */
 export function cardsOfLane(cards: readonly Card[], lane_id: string): Card[] {
   return cards.filter((card) => card.lane_id === lane_id).sort((a, b) => a.position - b.position);
+}
+
+export type CardDropOver = { type: 'card'; card_id: string } | { type: 'lane'; lane_id: string };
+
+export interface CardDropTarget {
+  lane_id: string;
+  position: number;
+}
+
+/**
+ * Raia e posição de destino de uma soltura (RF-34, CB-13): sobre uma raia vai para o fim; sobre um
+ * cartão ocupa o lugar dele (a semântica do `arrayMove` do sortable). `null` quando não há
+ * destino ou o cartão ficaria onde já está.
+ */
+export function resolveCardDrop(
+  cards: readonly Card[],
+  card_id: string,
+  over: CardDropOver | null,
+): CardDropTarget | null {
+  const moving = cards.find((card) => card.id === card_id);
+  if (!moving || !over) return null;
+  let target: CardDropTarget;
+  if (over.type === 'lane') {
+    const rest = cardsOfLane(cards, over.lane_id).filter((card) => card.id !== card_id);
+    target = { lane_id: over.lane_id, position: rest.length };
+  } else {
+    const hovered = cards.find((card) => card.id === over.card_id);
+    if (!hovered) return null;
+    const index = cardsOfLane(cards, hovered.lane_id).findIndex((card) => card.id === hovered.id);
+    target = { lane_id: hovered.lane_id, position: index };
+  }
+  const current = cardsOfLane(cards, moving.lane_id).findIndex((card) => card.id === card_id);
+  return target.lane_id === moving.lane_id && target.position === current ? null : target;
+}
+
+/** Destino de uma seta na alça do cartão: esquerda e direita trocam de raia, cima e baixo a posição. */
+export function keyboardCardTarget(
+  lanes: readonly Lane[],
+  cards: readonly Card[],
+  card_id: string,
+  key: string,
+): CardDropTarget | null {
+  const moving = cards.find((card) => card.id === card_id);
+  if (!moving) return null;
+  const ordered = [...lanes].sort((a, b) => a.position - b.position);
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const index = ordered.findIndex((lane) => lane.id === moving.lane_id);
+    const next = ordered[index + (key === 'ArrowLeft' ? -1 : 1)];
+    if (index < 0 || !next) return null;
+    return { lane_id: next.id, position: cardsOfLane(cards, next.id).length };
+  }
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    const siblings = cardsOfLane(cards, moving.lane_id);
+    const position =
+      siblings.findIndex((card) => card.id === card_id) + (key === 'ArrowUp' ? -1 : 1);
+    return position < 0 || position > siblings.length - 1
+      ? null
+      : { lane_id: moving.lane_id, position };
+  }
+  return null;
 }
 
 /**
@@ -266,19 +327,67 @@ export function useDeleteCard(project_id: string) {
   });
 }
 
-/** Itens do checklist do formulário: um por linha, `[x] ` no começo marca o feito. */
-export function parseChecklist(text: string): { text: string; done: boolean }[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '')
-    .map((line) => {
-      const done = /^\[x\]/i.test(line);
-      return { done, text: line.replace(/^\[x\]\s*/i, '') };
-    })
-    .filter((item) => item.text !== '');
+/** Limites do servidor (`apps/server/src/projects/domain/card.rs`). */
+export const CHECKLIST_MAX_ITEMS = 100;
+export const CHECKLIST_TEXT_MAX_CHARS = 300;
+
+/** Item do checklist no formulário; a `key` identifica a linha enquanto se edita e reordena. */
+export interface ChecklistDraft {
+  key: string;
+  text: string;
+  done: boolean;
 }
 
-export function formatChecklist(items: readonly Pick<ChecklistItem, 'text' | 'done'>[]): string {
-  return items.map((item) => `${item.done ? '[x] ' : ''}${item.text}`).join('\n');
+let checklist_key_counter = 0;
+
+export function newChecklistKey(): string {
+  checklist_key_counter += 1;
+  return `novo-${String(checklist_key_counter)}`;
+}
+
+export function toChecklistDrafts(
+  items: readonly Pick<ChecklistItem, 'id' | 'text' | 'done' | 'position'>[],
+): ChecklistDraft[] {
+  return [...items]
+    .sort((a, b) => a.position - b.position)
+    .map((item) => ({ key: item.id, text: item.text, done: item.done }));
+}
+
+export function appendChecklistItem(
+  items: readonly ChecklistDraft[],
+  text: string,
+): ChecklistDraft[] {
+  const trimmed = text.trim();
+  if (trimmed === '') return [...items];
+  return [...items, { key: newChecklistKey(), text: trimmed, done: false }];
+}
+
+export function updateChecklistItem(
+  items: readonly ChecklistDraft[],
+  key: string,
+  patch: Partial<Pick<ChecklistDraft, 'text' | 'done'>>,
+): ChecklistDraft[] {
+  return items.map((item) => (item.key === key ? { ...item, ...patch } : item));
+}
+
+export function removeChecklistItem(
+  items: readonly ChecklistDraft[],
+  key: string,
+): ChecklistDraft[] {
+  return items.filter((item) => item.key !== key);
+}
+
+export function moveChecklistItem(
+  items: readonly ChecklistDraft[],
+  from: number,
+  to: number,
+): ChecklistDraft[] {
+  if (to < 0 || to > items.length - 1) return [...items];
+  return arrayMove([...items], from, to);
+}
+
+export function toChecklistInput(items: readonly ChecklistDraft[]): CardInput['checklist'] {
+  return items
+    .map((item) => ({ text: item.text.trim(), done: item.done }))
+    .filter((item) => item.text !== '');
 }

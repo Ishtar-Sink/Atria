@@ -26,11 +26,11 @@ export type TaskOccurrence = Schemas['OccurrenceResponse'];
 export type OccurrenceList = Schemas['OccurrenceListResponse'];
 export type CreateTaskBody = Schemas['CreateTaskRequest'];
 export type UpdateTaskBody = Schemas['UpdateTaskRequest'];
-type ContractRule = Schemas['RecurrenceRule'];
+type ContractRule = NonNullable<Task['recurrence']>;
 
 export const TASKS_KEY = ['tasks'] as const;
 const PAGE_SIZE = 100;
-/** As recorrentes mostram hoje e os seis dias seguintes (PD-32). */
+/** Janela das ocorrências buscadas: hoje e os seis dias seguintes; a linha da recorrente mostra a próxima aberta (RF-38). */
 export const OCCURRENCE_DAYS = 7;
 
 /** Parâmetros da URL da listagem ([project/frontend-13]); valor inválido volta ao padrão. */
@@ -77,7 +77,7 @@ export function toRule(rule: ContractRule): RecurrenceRule {
     interval: rule.interval,
     weekdays: rule.weekdays ?? [],
     month_day: rule.month_day ?? null,
-    time: rule.time === '' ? null : rule.time,
+    time: rule.time === undefined || rule.time === '' ? null : rule.time,
     timezone: rule.timezone,
     starts_on: rule.starts_on,
     ends_on: rule.ends_on ?? null,
@@ -87,7 +87,7 @@ export function toRule(rule: ContractRule): RecurrenceRule {
 /** O horário é opcional nas Tarefas: sem ele, o campo `time` não vai no corpo. */
 export function toRequestRule(rule: RecurrenceRule): ContractRule {
   const { time, ...rest } = rule;
-  return (time === null ? rest : { ...rest, time }) as ContractRule;
+  return time === null ? rest : { ...rest, time };
 }
 
 // ---------- consultas ----------
@@ -152,6 +152,51 @@ function wantsStatus(status: TasksSearch['status'], done: boolean): boolean {
   return status === 'all' || (status === 'completed' ? done : !done);
 }
 
+/** A data da próxima ocorrência aberta; fora da janela buscada, vale a `next_occurrence` do servidor. */
+export function nextOpenDate(
+  task: Task,
+  own: readonly TaskOccurrence[],
+  window_end: string,
+): string | null {
+  const open = own.find((item) => !item.completed);
+  if (open !== undefined) return open.occurrence_date;
+  const next = task.next_occurrence ?? null;
+  // Dentro da janela e sem ocorrência aberta, é um valor antigo do cache (depois de concluir).
+  return next !== null && next > window_end ? next : null;
+}
+
+function recurringRow(
+  task: Task,
+  own: readonly TaskOccurrence[],
+  status: TasksSearch['status'],
+  today: string,
+  window_end: string,
+): TaskRow | null {
+  const next = nextOpenDate(task, own, window_end);
+  const first_done = own.find((item) => item.completed);
+  let date: string | null = null;
+  let done = false;
+  if (status === 'open') {
+    date = next;
+  } else if (status === 'completed') {
+    date = first_done?.occurrence_date ?? null;
+    done = true;
+  } else {
+    const current = own.find((item) => item.occurrence_date === today);
+    if (current !== undefined) {
+      date = current.occurrence_date;
+      done = current.completed;
+    } else if (next !== null) {
+      date = next;
+    } else if (first_done !== undefined) {
+      date = first_done.occurrence_date;
+      done = true;
+    }
+  }
+  if (date === null) return null;
+  return { key: `${task.id}:${date}`, task, occurrence_date: date, done, date };
+}
+
 export function buildRows(
   tasks: readonly Task[],
   occurrences: readonly TaskOccurrence[],
@@ -173,21 +218,44 @@ export function buildRows(
   }
 
   if (filters.recurring !== 'single') {
-    const by_id = new Map(tasks.map((task) => [task.id, task]));
-    for (const occurrence of occurrences) {
-      const task = by_id.get(occurrence.task_id);
-      if (task === undefined || occurrence.occurrence_date < today) continue;
-      if (!wantsStatus(filters.status, occurrence.completed)) continue;
-      rows.push({
-        key: `${task.id}:${occurrence.occurrence_date}`,
-        task,
-        occurrence_date: occurrence.occurrence_date,
-        done: occurrence.completed,
-        date: occurrence.occurrence_date,
-      });
+    for (const task of tasks.filter((item) => item.is_recurring)) {
+      const own = occurrences
+        .filter((item) => item.task_id === task.id && item.occurrence_date >= today)
+        .sort((x, y) => (x.occurrence_date < y.occurrence_date ? -1 : 1));
+      const row = recurringRow(task, own, filters.status, today, to);
+      if (row === null) continue;
+      if (filters.range === 'all' || (row.date !== null && row.date <= to)) rows.push(row);
     }
   }
   return rows;
+}
+
+/** Quantas tarefas abertas ficam fora do período escolhido (RF-37). */
+export function hiddenOpenCount(
+  tasks: readonly Task[],
+  occurrences: readonly TaskOccurrence[],
+  filters: TaskFilters,
+  today: string,
+): number {
+  if (filters.range === 'all' || filters.status === 'completed') return 0;
+  const { to } = occurrenceWindow(today, filters.range);
+  let count = 0;
+  for (const task of tasks) {
+    if (!task.is_recurring) {
+      const open = (task.completed_at ?? null) === null;
+      if (filters.recurring !== 'recurring' && open && task.due_on != null && task.due_on > to) {
+        count += 1;
+      }
+      continue;
+    }
+    if (filters.recurring === 'single') continue;
+    const own = occurrences
+      .filter((item) => item.task_id === task.id && item.occurrence_date >= today)
+      .sort((x, y) => (x.occurrence_date < y.occurrence_date ? -1 : 1));
+    const next = nextOpenDate(task, own, to);
+    if (next !== null && next > to) count += 1;
+  }
+  return count;
 }
 
 /** Abertas antes das concluídas na lista; por data (sem data por último) e título nos empates. */
@@ -222,8 +290,14 @@ export function useTaskRows(filters: TaskFilters, view: TasksSearch['view'] = 'l
     tasks.hasNextPage ||
     (filters.recurring !== 'single' && occurrences.isPending);
   const failed = tasks.isError || (filters.recurring !== 'single' && occurrences.isError);
+  const hidden_open = useMemo(
+    () => hiddenOpenCount(items, occurrences.data?.items ?? [], filters, today),
+    [items, occurrences.data, filters, today],
+  );
+
   return {
     rows,
+    hidden_open,
     today,
     is_loading: pending && !failed,
     is_error: failed,

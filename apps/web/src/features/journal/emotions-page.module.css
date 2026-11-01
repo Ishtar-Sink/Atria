@@ -37,9 +37,31 @@
   background: var(--elevation-1);
 }
 
+.nameBox {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
 .name {
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.iconEdit {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
 }
 
 .actions {

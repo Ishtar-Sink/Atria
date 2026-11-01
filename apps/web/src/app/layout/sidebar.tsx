@@ -3,10 +3,10 @@ import { paletteFor } from '@atria/theme';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { api } from '../../shared/api/client';
+import { useToggleThemePreference } from '../../features/settings/use-user-preferences';
 import { useT } from '../../shared/i18n/i18n';
 import { displayName, initialsOf, useCurrentUser } from '../../shared/session/current-user';
 import type { NavItem } from '../../shared/navigation/nav-item';
-import { useTheme } from '../theme/theme-provider';
 import styles from './app-layout.module.css';
 
 function ThemeIcon() {
@@ -118,7 +118,7 @@ async function signOut() {
 
 export function Sidebar({ items, drawer, open, onClose }: SidebarProps) {
   const t = useT();
-  const { toggleTheme } = useTheme();
+  const toggleTheme = useToggleThemePreference();
   const ref = useRef<HTMLElement>(null);
   const inert = drawer && !open;
 

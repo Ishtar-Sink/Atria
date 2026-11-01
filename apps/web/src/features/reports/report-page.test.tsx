@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rootRoute } from '../../app/router';
+import { clearToasts } from '../../shared/toast/toast-store';
 import { renderWithProviders } from '../../shared/test/render';
 import { REPORT_CATALOG } from './report-catalog';
 import { createReportsRoutes } from './routes';
@@ -137,12 +138,22 @@ const HEADINGS: Record<string, string> = {
 
 interface Server {
   urls: URL[];
-  report_mode: 'ok' | 'refused' | 'error';
+  report_mode: 'ok' | 'refused' | 'error' | 'held';
+  release: () => void;
   file_mode: 'ok' | 'loading' | 'error';
 }
 
 function stubServer(initial: Partial<Server> = {}): Server {
-  const server: Server = { urls: [], report_mode: 'ok', file_mode: 'ok', ...initial };
+  const server: Server = {
+    urls: [],
+    report_mode: 'ok',
+    file_mode: 'ok',
+    release: () => undefined,
+    ...initial,
+  };
+  const held = new Promise<void>((resolve) => {
+    server.release = resolve;
+  });
   const page = (items: unknown[]) => json({ items, next_cursor: null });
   vi.stubGlobal(
     'fetch',
@@ -182,12 +193,13 @@ function stubServer(initial: Partial<Server> = {}): Server {
           }),
         );
       }
+      const model = MODELS[id];
+      if (server.report_mode === 'held') return held.then(() => json(model));
       if (server.report_mode === 'refused') {
         return Promise.resolve(json({ code: 'report_filter_invalid', title: 'x' }, 422));
       }
       if (server.report_mode === 'error')
         return Promise.resolve(json({ code: 'boom', title: 'x' }, 500));
-      const model = MODELS[id];
       if (!model) return Promise.resolve(json({ code: 'report_not_found', title: 'x' }, 404));
       return Promise.resolve(json(url.searchParams.has('from') ? model : { ...model }));
     }),
@@ -210,6 +222,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearToasts();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -413,6 +426,15 @@ describe('ReportPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the report chart table inside a visually hidden container', async () => {
+    stubServer();
+    renderAt('/reports/fin-flow?run=1');
+    const table = await screen.findByRole('table', { name: 'Entradas, saídas e saldo por mês' });
+    expect(table.className).toBe('');
+    expect(table.parentElement?.className).toContain('visuallyHidden');
+    expect(table.contains(table.querySelector('caption'))).toBe(true);
+  });
+
   it('opens the interactive html report in a new tab with the filters', async () => {
     stubServer();
     renderAt(`/reports/fin-flow?account_id=${ACCOUNT}&period=last_month&run=1`);
@@ -464,6 +486,37 @@ describe('ReportPage', () => {
     renderAt('/reports/fin-flow?run=1');
     await userEvent.click(await screen.findByRole('button', { name: 'Exportar PDF' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível exportar');
+  });
+
+  it('shows a success notice after the pdf is exported', async () => {
+    stubServer();
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }),
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderAt('/reports/fin-flow?run=1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Exportar PDF' }));
+    expect(await screen.findByText('PDF do relatório baixado.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show the success notice when the export fails', async () => {
+    stubServer({ file_mode: 'error' });
+    renderAt('/reports/fin-flow?run=1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Exportar PDF' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível exportar');
+    expect(screen.queryByText('PDF do relatório baixado.')).not.toBeInTheDocument();
+  });
+
+  it('marks the result as busy while the report is generated', async () => {
+    const server = stubServer({ report_mode: 'held' });
+    renderAt('/reports/fin-flow?run=1');
+    const region = await screen.findByRole('region', { name: 'Resultado do relatório' });
+    expect(region).toHaveAttribute('aria-busy', 'true');
+    server.release();
+    await screen.findByText('Entradas e saídas por mês');
+    expect(region).not.toHaveAttribute('aria-busy');
   });
 
   it('shows a refused filter inside the filters card', async () => {

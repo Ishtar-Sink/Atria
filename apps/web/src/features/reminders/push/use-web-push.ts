@@ -43,6 +43,9 @@ function browserSupportsPush(): boolean {
   );
 }
 
+/** Por que o aviso com o app fechado não está disponível: sem suporte no navegador ou desligado na instância. */
+export type PushUnavailableReason = 'unsupported' | 'disabled';
+
 /**
  * Web Push (RF-42): disponível quando a instância tem o recurso ligado e o navegador o aceita.
  * Só `subscribe()` e `unsubscribe()` mexem em algo, e só por ação da pessoa.
@@ -53,9 +56,10 @@ export function useWebPush() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  const supported = browserSupportsPush();
   const key = useQuery({
     queryKey: ['reminders', 'web-push-key'],
-    enabled: browserSupportsPush(),
+    enabled: supported,
     retry: false,
     staleTime: Infinity,
     queryFn: async ({ signal }) => {
@@ -73,6 +77,12 @@ export function useWebPush() {
   });
   const public_key = key.data ?? null;
   const available = public_key !== null;
+  // Enquanto a consulta carrega ou falha por outro motivo, `key.data` é `undefined` e não há motivo.
+  const unavailable_reason: PushUnavailableReason | null = !supported
+    ? 'unsupported'
+    : key.data === null
+      ? 'disabled'
+      : null;
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (public_key === null) return false;
@@ -123,6 +133,7 @@ export function useWebPush() {
 
   return {
     available,
+    unavailable_reason,
     subscribed: subscription_id !== null,
     busy,
     failed,

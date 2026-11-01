@@ -58,6 +58,17 @@ describe('delete lane dialog', () => {
     });
   });
 
+  it('keeps the alertdialog role and the lane name on the generic dialog', async () => {
+    renderSettings({ cards: withCards() });
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir Aguardando' }));
+    const dialog = await screen.findByRole('alertdialog', { name: /Aguardando/ });
+    expect(dialog.querySelector('[data-dialog-body]')).toHaveTextContent('A raia tem 2 cartões');
+    expect(dialog.querySelector('[data-dialog-actions]')).toContainElement(
+      within(dialog).getByRole('button', { name: 'Excluir raia' }),
+    );
+    expect(dialog).toHaveAccessibleDescription(/A raia tem 2 cartões/);
+  });
+
   it('refuses to delete the last lane', async () => {
     // O botão da tela já fica indisponível com uma raia só; aqui o servidor ainda recusa (CB-08).
     const { stub } = renderSettings({ lanes: defaultLanes().slice(0, 2), cards: [] });

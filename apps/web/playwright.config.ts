@@ -15,6 +15,29 @@ const VIEWPORTS = [
   { name: 'w360', viewport: { width: 360, height: 780 } },
 ];
 
+// O usuário usa o Zen (Firefox): os e2e marcados `@firefox` rodam também no Firefox com
+// `ATRIA_E2E_FIREFOX=1` (RNF-06). Sem a variável, o `pnpm e2e` da CI, que instala só o
+// Chromium, mantém os 9 projetos de hoje.
+const FIREFOX_PROJECTS: Project[] = [
+  {
+    name: 'firefox',
+    grep: /@firefox/,
+    testIgnore: WITH_SESSION,
+    use: { ...devices['Desktop Firefox'], viewport: { width: 1280, height: 800 } },
+  },
+  {
+    name: 'firefox-session',
+    grep: /@firefox/,
+    testMatch: WITH_SESSION,
+    dependencies: ['setup'],
+    use: {
+      ...devices['Desktop Firefox'],
+      viewport: { width: 1280, height: 800 },
+      storageState: USER_STATE,
+    },
+  },
+];
+
 const projects: Project[] = [
   { name: 'setup', testMatch: /e2e-auth\.setup\.ts$/ },
   ...VIEWPORTS.flatMap(({ name, viewport }) => [
@@ -26,6 +49,7 @@ const projects: Project[] = [
       use: { ...devices['Desktop Chrome'], viewport, storageState: USER_STATE },
     },
   ]),
+  ...(process.env['ATRIA_E2E_FIREFOX'] === '1' ? FIREFOX_PROJECTS : []),
 ];
 
 export default defineConfig({

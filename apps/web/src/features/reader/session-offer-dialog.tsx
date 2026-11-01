@@ -1,5 +1,5 @@
-import { Button, TextField } from '@atria/ui';
-import { useEffect, useId, useRef, useState, type SyntheticEvent, type KeyboardEvent } from 'react';
+import { Button, Dialog, TextField } from '@atria/ui';
+import { useId, useState, type SyntheticEvent } from 'react';
 import { registerMessages, useT } from '../../shared/i18n/i18n';
 import messages from './i18n/pt-br.json';
 import styles from './reader.module.css';
@@ -17,7 +17,7 @@ export interface SessionOfferDialogProps {
 
 /**
  * Confirmação do registro da sessão (PD-60): as páginas avançadas já vêm preenchidas e podem
- * ser corrigidas. O diálogo é de `<dialog>` próprio porque o `ConfirmDialog` não comporta campo.
+ * ser corrigidas. O diálogo usa o `Dialog` genérico porque o `ConfirmDialog` não comporta campo.
  */
 export function SessionOfferDialog({
   offer,
@@ -27,19 +27,9 @@ export function SessionOfferDialog({
   onSkip,
 }: SessionOfferDialogProps) {
   const t = useT();
-  const base = useId();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const form_id = useId();
   const [pages, setPages] = useState(String(offer.suggested_pages));
   const [invalid, setInvalid] = useState(false);
-
-  useEffect(() => {
-    const el = dialog.current;
-    if (!el) return;
-    el.showModal();
-    return () => {
-      el.close();
-    };
-  }, []);
 
   function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,46 +42,24 @@ export function SessionOfferDialog({
     onConfirm(value);
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      onSkip();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>('input, button:not(:disabled)'),
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
   return (
-    <dialog
-      ref={dialog}
-      aria-labelledby={`${base}-title`}
-      aria-describedby={`${base}-text`}
-      className={styles.dialog}
-      onKeyDown={onKeyDown}
-      onCancel={(event) => {
-        event.preventDefault();
-        onSkip();
-      }}
+    <Dialog
+      open
+      title={t('reader.session_offer_title')}
+      onClose={onSkip}
+      actions={
+        <>
+          <Button variant="ghost" onClick={onSkip} disabled={is_pending}>
+            {t('reader.session_offer_skip')}
+          </Button>
+          <Button type="submit" form={form_id} variant="primary" loading={is_pending}>
+            {t('reader.session_offer_confirm')}
+          </Button>
+        </>
+      }
     >
-      <form onSubmit={submit} noValidate>
-        <h2 id={`${base}-title`} className={styles.dialogTitle}>
-          {t('reader.session_offer_title')}
-        </h2>
-        <p id={`${base}-text`} className={styles.dialogText}>
+      <form id={form_id} onSubmit={submit} noValidate>
+        <p className={styles.dialogText}>
           {t('reader.session_offer_text', { from: offer.from_page, to: offer.to_page })}
         </p>
         <TextField
@@ -114,15 +82,7 @@ export function SessionOfferDialog({
             {t('reader.session_offer_error')}
           </p>
         ) : null}
-        <div className={styles.actions}>
-          <Button variant="ghost" onClick={onSkip} disabled={is_pending}>
-            {t('reader.session_offer_skip')}
-          </Button>
-          <Button type="submit" variant="primary" loading={is_pending}>
-            {t('reader.session_offer_confirm')}
-          </Button>
-        </div>
       </form>
-    </dialog>
+    </Dialog>
   );
 }

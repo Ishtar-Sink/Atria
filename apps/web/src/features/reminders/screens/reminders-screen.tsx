@@ -1,8 +1,10 @@
 import {
   Button,
+  DayIcon,
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  ListIcon,
   LoadingState,
   SelectField,
   Toolbar,
@@ -234,8 +236,8 @@ export function RemindersScreen() {
             setSearch({ view: view as typeof search.view });
           }}
           options={[
-            { value: 'list', label: t('reminders.list.view_list') },
-            { value: 'day', label: t('reminders.list.view_day') },
+            { value: 'list', label: t('reminders.list.view_list'), icon: <ListIcon /> },
+            { value: 'day', label: t('reminders.list.view_day'), icon: <DayIcon /> },
           ]}
         />
       </Toolbar>

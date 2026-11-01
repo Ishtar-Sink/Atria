@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { rootRoute } from '../../../app/router';
 import { summarizeRule } from '../../../shared/forms/recurrence-fields';
+import { formatDate } from '../../../shared/format/intl';
 import { renderWithProviders } from '../../../shared/test/render';
 import { clearToasts, getToasts } from '../../../shared/toast/toast-store';
 import { toRule, type Task, type TaskOccurrence } from '../hooks/use-tasks';
@@ -72,13 +73,30 @@ function json(body: unknown, status = 200) {
 function world(): World {
   return {
     tasks: [
-      task({ id: 's1', title: 'Pagar a conta de luz', due_on: TODAY, labels: ['casa'] }),
-      task({ id: 's0', title: 'Renovar documento', due_on: '2026-11-01' }),
-      task({ id: 's2', title: 'Comprar presente', due_on: '2026-11-20' }),
+      task({
+        id: 's1',
+        title: 'Pagar a conta de luz',
+        due_on: TODAY,
+        next_occurrence: TODAY,
+        labels: ['casa'],
+      }),
+      task({
+        id: 's0',
+        title: 'Renovar documento',
+        due_on: '2026-11-01',
+        next_occurrence: '2026-11-01',
+      }),
+      task({
+        id: 's2',
+        title: 'Comprar presente',
+        due_on: '2026-11-20',
+        next_occurrence: '2026-11-20',
+      }),
       task({
         id: 's3',
         title: 'Enviar relatório',
         due_on: TODAY,
+        next_occurrence: TODAY,
         completed_at: '2026-11-05T10:00:00Z',
       }),
       task({
@@ -87,9 +105,16 @@ function world(): World {
         is_recurring: true,
         recurrence: DAILY,
         description: 'Dez minutos de alongamento.',
+        next_occurrence: TODAY,
         labels: ['saúde'],
       }),
-      task({ id: 'r2', title: 'Revisão semanal', is_recurring: true, recurrence: WEEKLY }),
+      task({
+        id: 'r2',
+        title: 'Revisão semanal',
+        is_recurring: true,
+        recurrence: WEEKLY,
+        next_occurrence: '2026-11-09',
+      }),
     ],
     occurrences: [
       { task_id: 'r1', occurrence_date: '2026-11-04', completed: true },
@@ -130,6 +155,7 @@ function handle(state: World, call: Call): Response {
       id: 'new-1',
       title: body.title ?? '',
       is_recurring: body.recurrence != null,
+      next_occurrence: body.recurrence != null ? TODAY : (body.due_on ?? null),
       ...(body.recurrence ? { recurrence: body.recurrence } : {}),
     });
     state.tasks.push(created);
@@ -403,6 +429,47 @@ describe('tasks list', () => {
     ).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('rf37 warns about open tasks outside the period and switches it', async () => {
+    const user = userEvent.setup();
+    const { router } = open('/tasks');
+    await screen.findByText('Pagar a conta de luz');
+
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveTextContent('Há 2 tarefas abertas em outros dias.');
+    expect(screen.queryByText('Comprar presente')).not.toBeInTheDocument();
+
+    await user.click(within(notice).getByRole('button', { name: 'Ver todas as datas' }));
+
+    await waitFor(() => {
+      expect(search(router)['range']).toBe('all');
+    });
+    expect(await screen.findByText('Comprar presente')).toBeInTheDocument();
+  });
+
+  it('rf37 does not warn when the period is all', async () => {
+    open('/tasks?range=all');
+    await screen.findByText('Pagar a conta de luz');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/em outros dias/)).not.toBeInTheDocument();
+  });
+
+  it('rf38 lists one row per task in all', async () => {
+    open('/tasks?range=all');
+    await screen.findByText('Pagar a conta de luz');
+    for (const title of ['Alongamento da manhã', 'Revisão semanal', 'Pagar a conta de luz']) {
+      expect(screen.getAllByText(title)).toHaveLength(1);
+    }
+  });
+
+  it('rf08 aligns the filters by the base without help under Etiqueta', async () => {
+    open('/tasks');
+    await screen.findByText('Pagar a conta de luz');
+    expect(screen.queryByText('Digite e confirme com Enter.')).not.toBeInTheDocument();
+    expect(getComputedStyle(screen.getByRole('group', { name: 'Filtros' })).alignItems).toBe(
+      'flex-end',
+    );
+  });
+
   it('shows empty, loading and error states', async () => {
     const user = userEvent.setup();
 
@@ -537,6 +604,27 @@ describe('task detail', () => {
     expect(tabs).toEqual(['Visão geral', 'Ocorrências', 'Conexões']);
   });
 
+  it('rf38 shows the next occurrence in the detail beyond the next days', async () => {
+    const state = world();
+    state.tasks.push(
+      task({
+        id: 'rm',
+        title: 'Pagar o condomínio',
+        is_recurring: true,
+        recurrence: { ...DAILY, frequency: 'monthly', month_day: 20 },
+        next_occurrence: '2026-11-20',
+      }),
+    );
+    open('/tasks/rm', state);
+    await screen.findByRole('heading', { level: 1, name: 'Pagar o condomínio' });
+    const date = formatDate('2026-11-20', 'pt-BR', 'UTC');
+
+    expect(await screen.findByText(new RegExp(`Próxima: ${date}`))).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /Ocorrências/ }));
+    expect(await screen.findByText(`Próxima ocorrência em ${date}.`)).toBeInTheDocument();
+  });
+
   it('has no axe violations in the detail', async () => {
     const { container } = open('/tasks/r1');
     await screen.findByRole('heading', { level: 1, name: 'Alongamento da manhã' });
@@ -597,15 +685,48 @@ describe('task form', () => {
     ).toHaveLength(1);
   });
 
-  it('requires the rule time for a recurring task, as the recurrence rule of the spec', async () => {
+  it('rf35 saves a recurring task without time', async () => {
     const user = userEvent.setup();
     const { state } = open('/tasks/new');
     await user.type(await screen.findByRole('textbox', { name: 'Título' }), 'Beber água');
     await user.click(screen.getByRole('radio', { name: 'Recorrente' }));
+    expect(screen.getByRole('textbox', { name: 'Horário (opcional)' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Informe o horário.');
-    expect(state.calls.some((call) => call.method === 'POST')).toBe(false);
+    await screen.findByRole('button', { name: 'Concluir hoje' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    const post = state.calls.find((call) => call.method === 'POST');
+    const recurrence = (post?.body as { recurrence: Record<string, unknown> }).recurrence;
+    expect(recurrence).toMatchObject({ frequency: 'daily' });
+    expect('time' in recurrence).toBe(false);
+  });
+
+  it('rf37 shows a success notice after saving', async () => {
+    const user = userEvent.setup();
+    const created = open('/tasks/new');
+    await user.type(await screen.findByRole('textbox', { name: 'Título' }), 'Ligar para o banco');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(created.router.state.location.pathname).toBe('/tasks/new-1');
+    });
+    await waitFor(() => {
+      expect(getToasts().map((toast) => toast.message_key)).toContain('tasks.form.created');
+    });
+    cleanup();
+
+    open('/tasks/s1/edit');
+    const title = await screen.findByRole('textbox', { name: 'Título' });
+    await user.clear(title);
+    await user.type(title, 'Pagar a luz');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => {
+      expect(getToasts().map((toast) => toast.message_key)).toEqual([
+        'tasks.form.created',
+        'tasks.form.saved',
+      ]);
+    });
+    expect(getToasts().every((toast) => toast.tone === 'success')).toBe(true);
   });
 
   it('changes a recurring task from an occurrence on', async () => {

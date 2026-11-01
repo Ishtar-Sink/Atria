@@ -506,9 +506,11 @@
   text-align: center;
   font-size: var(--font-size-sm);
   overflow: hidden;
+  cursor: pointer;
   transition:
     background var(--motion-fast) var(--motion-ease-standard),
-    border-color var(--motion-fast) var(--motion-ease-standard);
+    border-color var(--motion-fast) var(--motion-ease-standard),
+    color var(--motion-fast) var(--motion-ease-standard);
 }
 
 .coverDrop[data-has-image='true'] {
@@ -516,16 +518,37 @@
   padding: 0;
 }
 
+.coverDrop:hover,
 .coverDrop.over {
   border-color: var(--primary);
   background: var(--primary-soft);
   color: var(--primary);
 }
 
-.dropBody {
-  display: grid;
-  justify-items: center;
-  gap: var(--s3);
+.coverDrop:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.coverDrop[aria-disabled='true'],
+.coverDrop[aria-disabled='true']:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: progress;
+}
+
+.uploadProgress {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.uploadProgress > :first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 .coverTools {

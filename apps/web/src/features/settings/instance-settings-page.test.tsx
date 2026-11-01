@@ -22,6 +22,22 @@ describe('InstanceSettingsPage', () => {
     expect(port).toHaveValue('587');
   });
 
+  it('separates access, e-mail and roles in titled cards', async () => {
+    stubApi();
+    renderSettings('/settings/instance');
+    const titles = ['Instância', 'E-mail (SMTP)', 'Papéis'];
+    const cards = new Set<Element | null>();
+    for (const name of titles) {
+      const heading = await screen.findByRole('heading', { level: 2, name });
+      cards.add(heading.closest('[class*="grid"]'));
+    }
+    expect(cards.size).toBe(3);
+    expect(cards.has(null)).toBe(false);
+    const invite = screen.getByRole('checkbox', { name: 'Cadastro só com convite' });
+    const first = screen.getByRole('heading', { level: 2, name: 'Instância' });
+    expect(invite.closest('[class*="grid"]')).toBe(first.closest('[class*="grid"]'));
+  });
+
   it('turns off the required invite', async () => {
     const calls = stubApi();
     renderSettings('/settings/instance');

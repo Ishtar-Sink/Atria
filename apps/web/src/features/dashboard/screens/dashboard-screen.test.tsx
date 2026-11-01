@@ -74,23 +74,39 @@ describe('DashboardScreen', () => {
     expect(titles('side')).toEqual(['Diário', 'Dinheiro', 'Leituras']);
   });
 
-  it('keeps the zones in one column below 960 px with the main zone first', async () => {
+  it('pairs the cards in rows with the same height', async () => {
+    const { container } = await renderScreen();
+    for (const row of ['1', '2', '3']) {
+      const zones = Array.from(container.querySelectorAll(`[data-row="${row}"]`), (cell) =>
+        cell.getAttribute('data-zone'),
+      );
+      expect(zones.sort()).toEqual(['main', 'side']);
+    }
+    expect(CSS).toMatch(
+      /\.zones\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*2fr\)\s*minmax\(280px,\s*1fr\)/,
+    );
+    expect(CSS).toMatch(/\.zones\s*{[^}]*align-items:\s*stretch/);
+    expect(CSS).toMatch(/\.cell > \*\s*{[^}]*flex:\s*1 1 auto/);
+  });
+
+  it('keeps one column below 960 px with the main zone first', async () => {
     const { container } = await renderScreen();
     const zones = Array.from(container.querySelectorAll('[data-zone]'), (zone) =>
       zone.getAttribute('data-zone'),
     );
-    expect(zones).toEqual(['main', 'side']);
-    expect(CSS).toMatch(/grid-template-columns:\s*minmax\(0,\s*2fr\)\s*minmax\(280px,\s*1fr\)/);
-    expect(CSS).toMatch(
-      /@media \(max-width: 960px\)\s*{\s*\.zones\s*{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
-    );
+    expect(zones).toEqual(['main', 'main', 'main', 'side', 'side', 'side']);
+    const media = /@media \(max-width: 960px\)\s*{([\s\S]*?)\n}\n/.exec(CSS)?.[1] ?? '';
+    expect(media).toMatch(/\.zones\s*{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(media).toMatch(/\.cell\[data-zone\][^{]*{[^}]*grid-column:\s*1;[^}]*grid-row:\s*auto/);
   });
 
-  it('grows the last card of each zone so the columns end together', async () => {
+  it('spans a card without a pair across the row', async () => {
+    localStorage.setItem(`${HIDDEN_BLOCKS_KEY}.u1`, JSON.stringify(['journal']));
     await renderScreen();
-    expect(CSS).toMatch(/\.zones\s*{[^}]*align-items:\s*stretch/);
-    expect(CSS).toMatch(/\.zone\s*{[^}]*flex-direction:\s*column/);
-    expect(CSS).toMatch(/\.zone > :last-child\s*{\s*flex:\s*1 0 auto/);
+    const upcoming = await screen.findByRole('region', { name: 'Próximos dias' });
+    expect(upcoming.closest('[data-zone]')).toHaveAttribute('data-alone');
+    expect(document.querySelectorAll('[data-alone]')).toHaveLength(1);
+    expect(CSS).toMatch(/\.cell\[data-alone\]\s*{\s*grid-column:\s*1 \/ -1/);
   });
 
   it('shows at most three tasks and three reminders', async () => {

@@ -1,9 +1,9 @@
-import { Button } from '@atria/ui';
+import { Button, ProgressBar } from '@atria/ui';
 import { useId, useRef, useState } from 'react';
 import { registerMessages, useT } from '../../shared/i18n/i18n';
 import messages from './i18n/pt-br.json';
 import { fileUrl } from './library-item-cover';
-import { PDF_MAX_BYTES } from './use-library-mutations';
+import { PDF_MAX_BYTES, useUploadProgress } from './use-library-mutations';
 import styles from './library.module.css';
 
 registerMessages('library', messages);
@@ -22,6 +22,7 @@ export function PdfAttachmentField({ pdf_file_id, pending, on_pending }: PdfAtta
   const input_id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>();
+  const progress = useUploadProgress('pdf');
 
   function choose(file: File | undefined) {
     if (!file) return;
@@ -83,6 +84,12 @@ export function PdfAttachmentField({ pdf_file_id, pending, on_pending }: PdfAtta
           </Button>
         ) : null}
       </div>
+      {progress !== null ? (
+        <div className={styles.uploadProgress}>
+          <ProgressBar label={t('library.pdf.uploading')} value={progress} />
+          <span>{t('library.upload.percent', { percent: progress })}</span>
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className={styles.fieldError}>
           {error}

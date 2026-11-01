@@ -36,6 +36,8 @@ function stubFetch() {
       const url = new URL(input instanceof Request ? input.url : input, 'http://localhost');
       if (url.pathname === '/api/v1/me')
         return Promise.resolve(json({ id: 'u-1', email: 'a@b.c' }));
+      if (url.pathname === '/api/v1/me/preferences')
+        return Promise.resolve(json({ theme: 'system' }));
       paths.push(url.pathname);
       const detail = DETAILS[url.pathname];
       return Promise.resolve(

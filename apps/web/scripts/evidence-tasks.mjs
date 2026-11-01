@@ -2,10 +2,13 @@
 // (API `createServer`), serve uma página virtual que carrega `src/features/tasks/evidence/harness.tsx`
 // (as rotas da feature num roteador em memória, com os providers e o layout do app), simula a API no
 // navegador com fixtures em memória, confere o estado no DOM antes de cada captura e monta a prancha
-// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-24/.
+// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-24/ (ou na pasta de VOSTOK_EVIDENCE).
 // Uso: node apps/web/scripts/evidence-tasks.mjs telas
+//      node apps/web/scripts/evidence-tasks.mjs rows  (TASK-28 da SPEC-002: uma linha por tarefa,
+//      aviso fora do período e filtros alinhados pela base na prancha PNG; o formulário sem horário e a
+//      lista saem em vídeo, tasks-rows.webm, com cursor visível)
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +19,9 @@ import { createServer } from 'vite';
 const AxeBuilder = axePackage.default ?? axePackage.AxeBuilder;
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-24');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-24');
 
 const THEMES = ['light', 'dark'];
 const SIZES = {
@@ -139,6 +144,11 @@ function fixtures() {
       is_recurring: true,
       recurrence: { ...RULE_BASE, frequency: 'weekly', weekdays: ['thu'] },
     }),
+    makeTask('r-mensal', 'Pagar o condomínio', {
+      is_recurring: true,
+      recurrence: { ...RULE_BASE, frequency: 'monthly', month_day: 20 },
+    }),
+    makeTask('t-amanha', 'Levar o carro à revisão', { due_on: '2026-11-06' }),
   ];
 }
 
@@ -153,7 +163,8 @@ function occurrencesOf(tasks, done, from, to) {
   for (let day = from; day <= to; day = addDaysIso(day, 1)) {
     const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
     for (const task of tasks.filter((item) => item.is_recurring)) {
-      const { frequency, weekdays } = task.recurrence;
+      const { frequency, weekdays, month_day } = task.recurrence;
+      if (frequency === 'monthly' && Number(day.slice(8)) !== month_day) continue;
       if (
         frequency === 'weekly' &&
         !weekdays.includes(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][weekday])
@@ -173,6 +184,14 @@ function occurrencesOf(tasks, done, from, to) {
 function installApi(context, mode, gate) {
   const tasks = fixtures();
   const done = new Set([`r-agua:${TODAY}`]);
+  /** `next_occurrence` do servidor: pontual, o vencimento; recorrente, a primeira aberta em 60 dias. */
+  const withNext = (task) => {
+    if (!task.is_recurring) return { ...task, next_occurrence: task.due_on };
+    const open = occurrencesOf([task], done, TODAY, addDaysIso(TODAY, 60)).find(
+      (item) => !item.completed,
+    );
+    return { ...task, next_occurrence: open?.occurrence_date ?? null };
+  };
   return context.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
@@ -201,6 +220,16 @@ function installApi(context, mode, gate) {
         const list = mode === 'empty' ? [] : tasks;
         return reply({ items: occurrencesOf(list, done, q.get('from'), q.get('to')) });
       }
+      if (path === '/tasks' && method === 'POST') {
+        const body = JSON.parse(request.postData() ?? '{}');
+        const created = makeTask('t-nova', body.title, {
+          due_on: body.due_on ?? null,
+          is_recurring: body.recurrence != null,
+          recurrence: body.recurrence ?? null,
+        });
+        tasks.push(created);
+        return reply(withNext(created), 201);
+      }
       if (path === '/tasks' && method === 'GET') {
         let items = mode === 'empty' ? [] : tasks;
         if (q.get('recurring') !== null)
@@ -210,12 +239,14 @@ function installApi(context, mode, gate) {
         if (q.get('label')) items = items.filter((t) => t.labels.includes(q.get('label')));
         if (q.get('q'))
           items = items.filter((t) => t.title.toLowerCase().includes(q.get('q').toLowerCase()));
-        return reply({ items, next_cursor: null });
+        return reply({ items: items.map(withNext), next_cursor: null });
       }
       const detail = path.match(/^\/tasks\/([^/]+)$/);
       if (detail && method === 'GET') {
         const task = tasks.find((t) => t.id === detail[1]);
-        return task ? reply(task) : reply({ title: 'Não encontrada', code: 'not_found' }, 404);
+        return task
+          ? reply(withNext(task))
+          : reply({ title: 'Não encontrada', code: 'not_found' }, 404);
       }
       const completion = path.match(/^\/tasks\/([^/]+)\/completion$/);
       if (completion) {
@@ -231,10 +262,14 @@ function installApi(context, mode, gate) {
 
 // ---------- captura ----------
 
-async function openPage(browser, { theme, size, mode = 'normal', tall = false }) {
-  const viewport = { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
+async function openPage(
+  browser,
+  { theme, size, mode = 'normal', tall = false, viewport: fixed, video },
+) {
+  const viewport = fixed ?? { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
   const context = await browser.newContext({
     viewport,
+    ...(video ? { recordVideo: video } : {}),
     reducedMotion: 'reduce',
     locale: 'pt-BR',
     timezoneId: ZONE,
@@ -655,6 +690,180 @@ const scenarios = [
   },
 ];
 
+// ---------- cenários do modo rows (TASK-28 da SPEC-002) ----------
+
+const countOf = (page, name) => page.getByRole('link', { name, exact: true }).count();
+
+const rowsScenarios = [
+  {
+    name: 'lista com uma linha por tarefa',
+    path: '/tasks?range=all',
+    run: async (page, tag, { size }) => {
+      await page.getByRole('link', { name: 'Alongamento da manhã' }).waitFor();
+      if (size === 'desktop') {
+        const bottoms = await page.evaluate(() => {
+          const bottom = (el) => Math.round(el.getBoundingClientRect().bottom);
+          const group = document.querySelector('[role="group"][aria-label="Filtros"]');
+          const view = document.querySelector('[role="group"][aria-label="Visualização"]');
+          const search = document.querySelector('input[type="search"]');
+          return [
+            ...group.querySelectorAll('button, input'),
+            ...(view ? [view] : []),
+            ...(search ? [search] : []),
+          ].map(bottom);
+        });
+        check(
+          `${tag}: filtros alinhados pela base`,
+          bottoms.length >= 5 && Math.max(...bottoms) - Math.min(...bottoms) <= 1,
+          bottoms.join(' '),
+        );
+      }
+      check(
+        `${tag}: sem ajuda sob Etiqueta`,
+        (await page.getByText('Digite e confirme com Enter.').count()) === 0,
+      );
+      const recurring = [
+        await countOf(page, 'Alongamento da manhã'),
+        await countOf(page, 'Revisão da semana'),
+        await countOf(page, 'Pagar o condomínio'),
+      ];
+      check(
+        `${tag}: uma linha por tarefa recorrente`,
+        recurring.every((n) => n === 1),
+        recurring.join(' '),
+      );
+      check(
+        `${tag}: pontual aparece uma vez`,
+        (await countOf(page, 'Levar o carro à revisão')) === 1 &&
+          (await countOf(page, 'Pagar a conta de luz')) === 1,
+      );
+      const row = page.getByRole('listitem').filter({ hasText: 'Pagar o condomínio' });
+      const text = (await row.textContent()) ?? '';
+      check(`${tag}: próxima ocorrência fora da janela`, /Próxima: .*20/.test(text), text);
+    },
+  },
+  {
+    name: 'aviso de tarefas abertas em outros dias',
+    path: '/tasks',
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Alongamento da manhã' }).waitFor();
+      const notice = page.getByRole('status').filter({ hasText: 'em outros dias' });
+      await notice.waitFor();
+      check(
+        `${tag}: aviso de tarefas abertas fora do período`,
+        /Há \d+ tarefas? abertas? em outros dias\./.test((await notice.textContent()) ?? ''),
+        (await notice.textContent()) ?? '',
+      );
+      await notice.getByRole('button', { name: 'Ver todas as datas' }).click();
+      await page.getByRole('link', { name: 'Pagar o condomínio' }).waitFor();
+      check(
+        `${tag}: "Ver todas as datas" troca o período`,
+        (await hrefOf(page)).includes('range=all'),
+      );
+    },
+  },
+];
+
+// ---------- vídeo do formulário sem horário e da lista (TASK-28 da SPEC-002) ----------
+
+/** Marcador do cursor no vídeo: o Playwright não desenha o ponteiro, então mostramos o `cursor` computado. */
+const CURSOR_MARKER = () => {
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;left:0;top:0;display:none;';
+  dot.innerHTML =
+    '<div style="width:12px;height:12px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 1px #000"></div>' +
+    '<div data-label style="margin:4px 0 0 14px;padding:2px 6px;border-radius:4px;background:#111;color:#fff;font:600 12px system-ui;white-space:nowrap"></div>';
+  const label = dot.querySelector('[data-label]');
+  const place = (event) => {
+    dot.style.display = 'block';
+    dot.style.transform = `translate(${event.clientX - 6}px, ${event.clientY - 6}px)`;
+    requestAnimationFrame(() => {
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      label.textContent = `cursor: ${under ? getComputedStyle(under).cursor : 'default'}`;
+    });
+  };
+  window.addEventListener('mousemove', place, true);
+  window.addEventListener('mousedown', place, true);
+  window.addEventListener('mouseup', place, true);
+  document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
+};
+
+async function recordFormVideo(browser, base) {
+  mkdirSync(OUT, { recursive: true });
+  const size = { width: 1280, height: 800 };
+  const { page, context, release } = await openPage(browser, {
+    theme: 'light',
+    size: 'desktop',
+    viewport: size,
+    video: { dir: join(OUT, 'video-tmp'), size },
+  });
+  await context.addInitScript(CURSOR_MARKER);
+  const video = page.video();
+  const pause = (ms) => page.waitForTimeout(ms);
+  const tag = 'vídeo';
+  const moveTo = async (locator) => {
+    const box = await locator.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+    await pause(300);
+  };
+  try {
+    await page.mouse.move(640, 760);
+    await gotoApp(page, base, '/tasks/new');
+    await pause(800);
+    const title = page.getByRole('textbox', { name: 'Título' });
+    await moveTo(title);
+    await title.click();
+    await title.pressSequentially('Beber água', { delay: 90 });
+    const recurring = page.getByRole('radio', { name: 'Recorrente' });
+    await moveTo(recurring);
+    await recurring.click();
+    const time = page.getByRole('textbox', { name: 'Horário (opcional)' });
+    const optional = (await time.count()) === 1;
+    await moveTo(time);
+    await pause(1200);
+    const request = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/tasks'));
+    const save = page.getByRole('button', { name: 'Salvar' });
+    await moveTo(save);
+    await save.click();
+    const body = JSON.parse((await request).postData() ?? '{}');
+    check(
+      `${tag}: recorrente salva sem horário`,
+      optional && body.recurrence && !('time' in body.recurrence),
+      JSON.stringify(body.recurrence),
+    );
+    await page.getByText('Tarefa criada.').waitFor();
+    check(`${tag}: aviso de sucesso ao salvar`, await page.getByText('Tarefa criada.').isVisible());
+    await pause(1800);
+    await gotoApp(page, base, '/tasks?range=all');
+    await page.getByRole('link', { name: 'Alongamento da manhã' }).waitFor();
+    const recurringCounts = [
+      await countOf(page, 'Alongamento da manhã'),
+      await countOf(page, 'Revisão da semana'),
+      await countOf(page, 'Pagar o condomínio'),
+    ];
+    check(
+      `${tag}: uma linha por tarefa recorrente`,
+      recurringCounts.every((n) => n === 1),
+      recurringCounts.join(' '),
+    );
+    const row = page.getByRole('listitem').filter({ hasText: 'Pagar o condomínio' });
+    const text = (await row.textContent()) ?? '';
+    check(`${tag}: próxima ocorrência fora da janela`, /Próxima: .*20/.test(text), text);
+    await moveTo(row);
+    await pause(2500);
+  } catch (e) {
+    check(`${tag}: cenário executou`, false, String(e.message).split('\n')[0]);
+  } finally {
+    release();
+    await context.close();
+  }
+  const path = join(OUT, 'tasks-rows.webm');
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
 // ---------- principal ----------
 
 const EVIDENCES = {
@@ -669,11 +878,23 @@ const EVIDENCES = {
   },
 };
 
+EVIDENCES.rows = async (browser, base) => {
+  const shots = await runScenarios(browser, base, rowsScenarios);
+  await sheet(browser, {
+    title:
+      'SPEC-002 TASK-28 · Tarefas: filtros, horário opcional e uma linha por tarefa (RF-08, RF-35, RF-37, RF-38)',
+    file: 'tasks-rows.png',
+    shots,
+    scale: { desktop: 0.5, mobile: 0.62 },
+  });
+  await recordFormVideo(browser, base);
+};
+
 const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
   console.error(
-    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use telas.`,
+    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use telas ou rows.`,
   );
   process.exit(2);
 }

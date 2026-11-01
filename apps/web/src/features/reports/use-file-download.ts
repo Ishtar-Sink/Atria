@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ApiProblem } from '../../shared/api/problem';
+import { pushToast } from '../../shared/toast/toast-store';
 import type { QueryValue } from '../../shared/api/client';
 
 const BASE_URL = '/api/v1';
@@ -34,6 +35,8 @@ export interface DownloadRequest {
   path: string;
   query: Record<string, QueryValue>;
   fallback_name: string;
+  /** Chave do aviso de sucesso; sem ela vale o aviso genérico de arquivo baixado. */
+  success_key?: string;
 }
 
 /**
@@ -44,30 +47,36 @@ export function useFileDownload() {
   const [is_loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiProblem | Error | null>(null);
 
-  const download = useCallback(async ({ path, query, fallback_name }: DownloadRequest) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined && value !== null) params.set(key, String(value));
-      }
-      let response: Response;
+  const download = useCallback(
+    async ({ path, query, fallback_name, success_key }: DownloadRequest): Promise<boolean> => {
+      setLoading(true);
+      setError(null);
       try {
-        response = await fetch(`${BASE_URL}${path}?${params.toString()}`, {
-          credentials: 'same-origin',
-        });
-      } catch {
-        throw new ApiProblem({ status: 0, code: 'network_error', title: 'Network error' });
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(query)) {
+          if (value !== undefined && value !== null) params.set(key, String(value));
+        }
+        let response: Response;
+        try {
+          response = await fetch(`${BASE_URL}${path}?${params.toString()}`, {
+            credentials: 'same-origin',
+          });
+        } catch {
+          throw new ApiProblem({ status: 0, code: 'network_error', title: 'Network error' });
+        }
+        if (!response.ok) throw await problemOf(response);
+        save(await response.blob(), filenameOf(response, fallback_name));
+        pushToast({ tone: 'success', message_key: success_key ?? 'reports.download_done' });
+        return true;
+      } catch (caught) {
+        setError(caught instanceof Error ? caught : new Error('download_failed'));
+        return false;
+      } finally {
+        setLoading(false);
       }
-      if (!response.ok) throw await problemOf(response);
-      save(await response.blob(), filenameOf(response, fallback_name));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught : new Error('download_failed'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   return { download, is_loading, error };
 }

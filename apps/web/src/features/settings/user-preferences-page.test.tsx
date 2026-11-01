@@ -1,7 +1,8 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
+import { setPrefersDark } from '../../shared/test/setup';
 import { clearToasts, getToasts } from '../../shared/toast/toast-store';
 import { json, patches, PREFERENCES, renderSettings, stubApi } from './test-support';
 
@@ -30,6 +31,49 @@ async function choose(trigger: RegExp, option: RegExp) {
 }
 
 describe('UserPreferencesPage', () => {
+  it('applies the server theme on open over the browser saved theme', async () => {
+    localStorage.setItem('atria_theme', 'light');
+    stubApi({ preferences: { ...PREFERENCES, theme: 'dark' } });
+    renderSettings();
+    expect(await screen.findByRole('radio', { name: 'Escuro' })).toBeChecked();
+    await waitFor(() => {
+      expect(document.documentElement.dataset['theme']).toBe('dark');
+    });
+  });
+
+  it('does not change the theme when opening settings', async () => {
+    localStorage.setItem('atria_theme', 'light');
+    setPrefersDark(true);
+    const calls = stubApi({ preferences: { ...PREFERENCES, theme: 'light' } });
+    renderSettings();
+    expect(await screen.findByRole('radio', { name: 'Claro' })).toBeChecked();
+    expect(document.documentElement.dataset['theme']).toBe('light');
+    expect(patches(calls, '/me/preferences')).toEqual([]);
+  });
+
+  it('follows the system at once with Seguir o sistema', async () => {
+    const calls = stubApi({ preferences: { ...PREFERENCES, theme: 'light' } });
+    renderSettings();
+    await userEvent.click(await screen.findByRole('radio', { name: 'Seguir o sistema' }));
+    await waitFor(() => {
+      expect(patches(calls, '/me/preferences')).toEqual([{ theme: 'system' }]);
+    });
+    expect(localStorage.getItem('atria_theme')).toBe('system');
+    act(() => {
+      setPrefersDark(true);
+    });
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+  });
+
+  it('shows the preferences in a card titled Suas preferências', async () => {
+    stubApi();
+    renderSettings();
+    const form = await screen.findByRole('form', { name: 'Suas preferências' });
+    expect(
+      within(form).getByRole('heading', { level: 2, name: 'Suas preferências' }),
+    ).toBeVisible();
+  });
+
   it('changes the theme at once and keeps it after reload', async () => {
     const calls = stubApi();
     const view = renderSettings();

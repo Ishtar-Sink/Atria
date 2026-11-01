@@ -113,12 +113,34 @@ describe('useWebPush', () => {
     expect(calls.some((call) => call.path === '/push-subscriptions')).toBe(false);
   });
 
+  it('reports disabled when the instance has web push off', async () => {
+    web_push_on = false;
+    installBrowser('granted');
+    const { result } = setup();
+
+    await waitFor(() => {
+      expect(result.current.unavailable_reason).toBe('disabled');
+    });
+    expect(result.current.available).toBe(false);
+  });
+
+  it('reports unsupported when the browser has no push manager', () => {
+    installBrowser('granted');
+    Reflect.deleteProperty(window, 'PushManager');
+    const { result } = setup();
+
+    expect(result.current.unavailable_reason).toBe('unsupported');
+    expect(result.current.available).toBe(false);
+    expect(calls.some((call) => call.path === '/web-push/public-key')).toBe(false);
+  });
+
   it('subscribes after the person turns it on', async () => {
     const browser = installBrowser('granted');
     const { result } = setup();
     await waitFor(() => {
       expect(result.current.available).toBe(true);
     });
+    expect(result.current.unavailable_reason).toBeNull();
     // Nada é registrado antes da ação da pessoa.
     expect(browser.register).not.toHaveBeenCalled();
 

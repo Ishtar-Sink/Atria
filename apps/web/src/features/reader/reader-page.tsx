@@ -21,6 +21,8 @@ registerMessages('reader', messages);
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
+// 100% é a largura de leitura (cerca de 960 px), não a largura toda do palco (inferência G).
+const READING_WIDTH = 960;
 
 const ERROR_KEYS: Partial<Record<PdfStatus, string>> = {
   corrupted: 'reader.error_corrupted',
@@ -220,6 +222,7 @@ export function ReaderPage({ item_type, item_id }: ReaderPageProps) {
             <PdfViewer
               doc={doc}
               zoom={zoom}
+              reading_width={READING_WIDTH}
               goto={goto ?? resume_goto}
               highlights={highlights.data?.items ?? []}
               onPageChange={onScrollPage}

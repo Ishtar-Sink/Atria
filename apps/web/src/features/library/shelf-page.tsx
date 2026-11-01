@@ -3,8 +3,10 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  ListIcon,
   LoadingState,
   MenuButton,
+  ShelfIcon,
   Tabs,
   TextField,
   Toolbar,
@@ -76,19 +78,6 @@ const VideoIcon = () => (
   <Icon>
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="m10 9 5 3-5 3Z" />
-  </Icon>
-);
-const GridIcon = () => (
-  <Icon>
-    <rect x="3" y="3" width="7" height="7" rx="1" />
-    <rect x="14" y="3" width="7" height="7" rx="1" />
-    <rect x="3" y="14" width="7" height="7" rx="1" />
-    <rect x="14" y="14" width="7" height="7" rx="1" />
-  </Icon>
-);
-const ListIcon = () => (
-  <Icon>
-    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
   </Icon>
 );
 
@@ -463,7 +452,7 @@ export function ShelfPage() {
           label={t('library.shelf.view_label')}
           value={search.view}
           options={[
-            { value: 'grid', label: t('library.shelf.view_grid'), icon: <GridIcon /> },
+            { value: 'grid', label: t('library.shelf.view_grid'), icon: <ShelfIcon /> },
             { value: 'list', label: t('library.shelf.view_list'), icon: <ListIcon /> },
           ]}
           onChange={(value) => {

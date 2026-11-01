@@ -4,6 +4,7 @@ import { api } from '../../shared/api/client';
 import { registerMessages, type Translate } from '../../shared/i18n/i18n';
 import { useOptimisticMutation } from '../../shared/optimistic/use-optimistic-mutation';
 import messages from './i18n/pt-br.json';
+import { resolveEmotionIcon, type EmotionIconChoice, type EmotionIconKey } from './emotion-icons';
 
 registerMessages('journal', messages);
 
@@ -37,16 +38,39 @@ export function useEmotions() {
   });
 }
 
+export interface CreateEmotionVariables {
+  name: string;
+  icon: EmotionIconKey | null;
+}
+
+/** O ícone neutro vira `null`: o servidor só guarda as chaves do conjunto fixo. */
+export function iconToServer(choice: EmotionIconChoice): EmotionIconKey | null {
+  return choice === 'neutral' ? null : choice;
+}
+
+/** Ícone de um vínculo de entrada: o `icon` da emoção da lista e a `system_key` do vínculo. */
+export function emotionIconKey(
+  link: { emotion_id: string; system_key?: SystemEmotionKey | null | undefined },
+  emotions?: readonly Emotion[],
+): EmotionIconChoice {
+  const found = emotions?.find((item) => item.id === link.emotion_id);
+  return resolveEmotionIcon({
+    icon: found?.icon ?? null,
+    system_key: link.system_key ?? found?.system_key ?? null,
+  });
+}
+
 export function useCreateEmotion() {
-  return useOptimisticMutation<Emotion, string, EmotionList>({
-    mutation_fn: (name) => api.post<Emotion>('/emotions', { name }),
+  return useOptimisticMutation<Emotion, CreateEmotionVariables, EmotionList>({
+    mutation_fn: ({ name, icon }) => api.post<Emotion>('/emotions', { name, icon }),
     query_key: EMOTIONS_KEY,
-    apply: (current, name) => {
+    apply: (current, { name, icon }) => {
       const now = new Date().toISOString();
       const temporary: Emotion = {
         id: `pending-${name}`,
         owner_id: '',
         name,
+        icon,
         system_key: null,
         visibility: 'personal',
         created_at: now,
@@ -70,6 +94,23 @@ export function useRenameEmotion() {
     query_key: EMOTIONS_KEY,
     apply: (current, { id, name }) => ({
       items: (current?.items ?? []).map((item) => (item.id === id ? { ...item, name } : item)),
+    }),
+    error_message_key: UNDO_KEY,
+  });
+}
+
+export interface SetEmotionIconVariables {
+  id: string;
+  icon: EmotionIconKey | null;
+}
+
+/** Troca só o ícone de uma emoção personalizada, sem renomear. */
+export function useSetEmotionIcon() {
+  return useOptimisticMutation<Emotion, SetEmotionIconVariables, EmotionList>({
+    mutation_fn: ({ id, icon }) => api.patch<Emotion>(`/emotions/${id}`, { icon }),
+    query_key: EMOTIONS_KEY,
+    apply: (current, { id, icon }) => ({
+      items: (current?.items ?? []).map((item) => (item.id === id ? { ...item, icon } : item)),
     }),
     error_message_key: UNDO_KEY,
   });

@@ -59,7 +59,7 @@ describe('book form', () => {
     const media = container.querySelector('[class*="formMedia"]');
     if (!media) throw new Error('sem a área da capa');
     expect(media.firstElementChild).toContainElement(
-      screen.getByRole('group', { name: 'Capa do livro' }),
+      screen.getByRole('button', { name: 'Capa do livro: clique ou arraste uma imagem' }),
     );
     expect(media.lastElementChild).toContainElement(screen.getByLabelText('Título'));
     const tags = screen.getByLabelText('Etiquetas');
@@ -96,6 +96,18 @@ describe('book form', () => {
     expect(upload?.method).toBe('PUT');
     expect(upload?.content_type).toBe('application/octet-stream');
     expect(upload?.file?.name).toBe('livro.pdf');
+  });
+
+  it('shows the progress of the pdf upload and a success notice after saving', async () => {
+    const server = stubLibraryServer({ hold_uploads: true });
+    renderLibrary('/library/books/new');
+    await userEvent.type(await screen.findByLabelText('Título'), 'Com PDF');
+    await userEvent.upload(screen.getByLabelText('PDF (opcional)'), pdf());
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    const bar = await screen.findByRole('progressbar', { name: 'Enviando o PDF' });
+    expect(bar).toHaveAttribute('aria-valuenow', '50');
+    server.release_uploads();
+    expect(await screen.findByText('Arquivo enviado.')).toBeInTheDocument();
   });
 
   it('saves the book without a pdf and without a cover', async () => {

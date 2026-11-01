@@ -199,6 +199,35 @@ describe('AppLayout', () => {
     );
   });
 
+  it('saves the theme toggle in the server preference', async () => {
+    const patches: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string, init?: RequestInit) => {
+        const path = new URL(input, 'http://x').pathname.replace('/api/v1', '');
+        const respond = (body: unknown) =>
+          Promise.resolve(
+            new Response(JSON.stringify(body), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        if (path === '/me/preferences') {
+          if (init?.method === 'PATCH') patches.push(JSON.parse(init.body as string));
+          return respond({ theme: init?.method === 'PATCH' ? 'dark' : 'light' });
+        }
+        return respond({ id: 'u1', email: 'a@casa.test' });
+      }),
+    );
+    renderWithProviders(<PaletteProbe />, { nav_items });
+    await userEvent.click(await screen.findByRole('button', { name: 'a@casa.test' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Alternar tema' }));
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+    await waitFor(() => {
+      expect(patches).toEqual([{ theme: 'dark' }]);
+    });
+  });
+
   it('does not list Configurações in the Principal navigation', async () => {
     renderWithProviders(<PaletteProbe />, { nav_items });
     const nav = await screen.findByRole('navigation', { name: 'Principal' });

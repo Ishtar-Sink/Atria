@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearToasts } from '../../shared/toast/toast-store';
@@ -44,10 +44,12 @@ describe('video form', () => {
       await screen.findByText('Sem miniatura buscada? Envie uma imagem em 16:9.'),
     ).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Endereço'), 'https://exemplo.test/video');
-    const group = screen.getByRole('group', { name: 'Miniatura do vídeo' });
-    expect(group.className).toMatch(/landscape/);
+    const area = screen.getByRole('button', {
+      name: 'Miniatura do vídeo: clique ou arraste uma imagem',
+    });
+    expect(area.className).toMatch(/landscape/);
     await userEvent.upload(
-      within(group).getByLabelText('Miniatura do vídeo', { selector: 'input' }),
+      screen.getByLabelText('Miniatura do vídeo', { selector: 'input' }),
       new File([new Uint8Array(16)], 'mini.jpg', { type: 'image/jpeg' }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -66,7 +68,7 @@ describe('video form', () => {
     const media = container.querySelector('[class*="formMedia"]');
     if (!media) throw new Error('sem a área da miniatura');
     expect(media.firstElementChild).toContainElement(
-      screen.getByRole('group', { name: 'Miniatura do vídeo' }),
+      screen.getByRole('button', { name: 'Miniatura do vídeo: clique ou arraste uma imagem' }),
     );
     const right = media.lastElementChild;
     [

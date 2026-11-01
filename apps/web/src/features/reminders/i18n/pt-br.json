@@ -84,6 +84,11 @@
   "push.switch": "Receber com o Atria fechado",
   "push.help": "O Atria envia o aviso mesmo com a aba fechada.",
   "push.error": "Não foi possível mudar o recebimento com o Atria fechado.",
+  "push.disabled": "O aviso com o Atria fechado está desligado nesta instância. Quem administra pode ligar em Configurações › Instância.",
+  "push.disabled_admin": "O aviso com o Atria fechado está desligado nesta instância. Ligue em Configurações › Instância.",
+  "push.open_instance_settings": "Abrir Configurações › Instância",
+  "push.unsupported": "Este navegador não oferece o aviso com o Atria fechado. Os lembretes continuam aparecendo aqui no Atria.",
+  "push.not_subscribed": "Este aparelho ainda não recebe o aviso com o Atria fechado. Ligue o interruptor para receber.",
   "notification.in_app": "Lembrete: {title}",
   "notification.in_app_at": "Lembrete às {time}: {title}"
 }

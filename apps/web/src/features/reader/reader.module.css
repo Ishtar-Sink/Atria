@@ -221,6 +221,31 @@
   outline-offset: 2px;
 }
 
+.swatch[aria-pressed='true'] {
+  border-color: var(--text);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--text);
+}
+
+.swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.highlightActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--space) * 3);
+}
+
+.highlightColors {
+  display: flex;
+  gap: calc(var(--space) * 2);
+}
+
 .swatch[data-color='accent'] {
   --swatch-color: var(--accent-fill);
 }
@@ -300,31 +325,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: calc(var(--space) * 2);
-}
-
-.dialog {
-  width: min(calc(var(--space) * 110), calc(100% - var(--space) * 8));
-  padding: calc(var(--space) * 6);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--elevation-3);
-  color: var(--text);
-  box-shadow: var(--shadow-lg);
-}
-
-.dialog::backdrop {
-  background: rgba(11, 8, 22, 0.55);
-}
-
-.dialogTitle {
-  margin: 0 0 calc(var(--space) * 2);
-  font-family: var(--font-display);
-  font-size: var(--font-size-xl);
-}
-
-.dialogText {
-  margin: 0 0 calc(var(--space) * 4);
-  color: var(--text-muted);
 }
 
 .highlightList {
@@ -412,4 +412,9 @@
 /* O esqueleto do carregando precisa de largura própria: o contêiner centraliza e o encolheria a zero. */
 .status > [role='status'] {
   width: min(100%, calc(var(--space) * 90));
+}
+
+.dialogText {
+  margin: 0 0 var(--s3);
+  color: var(--text-muted);
 }

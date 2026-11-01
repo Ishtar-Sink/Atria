@@ -45,8 +45,19 @@ export function FormSelect<T extends FieldValues>({
   help,
   options,
   placeholder,
-}: Base<T> & { options: { value: string; label: string }[]; placeholder?: string }) {
+  empty_option,
+  empty_help,
+}: Base<T> & {
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  /** Texto da opção vazia, mostrada primeiro (valor `''`). */
+  empty_option?: string;
+  /** Ajuda mostrada no lugar de `help` quando não há opções. */
+  empty_help?: string;
+}) {
   const error = useErrorText();
+  const shown = empty_option ? [{ value: '', label: empty_option }, ...options] : options;
+  const shown_help = options.length === 0 && empty_help ? empty_help : help;
   return (
     <Controller
       control={control}
@@ -54,11 +65,11 @@ export function FormSelect<T extends FieldValues>({
       render={({ field, fieldState }) => (
         <SelectField
           label={label}
-          options={options}
+          options={shown}
           value={field.value ?? ''}
           onChange={field.onChange}
           onBlur={field.onBlur}
-          {...(help ? { help } : {})}
+          {...(shown_help ? { help: shown_help } : {})}
           {...(placeholder ? { placeholder } : {})}
           {...(fieldState.error ? { error: error(fieldState.error.message) ?? '' } : {})}
         />

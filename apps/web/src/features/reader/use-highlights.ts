@@ -60,3 +60,40 @@ export function useCreateHighlight(item_type: ReaderItemType, item_id: string) {
     },
   });
 }
+
+/** Troca a cor na hora e a devolve com aviso se o servidor recusar (RF-32). */
+export function useChangeHighlightColor(item_type: ReaderItemType, item_id: string) {
+  return useOptimisticMutation<
+    Highlight,
+    { highlight_id: string; color: HighlightColor },
+    HighlightList
+  >({
+    query_key: key(item_type, item_id),
+    error_message_key: 'reader.highlight_change_error',
+    mutation_fn: ({ highlight_id, color }) =>
+      api.patch<Highlight>(
+        `${itemBase(item_type, item_id)}/highlights/${encodeURIComponent(highlight_id)}`,
+        { color },
+      ),
+    apply: (current, { highlight_id, color }) => ({
+      items: (current?.items ?? []).map((item) =>
+        item.id === highlight_id ? { ...item, color } : item,
+      ),
+    }),
+  });
+}
+
+/** Exclui na hora e devolve o destaque à lista com aviso se o servidor recusar (RF-32). */
+export function useDeleteHighlight(item_type: ReaderItemType, item_id: string) {
+  return useOptimisticMutation<undefined, { highlight_id: string }, HighlightList>({
+    query_key: key(item_type, item_id),
+    error_message_key: 'reader.highlight_delete_error',
+    mutation_fn: ({ highlight_id }) =>
+      api.delete<undefined>(
+        `${itemBase(item_type, item_id)}/highlights/${encodeURIComponent(highlight_id)}`,
+      ),
+    apply: (current, { highlight_id }) => ({
+      items: (current?.items ?? []).filter((item) => item.id !== highlight_id),
+    }),
+  });
+}

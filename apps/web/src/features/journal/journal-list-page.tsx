@@ -1,13 +1,14 @@
 import {
-  Badge,
   Button,
   EmptyState,
   ErrorState,
+  ListIcon,
   LoadingState,
   MenuButton,
   PeriodField,
   SelectField,
   Toolbar,
+  TimelineIcon,
   ViewSwitcher,
   type PeriodPreset,
   type PeriodValue,
@@ -23,7 +24,8 @@ import { usePreferences } from '../../shared/preferences/preferences-context';
 import { useListSearch } from '../../shared/url-state/use-list-search';
 import { JOURNAL_REPORTS, journalReportHref } from './journal-reports';
 import styles from './journal-list-page.module.css';
-import { emotionLabel, useEmotions } from './use-emotions';
+import { EmotionIcon } from './emotion-icons';
+import { emotionIconKey, emotionLabel, useEmotions } from './use-emotions';
 import {
   dayOf,
   journalSearchSchema,
@@ -192,7 +194,7 @@ export function JournalListPage() {
               <h2 className={styles.dayTitle}>{heading}</h2>
               <ul className={styles.entries}>
                 {group.entries.map((entry) => (
-                  <li key={entry.id} className={styles.entry}>
+                  <li key={entry.id} className={styles.entry} data-card="true">
                     <time className={styles.time} dateTime={entry.occurred_at}>
                       {formatTime(entry.occurred_at, locale, time_zone)}
                     </time>
@@ -209,11 +211,35 @@ export function JournalListPage() {
                           className={styles.emotions}
                           aria-label={t('journal.list.entry_emotions')}
                         >
-                          {entry.emotions.map((item) => (
-                            <li key={item.emotion_id}>
-                              <Badge tone="accent">{emotionLabel(item, t)}</Badge>
-                            </li>
-                          ))}
+                          {entry.emotions.map((item) => {
+                            const label = emotionLabel(item, t);
+                            const intensity = item.intensity ?? null;
+                            return (
+                              <li key={item.emotion_id} className={styles.emotion}>
+                                <EmotionIcon icon={emotionIconKey(item, emotions.data?.items)} />
+                                <span>{label}</span>
+                                {intensity !== null ? (
+                                  <>
+                                    <span className={styles.dots} aria-hidden="true">
+                                      {[1, 2, 3, 4, 5].map((level) => (
+                                        <span
+                                          key={level}
+                                          className={styles.dot}
+                                          data-filled={level <= intensity ? 'true' : 'false'}
+                                        />
+                                      ))}
+                                    </span>
+                                    <span className={styles.srOnly}>
+                                      {t('journal.list.emotion_intensity', {
+                                        emotion: label,
+                                        n: intensity,
+                                      })}
+                                    </span>
+                                  </>
+                                ) : null}
+                              </li>
+                            );
+                          })}
                         </ul>
                       ) : null}
                     </div>
@@ -278,8 +304,8 @@ export function JournalListPage() {
             setSearch({ view: view as typeof search.view });
           }}
           options={[
-            { value: 'list', label: t('journal.list.view_list') },
-            { value: 'timeline', label: t('journal.list.view_timeline') },
+            { value: 'list', label: t('journal.list.view_list'), icon: <ListIcon /> },
+            { value: 'timeline', label: t('journal.list.view_timeline'), icon: <TimelineIcon /> },
           ]}
         />
       </Toolbar>

@@ -1,6 +1,7 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { ToastRegion, Toast } from '@atria/ui';
 import { useMemo, useState, type ReactNode } from 'react';
+import { useServerTheme } from '../features/settings/use-user-preferences';
 import { createQueryClient } from '../shared/api/query-client';
 import { I18nProvider, registerMessages, useT } from '../shared/i18n/i18n';
 import commonMessages from '../shared/i18n/pt-br.json';
@@ -27,6 +28,12 @@ function Toasts() {
       ))}
     </ToastRegion>
   );
+}
+
+/** Aplica a preferência de tema do servidor ao abrir o app (RN-06). */
+function ServerTheme() {
+  useServerTheme();
+  return null;
 }
 
 export interface AppProvidersProps {
@@ -59,6 +66,7 @@ export function AppProviders({ children, query_client, preferences }: AppProvide
       <UserPreferences {...(preferences ? { value: preferences } : {})}>
         <I18nProvider>
           <ThemeProvider>
+            <ServerTheme />
             <ScreenInfoProvider>
               {children}
               <Toasts />

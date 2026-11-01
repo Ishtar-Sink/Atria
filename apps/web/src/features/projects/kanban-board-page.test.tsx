@@ -1,10 +1,11 @@
-import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { rootRoute } from '../../app/router';
 import { renderWithProviders } from '../../shared/test/render';
 import { clearToasts } from '../../shared/toast/toast-store';
+import { translate } from '../../shared/i18n/i18n';
 import { createProjectsRoutes } from './routes';
 import { callsTo, cardOf, defaultLanes, laneOf, projectOf, stubServer } from './test-server';
 
@@ -139,17 +140,23 @@ describe('kanban board', () => {
     expect(await card.findByText('Pedir orçamento')).toBeInTheDocument();
   });
 
-  it('pd46 moves a card to another lane by drag and drop through the move route', async () => {
+  it('rf34 has no lane selector on the card face', async () => {
+    seeded();
+    renderBoard();
+    await screen.findByRole('link', { name: 'Escolher sofá' });
+    const card = within(cardNamed('Escolher sofá'));
+    expect(card.queryByRole('button', { name: /para$/ })).not.toBeInTheDocument();
+    expect(card.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(card.queryByRole('button', { name: /^Mover/ })).not.toBeInTheDocument();
+    expect(card.getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('rf34 moves a card to the next lane with the arrow keys through the move route', async () => {
     const server = seeded();
     renderBoard();
     await screen.findByRole('link', { name: 'Escolher sofá' });
-    const data = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
-    fireEvent.dragStart(cardNamed('Escolher sofá'), { dataTransfer: data });
-    fireEvent.dragOver(laneNamed('Em progresso'), { dataTransfer: data });
-    // O jsdom não tem `DragEvent`: a coordenada do ponteiro entra à mão.
-    const drop = createEvent.drop(laneNamed('Em progresso'), { dataTransfer: data });
-    Object.defineProperty(drop, 'clientY', { value: 1000 });
-    fireEvent(laneNamed('Em progresso'), drop);
+    within(cardNamed('Escolher sofá')).getByRole('link', { name: 'Escolher sofá' }).focus();
+    await userEvent.keyboard('{ArrowRight}');
     await waitFor(() => {
       expect(callsTo(server, 'POST', '/cards/c-1/move')).toHaveLength(1);
     });
@@ -166,27 +173,57 @@ describe('kanban board', () => {
     });
   });
 
-  it('pd46 moves a card with the lane selector at the foot by keyboard', async () => {
+  it('cb13 reorders inside the lane with arrow down', async () => {
     const server = seeded();
     renderBoard();
     await screen.findByRole('link', { name: 'Escolher sofá' });
-    const select = within(cardNamed('Escolher sofá')).getByRole('button', {
-      name: /Mover “Escolher sofá” para/,
-    });
-    select.focus();
-    await userEvent.keyboard('{Enter}{ArrowDown}{ArrowDown}{Enter}');
+    within(cardNamed('Escolher sofá')).getByRole('link', { name: 'Escolher sofá' }).focus();
+    await userEvent.keyboard('{ArrowDown}');
     await waitFor(() => {
-      expect(callsTo(server, 'POST', '/cards/c-1/move')[0]?.body).toEqual({ lane_id: 'l-done' });
+      expect(callsTo(server, 'POST', '/cards/c-1/move')[0]?.body).toEqual({
+        lane_id: 'l-wait',
+        position: 1,
+      });
     });
+  });
+
+  it('rf34 keeps the focus on the card link after the move', async () => {
+    seeded();
+    renderBoard();
+    await screen.findByRole('link', { name: 'Escolher sofá' });
+    within(cardNamed('Escolher sofá')).getByRole('link', { name: 'Escolher sofá' }).focus();
+    await userEvent.keyboard('{ArrowRight}');
     await waitFor(() => {
       expect(
-        within(laneNamed('Pronto')).getByRole('link', { name: 'Escolher sofá' }),
+        within(laneNamed('Em progresso')).getByRole('link', { name: 'Escolher sofá' }),
       ).toBeInTheDocument();
     });
-    // O foco acompanha o cartão para a nova raia.
     await waitFor(() => {
       expect(document.activeElement?.id).toBe('move-c-1');
     });
+  });
+
+  it('rf34 explains how to move in Portuguese', async () => {
+    seeded();
+    renderBoard();
+    await screen.findByRole('link', { name: 'Escolher sofá' });
+    const link = within(cardNamed('Escolher sofá')).getByRole('link', { name: 'Escolher sofá' });
+    const described = link.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(described)).toHaveTextContent(
+      translate('projects.board.drag_instructions'),
+    );
+  });
+
+  it('rf34 shows the keyboard hint at the end of the board', async () => {
+    seeded();
+    renderBoard();
+    await screen.findByRole('link', { name: 'Escolher sofá' });
+    const board = screen.getByRole('list', { name: 'Raias do quadro' });
+    for (const action of ['lanes', 'order', 'open']) {
+      const hint = screen.getByText(translate(`projects.board.keys.${action}`));
+      expect(hint).toBeVisible();
+      expect(board.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 
   it('pd47 has no lane management inside the board', async () => {
@@ -200,16 +237,12 @@ describe('kanban board', () => {
     expect(within(board).queryByRole('link', { name: 'Nova raia' })).not.toBeInTheDocument();
   });
 
-  it('announces the move to screen readers', async () => {
+  it('rf34 announces the move to screen readers', async () => {
     seeded();
     renderBoard();
     await screen.findByRole('link', { name: 'Escolher sofá' });
-    await userEvent.click(
-      within(cardNamed('Escolher sofá')).getByRole('button', {
-        name: /Mover “Escolher sofá” para/,
-      }),
-    );
-    await userEvent.click(screen.getByRole('option', { name: 'Em progresso' }));
+    within(cardNamed('Escolher sofá')).getByRole('link', { name: 'Escolher sofá' }).focus();
+    await userEvent.keyboard('{ArrowRight}');
     const live = await screen.findByText('“Escolher sofá” movido para Em progresso.');
     expect(live).toHaveAttribute('aria-live', 'polite');
   });

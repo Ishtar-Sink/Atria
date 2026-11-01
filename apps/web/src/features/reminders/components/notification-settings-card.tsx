@@ -1,9 +1,14 @@
 import { Button, Card } from '@atria/ui';
+import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
-import { useT } from '../../../shared/i18n/i18n';
+import { registerMessages, useT } from '../../../shared/i18n/i18n';
+import { useCurrentUser } from '../../../shared/session/current-user';
 import { useNotificationPermission } from '../hooks/use-notification-permission';
+import messages from '../i18n/pt-br.json';
 import { useWebPush } from '../push/use-web-push';
 import styles from './notification-settings-card.module.css';
+
+registerMessages('reminders', messages);
 
 /** Estado das notificações, o botão que pede a permissão e o interruptor do Web Push (RF-41, RF-42). */
 export function NotificationSettingsCard() {
@@ -12,6 +17,8 @@ export function NotificationSettingsCard() {
   const switch_id = useId();
   const { status, request } = useNotificationPermission();
   const push = useWebPush();
+  const { data: user } = useCurrentUser();
+  const is_admin = user !== undefined && 'role' in user && user.role === 'admin';
 
   return (
     <Card as="section" aria-labelledby={title_id}>
@@ -40,6 +47,9 @@ export function NotificationSettingsCard() {
               {t('reminders.push.switch')}
             </span>
             <p className={styles.help}>{t('reminders.push.help')}</p>
+            {push.subscribed ? null : (
+              <p className={styles.notice}>{t('reminders.push.not_subscribed')}</p>
+            )}
           </div>
           <button
             type="button"
@@ -55,6 +65,19 @@ export function NotificationSettingsCard() {
             <span className={styles.thumb} aria-hidden="true" />
           </button>
         </div>
+      ) : null}
+      {push.unavailable_reason === 'disabled' ? (
+        <div className={styles.notice}>
+          <p>{t(is_admin ? 'reminders.push.disabled_admin' : 'reminders.push.disabled')}</p>
+          {is_admin ? (
+            <Link to="/settings/instance" className={styles.noticeLink}>
+              {t('reminders.push.open_instance_settings')}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+      {push.unavailable_reason === 'unsupported' ? (
+        <p className={styles.notice}>{t('reminders.push.unsupported')}</p>
       ) : null}
       {push.failed ? (
         <p role="alert" className={styles.error}>

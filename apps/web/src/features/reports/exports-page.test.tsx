@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { rootRoute } from '../../app/router';
+import { clearToasts } from '../../shared/toast/toast-store';
 import { renderWithProviders } from '../../shared/test/render';
 import { createReportsRoutes } from './routes';
 
@@ -17,6 +18,13 @@ function stub(mode: Mode) {
       if (url.pathname === '/api/v1/me') {
         return Promise.resolve(
           new Response(JSON.stringify({ id: 'u-1', email: 'a@b.c' }), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (url.pathname === '/api/v1/me/preferences') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ theme: 'system' }), {
             headers: { 'Content-Type': 'application/json' },
           }),
         );
@@ -48,6 +56,7 @@ function renderExports() {
 }
 
 afterEach(() => {
+  clearToasts();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -88,6 +97,14 @@ describe('ExportsPage', () => {
       expect(names).toEqual(['atria-export-csv.zip']);
     });
     expect(urls[0]?.searchParams.get('format')).toBe('csv');
+  });
+
+  it('shows a success notice after the export', async () => {
+    stub('ok');
+    captureDownloads();
+    renderExports();
+    await userEvent.click(await screen.findByRole('button', { name: 'Exportar JSON' }));
+    expect(await screen.findByText('Arquivo baixado.')).toBeInTheDocument();
   });
 
   it('shows the loading state while exporting', async () => {

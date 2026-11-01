@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-// Fluxos ponta a ponta de CT-28 e CT-29. Rodam na TASK-35, com o servidor e as rotas do Acervo
+// Fluxos ponta a ponta de CT-28, CT-29 e CT-30 (editar e excluir notas). Rodam na TASK-35, com o servidor e as rotas do Acervo
 // registradas: livro de 200 páginas criado pelo diálogo de tipo, com capa; registros de 20 e 30
 // páginas; edição do primeiro para 25; progresso de 27,5%; PDF anexado e baixado; nota no
 // histórico; artigo com status e nota; vídeo do YouTube com miniatura. Em 360 px e em desktop,
@@ -132,6 +132,50 @@ for (const size of SIZES) {
       await expect(page).toHaveURL(/\/library\/videos\/(?!new)[^/?]+(\?.*)?$/);
       await page.goto('/library?tab=videos');
       await expect(page.locator('img[src^="/api/v1/files/"]').first()).toBeVisible();
+      await expectNoHorizontalScroll(page);
+      await expectNoAxeViolations(page);
+    });
+
+    test('ct30 edits and deletes notes of a book, an article and a video', async ({ page }) => {
+      await signIn(page);
+      const kinds = [
+        { path: 'books', link: /Livro/, fill: () => page.getByLabel('Páginas').fill('100') },
+        { path: 'articles', link: /Artigo/, fill: () => Promise.resolve() },
+        {
+          path: 'videos',
+          link: /Vídeo/,
+          fill: () =>
+            page.getByLabel('Endereço').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+        },
+      ];
+      for (const kind of kinds) {
+        await page.goto(`/library?tab=${kind.path}`);
+        await page.getByRole('button', { name: 'Novo' }).click();
+        await page.getByRole('link', { name: kind.link }).click();
+        if (kind.path !== 'videos') await page.getByLabel('Título').fill(`Item ${kind.path}`);
+        await kind.fill();
+        await page.getByRole('button', { name: 'Salvar' }).click();
+        await expect(page).toHaveURL(/\/library\/(books|articles|videos)\/(?!new)[^/?]+(\?.*)?$/);
+
+        await page.getByRole('tab', { name: 'Notas' }).click();
+        await page.getByLabel('Comentário').fill('Primeira ideia');
+        await page.getByRole('button', { name: 'Adicionar nota' }).click();
+        await expect(page.getByText('Primeira ideia')).toBeVisible();
+
+        await page.getByRole('button', { name: /^Editar a nota “Primeira/ }).click();
+        const form = page.getByRole('form', { name: 'Editar nota' });
+        await form.getByLabel('Comentário').fill('Ideia revista');
+        await form.getByRole('button', { name: 'Salvar' }).click();
+        await expect(page.getByText('Ideia revista')).toBeVisible();
+        await page.reload();
+        await expect(page.getByText('Ideia revista')).toBeVisible();
+
+        await page.getByRole('button', { name: /^Excluir a nota “Ideia/ }).click();
+        await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir nota' }).click();
+        await expect(page.getByText('Nenhuma nota ainda')).toBeVisible();
+        await page.reload();
+        await expect(page.getByText('Nenhuma nota ainda')).toBeVisible();
+      }
       await expectNoHorizontalScroll(page);
       await expectNoAxeViolations(page);
     });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -199,12 +199,23 @@ describe('CreateTypeDialog', () => {
     const on_close = vi.fn();
     await openDialog({ on_close });
     const dialog = screen.getByRole('dialog');
-    dialog.getBoundingClientRect = () =>
-      ({ left: 100, right: 500, top: 100, bottom: 400 }) as DOMRect;
-    fireEvent.click(dialog, { clientX: 120, clientY: 120 });
+    // O espaçamento interno é do conteúdo do diálogo genérico: clicar nele não fecha.
+    fireEvent.click(screen.getByRole('heading', { name: 'O que você quer registrar?' }));
     expect(on_close).not.toHaveBeenCalled();
-    fireEvent.click(dialog, { clientX: 20, clientY: 20 });
+    fireEvent.click(dialog);
     expect(on_close).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders on the generic dialog with the cancel action in the footer', async () => {
+    await openDialog();
+    const dialog = screen.getByRole('dialog', { name: 'O que você quer registrar?' });
+    const cancel = within(dialog).getByRole('button', { name: 'Cancelar' });
+    const last_card = within(dialog).getAllByRole('link').at(-1) as HTMLElement;
+    expect(dialog.querySelector('[data-dialog-actions]')).toContainElement(cancel);
+    expect(dialog.querySelector('[data-dialog-body]')).toContainElement(last_card);
+    expect(
+      last_card.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('has no axe violations in the grid', async () => {

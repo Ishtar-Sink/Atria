@@ -11,13 +11,21 @@ import { useState, type SyntheticEvent } from 'react';
 import { useT } from '../../shared/i18n/i18n';
 import { StickyPageHeader } from '../../shared/layout/sticky-page-header';
 import { BackLink } from '../../shared/navigation/back-link';
+import {
+  EmotionIcon,
+  EmotionIconField,
+  resolveEmotionIcon,
+  type EmotionIconChoice,
+} from './emotion-icons';
 import styles from './emotions-page.module.css';
 import {
   emotionLabel,
+  iconToServer,
   useCreateEmotion,
   useEmotions,
   useRemoveEmotion,
   useRenameEmotion,
+  useSetEmotionIcon,
   type Emotion,
 } from './use-emotions';
 
@@ -39,6 +47,9 @@ export function EmotionsPage() {
   const create = useCreateEmotion();
   const rename = useRenameEmotion();
   const remove = useRemoveEmotion();
+  const set_icon = useSetEmotionIcon();
+  const [new_icon, setNewIcon] = useState<EmotionIconChoice>('neutral');
+  const [icon_edit, setIconEdit] = useState<{ id: string; icon: EmotionIconChoice } | null>(null);
   const [new_name, setNewName] = useState('');
   const [add_error, setAddError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
@@ -53,8 +64,9 @@ export function EmotionsPage() {
     const error = nameError(new_name, labels);
     setAddError(error);
     if (error !== null) return;
-    create.mutate(new_name.trim());
+    create.mutate({ name: new_name.trim(), icon: iconToServer(new_icon) });
     setNewName('');
+    setNewIcon('neutral');
   }
 
   function saveRename(event: SyntheticEvent, emotion: Emotion) {
@@ -129,8 +141,23 @@ export function EmotionsPage() {
                 </form>
               ) : (
                 <>
-                  <span className={styles.name}>{name}</span>
+                  <span className={styles.nameBox}>
+                    <span className={styles.icon}>
+                      <EmotionIcon icon={resolveEmotionIcon(emotion)} />
+                    </span>
+                    <span className={styles.name}>{name}</span>
+                  </span>
                   <span className={styles.actions}>
+                    {emotion.system_key == null ? (
+                      <Button
+                        aria-label={t('journal.emotions.icon_change_item', { name })}
+                        onClick={() => {
+                          setIconEdit({ id: emotion.id, icon: resolveEmotionIcon(emotion) });
+                        }}
+                      >
+                        {t('journal.emotions.icon_change')}
+                      </Button>
+                    ) : null}
                     <Button
                       aria-label={t('journal.emotions.rename_item', { name })}
                       onClick={() => {
@@ -149,6 +176,35 @@ export function EmotionsPage() {
                       {t('journal.emotions.remove')}
                     </Button>
                   </span>
+                  {icon_edit?.id === emotion.id ? (
+                    <div className={styles.iconEdit}>
+                      <EmotionIconField
+                        label={t('journal.emotions.icon_group_item', { name })}
+                        value={icon_edit.icon}
+                        onChange={(icon) => {
+                          setIconEdit({ id: emotion.id, icon });
+                        }}
+                      />
+                      <div className={styles.actions}>
+                        <Button
+                          onClick={() => {
+                            setIconEdit(null);
+                          }}
+                        >
+                          {t('common.cancel')}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            set_icon.mutate({ id: emotion.id, icon: iconToServer(icon_edit.icon) });
+                            setIconEdit(null);
+                          }}
+                        >
+                          {t('journal.emotions.icon_save')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               )}
             </li>
@@ -175,6 +231,11 @@ export function EmotionsPage() {
               setNewName(event.target.value);
             }}
             {...(add_error ? { error: t(add_error) } : {})}
+          />
+          <EmotionIconField
+            label={t('journal.emotions.icon_label')}
+            value={new_icon}
+            onChange={setNewIcon}
           />
           <Button variant="primary" type="submit">
             {t('journal.emotions.add')}

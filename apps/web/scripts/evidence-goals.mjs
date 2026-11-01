@@ -1,4 +1,4 @@
-// Evidências visuais da TASK-23 (telas de Metas), sem passo manual: sobe o Vite numa porta livre
+// Evidências visuais da TASK-18 (SPEC-002: seletores só com ícones, na lista de Metas), sem passo manual: sobe o Vite numa porta livre
 // (createServer da API do Vite) com uma página virtual que carrega src/features/goals/evidence/
 // harness.tsx, simula a API no Chromium do Playwright e fotografa os estados nos temas claro e
 // escuro, em 1440 px e em 360 px, conferindo o DOM antes de cada captura.
@@ -14,7 +14,9 @@ import { createServer as createViteServer } from 'vite';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-23');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-002', 'evidence', 'TASK-18');
 const PAGE_PATH = '/__evidence-goals';
 const HARNESS = '/src/features/goals/evidence/harness.tsx';
 
@@ -173,7 +175,7 @@ const json = (route, body, status = 200, contentType = 'application/json') =>
  * Instala a API simulada. `mode`: "normal" | "empty" | "loading" | "error". No modo "loading"
  * as listas só respondem quando `release()` é chamada; no "error", respondem problem+json.
  */
-async function installApi(context, mode, unknown) {
+async function installApi(context, mode, unknown, theme) {
   let release = () => {};
   const gate = new Promise((resolve) => {
     release = resolve;
@@ -185,6 +187,7 @@ async function installApi(context, mode, unknown) {
       const method = route.request().method();
       const path = url.pathname.replace('/api/v1', '');
       if (method === 'GET' && path === '/me') return json(route, USER);
+      if (method === 'GET' && path === '/me/preferences') return json(route, { theme });
       const isData = path.startsWith('/goals');
       if (isData && mode === 'error') {
         return json(
@@ -254,7 +257,7 @@ async function openPage(browser, { theme, size, mode }) {
     }
   }, theme);
   const unknown = [];
-  const api = await installApi(context, mode, unknown);
+  const api = await installApi(context, mode, unknown, theme);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -411,6 +414,29 @@ const scenarios = [
           const color = await sub.evaluate((el) => getComputedStyle(el).color);
           return shown && !/atrasad|vencid/i.test(body) && color !== (await dangerColor(page));
         })(),
+      );
+      check(
+        `${tag}: seletor só com ícones, com title e nome acessível`,
+        await page.getByRole('group', { name: 'Visualização' }).evaluate((group) => {
+          const buttons = [...group.querySelectorAll('button')];
+          const want = ['Lista', 'Grade'];
+          return (
+            buttons.length === 2 &&
+            buttons.every((b, i) => {
+              const svg = b.querySelectorAll('svg');
+              if (svg.length !== 1) return false;
+              const bb = b.getBoundingClientRect();
+              const sb = svg[0].getBoundingClientRect();
+              return (
+                b.getAttribute('title') === want[i] &&
+                b.getAttribute('aria-label') === want[i] &&
+                (b.textContent ?? '').trim() === '' &&
+                Math.abs(sb.left + sb.width / 2 - (bb.left + bb.width / 2)) <= 1 &&
+                Math.abs(sb.top + sb.height / 2 - (bb.top + bb.height / 2)) <= 1
+              );
+            })
+          );
+        }),
       );
       check(
         `${tag}: tom calmo, sem gamificação`,
@@ -716,8 +742,7 @@ const EVIDENCES = {
   telas: async (browser, base) => {
     const shots = await runScenarios(browser, base, scenarios);
     await sheet(browser, {
-      title:
-        'TASK-23 · telas de Metas (RF-36, RF-37, CT-23, RNF-06, RNF-08, RNF-10, PD-11, PD-14, PD-19, PD-57, PD-59, PD-61, PD-62)',
+      title: 'TASK-18 (SPEC-002) · seletores só com ícones (RF-05, RF-06, CT-05, RNF-02, RNF-03)',
       file: 'goals-telas.png',
       shots,
       scale: { desktop: 0.45, mobile: 0.62 },

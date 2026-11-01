@@ -26,6 +26,17 @@ async function expectNoViolations(container: HTMLElement) {
 const lastList = (server: ReturnType<typeof stubLibraryServer>, path: string) =>
   server.calls.filter((call) => call.method === 'GET' && call.url.pathname === path).at(-1);
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('library shelf', () => {
   it('pd35 shows one tab per type books articles and videos', async () => {
     stubLibraryServer({ books: [bookOf()] });
@@ -172,6 +183,13 @@ describe('library shelf', () => {
     expect(foot.className).toMatch(/tileFoot/);
     expect(within(foot).getByRole('progressbar')).toBeInTheDocument();
     expect(within(foot).getByText('Quero ler')).toBeInTheDocument();
+  });
+
+  it('uses the shared view icons with title and accessible name', async () => {
+    stubLibraryServer({ books: [bookOf()] });
+    renderLibrary('/library');
+    await screen.findByRole('link', { name: 'Dom Casmurro' });
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Grade', 'Lista']);
   });
 
   it('pd24 remembers the view mode per tab', async () => {

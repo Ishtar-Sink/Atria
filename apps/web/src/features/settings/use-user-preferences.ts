@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { useTheme } from '../../app/theme/theme-provider';
 import { api } from '../../shared/api/client';
+import { useCurrentUser } from '../../shared/session/current-user';
 import { useOptimisticMutation } from '../../shared/optimistic/use-optimistic-mutation';
 import { pushToast } from '../../shared/toast/toast-store';
 
@@ -29,9 +30,10 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   ],
 };
 
-export function useUserPreferences() {
+export function useUserPreferences(enabled = true) {
   return useQuery({
     queryKey: PREFERENCES_KEY,
+    enabled,
     queryFn: ({ signal }) => api.get<UserPreferences>('/me/preferences', { signal }),
   });
 }
@@ -56,23 +58,39 @@ export function notifySaved() {
 }
 
 /**
- * Mantém o tema do app igual ao da preferência no servidor: a mudança aparece na hora e, se o
- * servidor recusar, o valor volta e o tema também. "Seguir o sistema" usa o tema atual do sistema.
- * Devolve a função que aplica um tema já, sem esperar o servidor.
+ * Devolve a função que aplica o modo de tema já, sem esperar o servidor. "Seguir o sistema"
+ * (`system`) acompanha o sistema em tempo real, sem gravar um tema fixo.
  */
-export function useApplyTheme(theme: string | undefined) {
-  const { setTheme } = useTheme();
-  const apply = useCallback(
+export function useApplyTheme() {
+  const { setMode } = useTheme();
+  return useCallback(
     (value: string | undefined) => {
-      if (value === 'light' || value === 'dark') setTheme(value);
-      else if (value === 'system') {
-        setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      }
+      if (value === 'light' || value === 'dark' || value === 'system') setMode(value);
     },
-    [setTheme],
+    [setMode],
   );
+}
+
+/**
+ * Fonte única do tema (RF-17): aplica a preferência do servidor ao abrir o app. Se uma mutação é
+ * recusada, o cache volta ao valor anterior e o efeito devolve o tema.
+ */
+export function useServerTheme() {
+  const { data: user } = useCurrentUser();
+  const { data } = useUserPreferences(Boolean(user));
+  const apply = useApplyTheme();
+  const theme = data?.theme;
   useEffect(() => {
     apply(theme);
   }, [theme, apply]);
-  return apply;
+}
+
+/** O botão "Alternar tema": troca o tema na hora e grava a preferência no servidor. */
+export function useToggleThemePreference() {
+  const { toggleTheme } = useTheme();
+  const update = useUpdatePreferences();
+  return useCallback(() => {
+    const next = toggleTheme();
+    update.mutate({ theme: next });
+  }, [toggleTheme, update]);
 }

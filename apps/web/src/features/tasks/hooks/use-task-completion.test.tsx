@@ -160,7 +160,9 @@ describe('task completion', () => {
     await waitFor(() => {
       expect(row(result.current.list.rows, 'r1:2026-11-05')?.done).toBe(true);
     });
-    expect(row(result.current.list.rows, 'r1:2026-11-06')?.done).toBe(false);
+    const own = result.current.list.rows.filter((item) => item.task.id === 'r1');
+    expect(own).toHaveLength(1);
+    expect(own[0]?.done).toBe(true);
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
       occurrence_date: '2026-11-05',
     });

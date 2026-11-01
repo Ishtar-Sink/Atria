@@ -100,32 +100,67 @@
 .emotions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s1);
+  gap: var(--s2) var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.emotion {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.emotion svg {
+  flex: none;
+  color: var(--primary);
+}
+
+.dots {
+  display: inline-flex;
+  gap: calc(var(--space) * 0.5);
+}
+
+.dot {
+  width: calc(var(--space) * 1.5);
+  height: calc(var(--space) * 1.5);
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.dot[data-filled='true'] {
+  background: var(--primary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Linha do tempo: um fio à esquerda, com um ponto por entrada. */
 .days[data-view='timeline'] .entries {
   position: relative;
-  gap: 0;
   padding-left: var(--s4);
   border-left: 2px solid var(--border-strong);
 }
 
 .days[data-view='timeline'] .entry {
   position: relative;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
 }
 
 .days[data-view='timeline'] .entry::before {
   content: '';
   position: absolute;
   top: var(--s4);
-  left: calc(var(--s4) * -1 - var(--space) * 1.5);
+  left: calc(var(--s4) * -1 - var(--space) * 1.5 - 1px);
   width: calc(var(--space) * 2);
   height: calc(var(--space) * 2);
   border-radius: 50%;

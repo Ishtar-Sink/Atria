@@ -1,23 +1,34 @@
 .sticky {
   position: sticky;
-  top: 0;
+  /* Cola na topbar: o `sticky` conta a partir do padding da área de rolagem (24 px). */
+  top: calc(var(--space) * -6);
   z-index: 10;
   margin: 0 calc(var(--space) * -6);
   padding: var(--s2) calc(var(--space) * 6) 0;
   isolation: isolate;
 }
 
-/* Desfoque sem cor e sem linha, que some em degradê embaixo (PD-20). */
+/* Fundo tingido com a cor da página e desfoque, de ponta a ponta da área, que some em degradê
+   embaixo (PD-20). `--bd-l` e `--bd-w` vêm da medida da área de rolagem. */
 .sticky::before {
   content: '';
   position: absolute;
-  inset: 0 0 calc(var(--space) * -4);
   z-index: -1;
-  backdrop-filter: blur(12px);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space) * 5), transparent);
+  top: 0;
+  bottom: calc(var(--space) * -6);
+  left: var(--bd-l, 0px);
+  width: var(--bd-w, 100%);
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--motion-base) var(--motion-ease-standard);
+  transition: opacity var(--motion-fast) var(--motion-ease-standard);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 55%, transparent),
+    transparent
+  );
+  /* Escrever só a forma sem prefixo: o build acrescenta o `-webkit-` (ISS-001). */
+  backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space) * 10), transparent);
 }
 
 .sticky:has([data-stuck])::before {
@@ -26,6 +37,7 @@
 
 @media (max-width: 720px) {
   .sticky {
+    top: calc(var(--space) * -4);
     margin: 0 calc(var(--space) * -3);
     padding: var(--s2) calc(var(--space) * 3) 0;
   }

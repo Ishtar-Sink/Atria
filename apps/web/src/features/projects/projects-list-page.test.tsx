@@ -37,7 +37,25 @@ function seeded() {
   });
 }
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('projects list', () => {
+  it('uses the shared view icons with title and accessible name', async () => {
+    seeded();
+    renderAt('/projects');
+    await screen.findByRole('link', { name: 'Reforma da sala' });
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Lista', 'Grade']);
+  });
+
   it('lists projects as a list and as a grid', async () => {
     seeded();
     const { router } = renderAt('/projects');

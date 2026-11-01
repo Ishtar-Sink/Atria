@@ -3,7 +3,9 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  GridIcon,
   ItemSwatch,
+  ListIcon,
   LoadingState,
   MenuButton,
   ProgressBar,
@@ -18,7 +20,6 @@ import { useScreenInfo } from '../../shared/layout/screen-info';
 import { StickyPageHeader } from '../../shared/layout/sticky-page-header';
 import { rememberListLocation } from '../../shared/navigation/back-target';
 import { useListSearch } from '../../shared/url-state/use-list-search';
-import { GridIcon, ListIcon } from './icons';
 import styles from './projects.module.css';
 import {
   projectsSearchSchema,

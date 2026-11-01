@@ -79,7 +79,15 @@
   gap: var(--s3);
 }
 
-.filters > * {
+.filterFields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.filters > [role='search'],
+.filterFields > * {
   min-width: calc(var(--space) * 40);
 }
 
@@ -410,27 +418,6 @@
 }
 
 /* ===== Diálogo do Financeiro (confirmação com escolha) ===== */
-.dialog {
-  max-width: min(calc(var(--space) * 120), calc(100vw - calc(var(--space) * 8)));
-  padding: calc(var(--space) * 6);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--elevation-3);
-  box-shadow: var(--shadow-lg);
-  color: var(--text);
-  font-family: var(--font-body);
-}
-
-.dialog::backdrop {
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
-}
-
-.dialogTitle {
-  margin: 0 0 calc(var(--space) * 2);
-  font-family: var(--font-display);
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-}
 
 .dialogBody {
   display: flex;
@@ -441,14 +428,6 @@
 
 .dialogBody p {
   margin: 0;
-}
-
-.dialogActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--s2);
-  margin-top: calc(var(--space) * 6);
 }
 
 /* ===== Gráficos do Painel ===== */
@@ -581,7 +560,8 @@ a.barLabel {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .filters > * {
+  .filters > [role='search'],
+  .filterFields > * {
     min-width: 100%;
   }
 }

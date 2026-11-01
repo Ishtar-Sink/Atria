@@ -7,7 +7,7 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: var(--s3);
 }
 
@@ -19,6 +19,22 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius-md);
+  background: var(--info-soft);
+  color: var(--text);
+}
+
+.notice p {
+  margin: 0;
 }
 
 .list {

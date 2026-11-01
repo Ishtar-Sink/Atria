@@ -63,6 +63,8 @@ function stubServer(initial: Partial<Server> = {}): Server {
       const method = init?.method ?? 'GET';
       if (url.pathname === '/api/v1/me')
         return Promise.resolve(json({ id: 'u-1', email: 'a@b.c' }));
+      if (url.pathname === '/api/v1/me/preferences')
+        return Promise.resolve(json({ theme: 'system' }));
       server.calls.push({ method, url });
       if (url.pathname === '/api/v1/links') {
         if (server.mode === 'loading') return new Promise<Response>(() => undefined);
@@ -137,7 +139,7 @@ describe('connections tab', () => {
     await screen.findByText('Ideias de viagem');
     expect(screen.getByRole('group', { name: 'Filtros' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Busca' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Visualização' })).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Agrupar por' })).toBeInTheDocument();
   });
 
   it('shows a connection created on the other side', async () => {
@@ -177,7 +179,7 @@ describe('connections tab', () => {
     const server = stubServer({ links: BASE_LINKS });
     renderTab();
     await screen.findByText('Ideias de viagem');
-    await userEvent.click(screen.getByLabelText('Categoria'));
+    await userEvent.click(screen.getByRole('button', { name: /^Categoria/ }));
     await userEvent.click(screen.getByRole('option', { name: 'Tarefas' }));
     await waitFor(() => {
       expect(screen.queryByText('Ideias de viagem')).not.toBeInTheDocument();
@@ -205,6 +207,19 @@ describe('connections tab', () => {
     expect(await screen.findByText('Nenhuma conexão encontrada')).toBeInTheDocument();
   });
 
+  it('groups with the segmented text field', async () => {
+    stubServer({ links: BASE_LINKS });
+    renderTab();
+    await screen.findByText('Ideias de viagem');
+    expect(screen.queryByRole('group', { name: 'Visualização' })).toBeNull();
+    const grouping = screen.getByRole('radiogroup', { name: 'Agrupar por' });
+    expect(
+      within(grouping)
+        .getAllByRole('radio')
+        .map((r) => r.closest('label')?.textContent),
+    ).toEqual(['Categoria', 'Data', 'Sem grupos']);
+  });
+
   it('groups by category and by date', async () => {
     stubServer({ links: BASE_LINKS });
     renderTab();
@@ -212,14 +227,14 @@ describe('connections tab', () => {
     const by_category = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(by_category).toEqual(['Acervo', 'Notas', 'Tarefas']);
 
-    const views = screen.getByRole('group', { name: 'Visualização' });
-    await userEvent.click(within(views).getByRole('button', { name: 'Data' }));
+    const views = screen.getByRole('radiogroup', { name: 'Agrupar por' });
+    await userEvent.click(within(views).getByRole('radio', { name: 'Data' }));
     await waitFor(() => {
       const by_date = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
       expect(by_date).toEqual(['outubro de 2026', 'setembro de 2026']);
     });
 
-    await userEvent.click(within(views).getByRole('button', { name: 'Sem grupos' }));
+    await userEvent.click(within(views).getByRole('radio', { name: 'Sem grupos' }));
     await waitFor(() => {
       expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0);
     });
@@ -265,10 +280,10 @@ describe('connections tab', () => {
     expect(screen.queryByText('Comprar passagens')).not.toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Busca' })).toHaveValue('viag');
     expect(
-      within(screen.getByRole('group', { name: 'Visualização' })).getByRole('button', {
+      within(screen.getByRole('radiogroup', { name: 'Agrupar por' })).getByRole('radio', {
         name: 'Data',
       }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    ).toBeChecked();
 
     await userEvent.type(screen.getByRole('searchbox', { name: 'Busca' }), 'e');
     await waitFor(() => {

@@ -42,7 +42,7 @@ export function UserPreferencesPage() {
   const query = useUserPreferences();
   const update = useUpdatePreferences();
   const data = query.data;
-  const applyTheme = useApplyTheme(data?.theme);
+  const applyTheme = useApplyTheme();
 
   const values = useMemo<FormValues>(
     () => ({
@@ -116,6 +116,9 @@ export function UserPreferencesPage() {
       }}
     >
       <FormGrid>
+        <h2 className={styles.sectionTitle} data-span="full">
+          {t('settings.section_preferences')}
+        </h2>
         <div data-span="full">
           <FormSegmented
             control={control}

@@ -1,7 +1,9 @@
 import {
   Button,
+  DayIcon,
   EmptyState,
   ErrorState,
+  ListIcon,
   LoadingState,
   MenuButton,
   SelectField,
@@ -99,7 +101,6 @@ export function TasksScreen() {
       />
       <TextField
         label={t('tasks.list.filter_label')}
-        help={t('tasks.list.filter_label_help')}
         value={label_draft}
         onChange={(event) => {
           setLabelDraft(event.target.value);
@@ -245,12 +246,24 @@ export function TasksScreen() {
             setSearch({ view: view as typeof search.view });
           }}
           options={[
-            { value: 'list', label: t('tasks.list.view_list') },
-            { value: 'day', label: t('tasks.list.view_day') },
+            { value: 'list', label: t('tasks.list.view_list'), icon: <ListIcon /> },
+            { value: 'day', label: t('tasks.list.view_day'), icon: <DayIcon /> },
           ]}
         />
       </Toolbar>
       <p className={styles.help}>{t('tasks.list.range_help')}</p>
+      {!list.is_loading && !list.is_error && list.hidden_open > 0 ? (
+        <div role="status" className={styles.notice}>
+          <p>{t('tasks.list.hidden_notice', { count: list.hidden_open })}</p>
+          <Button
+            onClick={() => {
+              setSearch({ range: 'all' });
+            }}
+          >
+            {t('tasks.list.hidden_show_all')}
+          </Button>
+        </div>
+      ) : null}
       {renderBody()}
     </div>
   );

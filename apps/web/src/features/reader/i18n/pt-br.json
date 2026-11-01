@@ -60,5 +60,15 @@
   "highlights_empty_description": "Selecione um trecho no leitor e escolha uma cor para destacá-lo.",
   "highlights_other_file": "De outro arquivo",
   "highlights_page": "Página {page}",
-  "undo_notice": "A mudança foi desfeita."
+  "undo_notice": "A mudança foi desfeita.",
+  "highlight_color_group": "Cor do destaque da página {page}",
+  "highlight_change_to": "Trocar para {color}",
+  "highlight_change_error": "Não foi possível trocar a cor do destaque. A mudança foi desfeita.",
+  "highlight_delete": "Excluir",
+  "highlight_delete_label": "Excluir o destaque da página {page}",
+  "highlight_delete_title": "Excluir este destaque?",
+  "highlight_delete_text": "O destaque sai do leitor e desta lista.",
+  "highlight_delete_confirm": "Excluir destaque",
+  "highlight_delete_cancel": "Cancelar",
+  "highlight_delete_error": "Não foi possível excluir o destaque. Ele voltou para a lista."
 }

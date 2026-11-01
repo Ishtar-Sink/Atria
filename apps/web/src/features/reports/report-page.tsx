@@ -71,6 +71,7 @@ function ReportActions({
             path: `/reports/${report}`,
             query: { ...params, format: 'pdf' },
             fallback_name: `atria-${report}.pdf`,
+            success_key: 'reports.export_done',
           });
         }}
       >
@@ -156,6 +157,21 @@ function ResultArea({
     );
   }
   if (refused) return null;
+  return (
+    <section aria-label={t('reports.result_label')} aria-busy={result.isFetching || undefined}>
+      <ResultContent result={result} search={search} />
+    </section>
+  );
+}
+
+function ResultContent({
+  result,
+  search,
+}: {
+  result: ReturnType<typeof useReportResult>;
+  search: ReportSearch;
+}) {
+  const t = useT();
   if (result.isPending) return <LoadingState label={t('reports.loading')} />;
   if (result.isError) {
     return (

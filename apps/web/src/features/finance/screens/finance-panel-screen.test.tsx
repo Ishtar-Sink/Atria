@@ -178,15 +178,19 @@ describe('finance panel', () => {
       within(cards).getByRole('progressbar', { name: 'Limite usado de Cartão Nu' }),
     ).toHaveAttribute('aria-valuenow', '186400');
     expect(plain(cards.textContent)).toContain('R$ 1.864,00 de R$ 5.000,00 do limite');
-    const upcoming = screen.getByRole('region', { name: 'Próximas contas' });
+    const upcoming = screen.getByRole('region', { name: 'Próximas movimentações' });
     const links = within(upcoming).getAllByRole('link');
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     expect(within(upcoming).getByText('Era para 28 de out. de 2026')).toBeInTheDocument();
     expect(within(upcoming).getByRole('link', { name: 'Aluguel' })).toHaveAttribute(
       'href',
       '/finance/recurring-transactions/r1',
     );
-    expect(within(upcoming).getByRole('link', { name: 'Ver todas (6)' })).toHaveAttribute(
+    expect(within(upcoming).getByRole('link', { name: 'Ver entradas' })).toHaveAttribute(
+      'href',
+      '/finance/income?period=next_30_days',
+    );
+    expect(within(upcoming).getByRole('link', { name: 'Ver saídas' })).toHaveAttribute(
       'href',
       '/finance/expenses?period=next_30_days',
     );
@@ -242,18 +246,117 @@ describe('finance panel', () => {
     });
   });
 
-  it('keeps the two zones in one column below 960 px', async () => {
+  it('lists upcoming incomes and expenses for the next 30 days', async () => {
+    financeServer(
+      world({
+        summary: summary({
+          upcoming_bills: [
+            item({
+              id: null,
+              recurrence_id: 'r2',
+              kind: 'income',
+              description: 'Salário',
+              expected_date: '2026-11-12',
+              occurrence_date: '2026-11-12',
+              status: 'forecast',
+              expected_amount: 500000,
+            }),
+            item({
+              id: 'b9',
+              kind: 'expense',
+              description: 'Internet',
+              expected_date: '2026-11-15',
+              expected_amount: 9900,
+            }),
+          ],
+        }),
+      }),
+    );
+    renderFinance('/finance');
+    const upcoming = await screen.findByRole('region', { name: 'Próximas movimentações' });
+    const income = within(upcoming).getByRole('link', { name: 'Salário' }).closest('li');
+    const expense = within(upcoming).getByRole('link', { name: 'Internet' }).closest('li');
+    expect(plain(income?.textContent)).toContain('Entrada · 12 de nov. de 2026');
+    expect(plain(expense?.textContent)).toContain('Saída · 15 de nov. de 2026');
+    expect(plain(income?.querySelector('[class*="positive"]')?.textContent)).toContain(
+      'R$ 5.000,00',
+    );
+    expect(expense?.querySelector('[class*="positive"]')).toBeNull();
+    expect(within(upcoming).getByRole('link', { name: 'Ver entradas' })).toHaveAttribute(
+      'href',
+      '/finance/income?period=next_30_days',
+    );
+    expect(within(upcoming).getByRole('link', { name: 'Ver saídas' })).toHaveAttribute(
+      'href',
+      '/finance/expenses?period=next_30_days',
+    );
+  });
+
+  it('shows the empty upcoming block', async () => {
+    financeServer(world({ summary: summary({ upcoming_bills: [] }) }));
+    renderFinance('/finance');
+    expect(
+      await screen.findByText('Nenhuma movimentação prevista nos próximos 30 dias.'),
+    ).toBeInTheDocument();
+  });
+
+  function cellsOf(zones: HTMLElement) {
+    return Array.from(zones.children).map((cell) => ({
+      zone: (cell as HTMLElement).dataset.zone,
+      row: (cell as HTMLElement).dataset.row,
+      alone: (cell as HTMLElement).hasAttribute('data-alone'),
+      text: plain(cell.textContent),
+    }));
+  }
+
+  it('pairs the panel cards in rows', async () => {
+    financeServer(world({ summary: summary({ credit_cards: [] }) }));
+    renderFinance('/finance');
+    const zones = await screen.findByRole('region', { name: 'Painel' });
+    const cells = cellsOf(zones);
+    expect(cells).toHaveLength(6);
+    const at = (zone: string, row: string) =>
+      cells.find((cell) => cell.zone === zone && cell.row === row);
+    expect(at('main', '1')?.text).toContain('Fechamento');
+    expect(at('side', '1')?.text).toContain('Saldo');
+    expect(at('main', '2')?.text).toContain('Para onde foi');
+    expect(at('side', '2')?.text).toContain('Próximas movimentações');
+    expect(at('main', '3')?.text).toContain('Previsto x realizado');
+    expect(at('side', '3')?.text).toContain('Economias e perdas');
+    expect(cells.some((cell) => cell.alone)).toBe(false);
+  });
+
+  it('pairs the panel cards in rows with the cards block', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance');
+    const zones = await screen.findByRole('region', { name: 'Painel' });
+    const cells = cellsOf(zones);
+    expect(cells).toHaveLength(7);
+    const at = (zone: string, row: string) =>
+      cells.find((cell) => cell.zone === zone && cell.row === row);
+    expect(at('main', '2')?.text).toContain('Para onde foi');
+    expect(at('side', '2')?.text).toContain('Cartões');
+    expect(at('main', '3')?.text).toContain('Previsto x realizado');
+    expect(at('side', '3')?.text).toContain('Próximas movimentações');
+    expect(at('side', '4')?.text).toContain('Economias e perdas');
+    expect(at('side', '4')?.alone).toBe(true);
+    expect(cells.filter((cell) => cell.alone)).toHaveLength(1);
+  });
+
+  it('keeps one column below 960 px with the main zone first', async () => {
     financeServer(world({ summary: summary() }));
     renderFinance('/finance');
     const zones = await screen.findByRole('region', { name: 'Painel' });
     expect(zones.className).toContain('zones');
-    expect(zones.children).toHaveLength(2);
-    expect(zones.children[0]?.textContent).toContain('Para onde foi');
-    expect(zones.children[1]?.textContent).toContain('Próximas contas');
+    const order = cellsOf(zones).map((cell) => cell.zone);
+    expect(order).toEqual(['main', 'main', 'main', 'side', 'side', 'side', 'side']);
     const css = panel_css.replace(/\s+/g, ' ');
-    expect(css).toContain('grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)');
+    expect(css).toContain(
+      '.zones { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)',
+    );
+    expect(css).toMatch(/\.cell > \* \{[^}]*flex: 1 1 auto/);
     expect(css).toMatch(
-      /@media \(max-width: 960px\) \{ \.zones \{ grid-template-columns: minmax\(0, 1fr\); \} \}/,
+      /@media \(max-width: 960px\) \{ \.zones \{ grid-template-columns: minmax\(0, 1fr\); \}/,
     );
   });
 });

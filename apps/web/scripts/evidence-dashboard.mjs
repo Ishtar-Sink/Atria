@@ -1,7 +1,7 @@
-// Evidências visuais da TASK-21 (Dashboard), sem passo manual: sobe o Vite numa porta livre com uma
+// Evidências visuais da TASK-08 (SPEC-002, Dashboard com cards pareados), sem passo manual: sobe o Vite numa porta livre com uma
 // página virtual que carrega o harness da feature (src/features/dashboard/evidence/harness.tsx),
 // simula a API no navegador (context.route), fixa o relógio, confere o estado no DOM antes de cada
-// captura e monta a prancha (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-21/.
+// captura e monta a prancha (PNG) em $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-08/).
 // Uso: node apps/web/scripts/evidence-dashboard.mjs telas
 // Imprime "ok" ou "FALHA" por verificação, o caminho do PNG e a linha final "ok  N falha(s)";
 // sai com código 1 se algo falhar.
@@ -14,7 +14,9 @@ import { createServer } from 'vite';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-21');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-002', 'evidence', 'TASK-08');
 const PAGE_PATH = '/__evidence/dashboard.html';
 const HARNESS = '/src/features/dashboard/evidence/harness.tsx';
 
@@ -413,6 +415,24 @@ const waitData = (name) => async (page) => {
   await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0);
 };
 
+// Mede topo e base dos dois cartões de cada linha pareada (tolerância de 1 px).
+const measureRows = (page, numbers) =>
+  page.evaluate((list) => {
+    return list.map((n) => {
+      const [x, y] = Array.from(document.querySelectorAll(`[data-row="${n}"] > section`)).map(
+        (el) => el.getBoundingClientRect(),
+      );
+      const ok =
+        Boolean(x && y) && Math.abs(x.top - y.top) <= 1 && Math.abs(x.bottom - y.bottom) <= 1;
+      const f = (v) => (v === undefined ? '-' : String(Math.round(v)));
+      return {
+        n,
+        ok,
+        detail: `linha ${n}: topo ${f(x?.top)}/${f(y?.top)}, base ${f(x?.bottom)}/${f(y?.bottom)}`,
+      };
+    });
+  }, numbers);
+
 const full = ['desktop', 'tablet', 'mobile'];
 const both = ['desktop', 'mobile'];
 
@@ -434,37 +454,23 @@ const scenarios = [
           (await page.getByText(/quinta-feira, 5 de novembro/i).isVisible()) &&
           (await page.getByRole('button', { name: 'Escrever no diário' }).isVisible()),
       );
-      const zones = await page.evaluate(() =>
-        ['main', 'side'].map((z) => {
-          const el = document.querySelector(`[data-zone="${z}"]`);
-          const r = el.getBoundingClientRect();
-          return { left: r.left, top: r.top, bottom: r.bottom, width: r.width };
-        }),
-      );
-      const [main, side] = zones;
       if (size === 'desktop') {
+        const rows = await measureRows(page, [1, 2, 3]);
         check(
-          `${tag}: duas zonas lado a lado`,
-          side.left > main.left + main.width - 1 && Math.abs(side.top - main.top) <= 1,
-          `principal ${Math.round(main.width)} px, lateral ${Math.round(side.width)} px`,
-        );
-        const last = await page.evaluate(() =>
-          ['main', 'side'].map(
-            (z) =>
-              document.querySelector(`[data-zone="${z}"]`).lastElementChild.getBoundingClientRect()
-                .bottom,
-          ),
-        );
-        check(
-          `${tag}: colunas terminando juntas`,
-          Math.abs(last[0] - last[1]) <= 2,
-          `${Math.round(last[0])} px e ${Math.round(last[1])} px`,
+          `${tag}: cards pareados com topos e bases alinhados`,
+          rows.every((row) => row.ok),
+          rows.map((row) => row.detail).join('; '),
         );
       } else {
-        check(
-          `${tag}: uma coluna com a zona principal primeiro`,
-          side.top >= main.bottom - 1 && Math.abs(side.left - main.left) <= 1,
-        );
+        const order = await page.evaluate(() => {
+          const mains = document.querySelectorAll('[data-zone="main"]');
+          const side = document.querySelector('[data-zone="side"]');
+          return {
+            last: mains[mains.length - 1].getBoundingClientRect().bottom,
+            side: side.getBoundingClientRect().top,
+          };
+        });
+        check(`${tag}: uma coluna com a zona principal primeiro`, order.side >= order.last - 1);
       }
       const titles = await page.locator('[data-block] > div > h2').allTextContents();
       check(
@@ -566,6 +572,30 @@ const scenarios = [
       check(
         `${tag}: olho marcado como pressionado`,
         (await eye.getAttribute('aria-pressed')) === 'true',
+      );
+    },
+  },
+  {
+    name: 'linha com um card só',
+    sizes: both,
+    storage: { 'atria.dashboard.hidden_blocks.u1': JSON.stringify(['journal']) },
+    ready: waitData('Dinheiro'),
+    run: async (page, tag, size) => {
+      if (size !== 'desktop') return;
+      const alone = await page.evaluate(() => {
+        const cell = document.querySelector('[data-alone]');
+        const zones = document.querySelector('[data-zone]').parentElement;
+        return {
+          cell: cell.getBoundingClientRect().width,
+          zones: zones.getBoundingClientRect().width,
+          count: document.querySelectorAll('[data-alone]').length,
+        };
+      });
+      const rows = await measureRows(page, [1, 2]);
+      check(
+        `${tag}: card sem par ocupa a linha inteira`,
+        alone.count === 1 && Math.abs(alone.cell - alone.zones) <= 1 && rows.every((row) => row.ok),
+        `célula ${String(Math.round(alone.cell))} px de ${String(Math.round(alone.zones))} px; ${rows.map((row) => row.detail).join('; ')}`,
       );
     },
   },
@@ -702,7 +732,7 @@ async function main() {
   try {
     const shots = await run(browser, vite.url, scenarios);
     await sheet(browser, {
-      title: 'TASK-21 · Dashboard · temas claro e escuro, 360 px, 900 px e desktop',
+      title: 'TASK-08 (SPEC-002) · Dashboard com cards pareados',
       file: 'dashboard-telas.png',
       shots,
     });

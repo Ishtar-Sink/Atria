@@ -1,0 +1,59 @@
+.field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--s1);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.choice {
+  position: relative;
+  display: block;
+}
+
+/* O rádio cobre a área do botão, escondido, mas focável. */
+.choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--space) * 10);
+  height: calc(var(--space) * 10);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease-standard),
+    background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.choice input:checked + .face {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.choice input:focus-visible + .face {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

@@ -67,23 +67,25 @@ function BarChart({
           </li>
         ))}
       </ul>
-      <table className={styles.visuallyHidden}>
-        <caption>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{label_header}</th>
-            <th scope="col">{value_header}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bars.map((bar) => (
-            <tr key={bar.key}>
-              <th scope="row">{bar.label}</th>
-              <td>{bar.text}</td>
+      <div className={styles.visuallyHidden}>
+        <table>
+          <caption>{caption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{label_header}</th>
+              <th scope="col">{value_header}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {bars.map((bar) => (
+              <tr key={bar.key}>
+                <th scope="row">{bar.label}</th>
+                <td>{bar.text}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -143,29 +145,31 @@ function GroupedBars({
           </li>
         ))}
       </ul>
-      <table className={styles.visuallyHidden}>
-        <caption>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{label_header}</th>
-            {series.map((item) => (
-              <th key={item.name} scope="col">
-                {item.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => (
-            <tr key={group.key}>
-              <th scope="row">{group.label}</th>
-              {group.values.map((item, index) => (
-                <td key={series[index]?.name ?? index}>{item.text}</td>
+      <div className={styles.visuallyHidden}>
+        <table>
+          <caption>{caption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{label_header}</th>
+              {series.map((item) => (
+                <th key={item.name} scope="col">
+                  {item.name}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <tr key={group.key}>
+                <th scope="row">{group.label}</th>
+                {group.values.map((item, index) => (
+                  <td key={series[index]?.name ?? index}>{item.text}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

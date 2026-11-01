@@ -1,21 +1,24 @@
-// Evidências visuais da TASK-22, sem passo manual: sobe o Vite numa porta livre com uma página
+// Evidências visuais do Financeiro (TASK-22, TASK-16 e TASK-17), sem passo manual: sobe o Vite numa porta livre com uma página
 // virtual que carrega `src/features/finance/evidence/harness.tsx` (as rotas do Financeiro num
 // roteador em memória, com os providers e o layout do app), simula a API no navegador com
 // fixtures em memória, confere o estado no DOM (e o axe) antes de cada captura e monta a prancha
-// em vostok/work/tasks/SPEC-001/evidence/TASK-22/finance-telas.png.
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas]
+// em $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-17): finance-telas.png,
+// finance-formulario.webm e finance-painel.png (Chromium e Firefox).
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import AxeBuilder from '@axe-core/playwright';
-import { chromium } from '@playwright/test';
+import { chromium, firefox } from '@playwright/test';
 import { createServer } from 'vite';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-22');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-002', 'evidence', 'TASK-17');
 const HARNESS_PATH = '/__evidence/finance';
 const HARNESS_ENTRY = '/src/features/finance/evidence/harness.tsx';
 // Relógio fixo: quinta, 05/11/2026, meio-dia em São Paulo (o período "Este mês" é novembro).
@@ -215,6 +218,17 @@ function summary() {
       },
     ],
     upcoming_bills: [
+      transaction({
+        id: null,
+        recurrence_id: 'r3',
+        kind: 'income',
+        description: 'Salário',
+        category_id: 'c3',
+        expected_amount: 500000,
+        expected_date: '2026-11-12',
+        occurrence_date: '2026-11-12',
+        status: 'forecast',
+      }),
       transaction({
         id: null,
         recurrence_id: 'r1',
@@ -740,8 +754,86 @@ async function settle(page, ms = 250) {
 
 // ---------- cenários ----------
 
+/** Cards da mesma linha do painel com topos e bases alinhados (desktop) ou uma coluna com a zona principal primeiro (360 px). */
+async function checkPanelRows(page, tag, { size }) {
+  await page.getByRole('region', { name: /Fechamento/ }).waitFor();
+  await page.getByText('Para onde foi').first().waitFor();
+  await settle(page, 400);
+  const cells = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-zone][data-row]')].map((cell) => {
+      const box = (cell.firstElementChild ?? cell).getBoundingClientRect();
+      return {
+        zone: cell.dataset.zone,
+        row: cell.dataset.row,
+        alone: cell.hasAttribute('data-alone'),
+        top: box.top,
+        bottom: box.bottom,
+        left: box.left,
+      };
+    }),
+  );
+  if (size === 'desktop') {
+    const rows = [...new Set(cells.map((c) => c.row))];
+    const bad = [];
+    for (const row of rows) {
+      const pair = cells.filter((c) => c.row === row && !c.alone);
+      if (pair.length !== 2) continue;
+      if (Math.abs(pair[0].top - pair[1].top) > 1 || Math.abs(pair[0].bottom - pair[1].bottom) > 1)
+        bad.push(row);
+    }
+    check(
+      `${tag}: cards pareados com topos e bases alinhados`,
+      cells.length >= 6 && bad.length === 0,
+      bad.length > 0 ? `linhas ${bad.join(', ')}` : `${cells.length} cards`,
+    );
+  } else {
+    const lefts = new Set(cells.map((c) => Math.round(c.left)));
+    const lastMain = Math.max(...cells.filter((c) => c.zone === 'main').map((c) => c.top));
+    const firstSide = Math.min(...cells.filter((c) => c.zone === 'side').map((c) => c.top));
+    check(
+      `${tag}: uma coluna com a zona principal primeiro`,
+      lefts.size === 1 && lastMain < firstSide,
+      `${lefts.size} coluna(s)`,
+    );
+  }
+}
+
+/** Todo `caption` da página fica recortado e nada dele aparece sobre o card. */
+async function checkChartCaptions(page, tag) {
+  await page.getByRole('region', { name: /Fechamento/ }).waitFor();
+  await page.getByText('Para onde foi').first().waitFor();
+  await settle(page, 400);
+  const info = await page.evaluate(() => {
+    const captions = [...document.querySelectorAll('caption')];
+    return {
+      count: captions.length,
+      loose: captions.filter((c) => {
+        // O recorte do contêiner invisível limita o que se vê: a parte do caption dentro dele.
+        const r = c.getBoundingClientRect();
+        const box = c.closest('figure > div')?.getBoundingClientRect();
+        if (!box) return true;
+        const w = Math.min(r.right, box.right) - Math.max(r.left, box.left);
+        const h = Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top);
+        if (w > 1.5 || h > 1.5) return true;
+        const figure = c.closest('figure');
+        if (!figure) return true;
+        const f = figure.getBoundingClientRect();
+        const hit = document.elementFromPoint(f.left + f.width / 2, f.top + f.height / 2);
+        return hit?.tagName === 'CAPTION';
+      }).length,
+    };
+  });
+  check(
+    `${tag}: tabela dos gráficos sem texto solto`,
+    info.count >= 2 && info.loose === 0,
+    `${info.count} caption(s), ${info.loose} solto(s)`,
+  );
+}
+
 const MONEY = /^R\$\s\d{1,3}(\.\d{3})*,\d{2}$/;
 const plain = (s) => (s ?? '').replace(/[  ]/g, ' ').trim();
+
+let recurringPosts = 0;
 
 const scenarios = [
   {
@@ -762,6 +854,115 @@ const scenarios = [
         check(`${tag}: Painel em duas zonas`, cols === 2, `${cols} coluna(s)`);
       else check(`${tag}: Painel em uma coluna`, cols === 1, `${cols} coluna(s)`);
     },
+  },
+  {
+    name: 'Painel com Cartões',
+    group: 'painel',
+    path: '/finance',
+    combos: ALL,
+    run: (page, tag, ctx) => checkPanelRows(page, tag, ctx),
+  },
+  {
+    name: 'Painel sem Cartões',
+    group: 'painel',
+    path: '/finance',
+    combos: ALL,
+    world: () => ({ ...seed(), summary: { ...summary(), credit_cards: [] } }),
+    run: (page, tag, ctx) => checkPanelRows(page, tag, ctx),
+  },
+  {
+    name: 'Próximas movimentações',
+    group: 'painel',
+    path: '/finance',
+    combos: PAIR,
+    run: async (page, tag) => {
+      const block = page.getByRole('region', { name: 'Próximas movimentações' });
+      await block.waitFor();
+      await settle(page);
+      const income = block.locator('li').filter({ hasText: 'Salário' });
+      const expense = block.locator('li').filter({ hasText: 'Feira' });
+      check(
+        `${tag}: Salário listado como Entrada`,
+        /Entrada/.test(await income.innerText()),
+        plain(await income.innerText()).replace(/\n/g, ' '),
+      );
+      check(`${tag}: saída listada como Saída`, /Saída/.test(await expense.innerText()));
+      check(
+        `${tag}: links Ver entradas e Ver saídas`,
+        (await block.getByRole('link', { name: 'Ver entradas' }).isVisible()) &&
+          (await block.getByRole('link', { name: 'Ver saídas' }).isVisible()),
+      );
+    },
+  },
+  {
+    name: 'período no cabeçalho',
+    group: 'painel',
+    path: '/finance/expenses',
+    combos: [
+      ['light', 'desktop'],
+      ['dark', 'desktop'],
+    ],
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Feira' }).waitFor();
+      await settle(page);
+      const period = page.getByRole('button', { name: /Período/ }).first();
+      const reports = page.getByRole('button', { name: 'Relatórios' });
+      check(
+        `${tag}: botão de período sem texto "Período" visível`,
+        !/Período/.test(await period.innerText()),
+        plain(await period.innerText()),
+      );
+      const hiddenLabel = await page.evaluate(() =>
+        [...document.querySelectorAll('span')]
+          .filter((n) => n.textContent === 'Período')
+          .every(
+            (n) => n.getBoundingClientRect().width <= 1 && n.getBoundingClientRect().height <= 1,
+          ),
+      );
+      check(`${tag}: rótulo "Período" só para leitor de tela`, hiddenLabel);
+      const a = await period.boundingBox();
+      const b = await reports.boundingBox();
+      check(
+        `${tag}: período alinhado ao botão Relatórios`,
+        Math.abs(a.y - b.y) <= 1 && Math.abs(a.y + a.height - (b.y + b.height)) <= 1,
+        `período ${a.y}/${a.height} · relatórios ${b.y}/${b.height}`,
+      );
+    },
+  },
+  {
+    name: 'lista sem largura sobrando',
+    group: 'painel',
+    path: '/finance/expenses',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Feira' }).waitFor();
+      await settle(page);
+      const view = page.getByRole('group', { name: 'Visualização' });
+      const info = await view.evaluate((group) => {
+        const buttons = [...group.querySelectorAll('button')];
+        return {
+          width: group.getBoundingClientRect().width,
+          sum: buttons.reduce((total, button) => total + button.getBoundingClientRect().width, 0),
+          icons: buttons.every(
+            (button) => button.hasAttribute('title') && button.querySelector('svg'),
+          ),
+          count: buttons.length,
+        };
+      });
+      check(
+        `${tag}: seletor de visualização só com a largura dos botões`,
+        info.count === 2 && Math.abs(info.width - info.sum) <= 4,
+        `grupo ${info.width.toFixed(1)} px · botões ${info.sum.toFixed(1)} px`,
+      );
+      check(`${tag}: botões com title e ícone`, info.icons);
+    },
+  },
+  {
+    name: 'tabela dos gráficos sem texto solto',
+    group: 'painel',
+    path: '/finance',
+    combos: PAIR,
+    run: (page, tag) => checkChartCaptions(page, tag),
   },
   {
     name: 'seletor de período aberto',
@@ -993,7 +1194,7 @@ const scenarios = [
       const native = await page.locator('select').count();
       check(
         `${tag}: seletor próprio aberto, sem <select>`,
-        (await list.isVisible()) && native === 0 && (await list.getByRole('option').count()) === 3,
+        (await list.isVisible()) && native === 0 && (await list.getByRole('option').count()) === 4,
         `${await list.getByRole('option').count()} opções · ${native} select(s)`,
       );
     },
@@ -1262,13 +1463,126 @@ const scenarios = [
       );
     },
   },
+  {
+    name: 'Nova saída sem categoria',
+    group: 'formulario',
+    path: '/finance/transactions/new?kind=expense',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+      const field = page.getByLabel('Categoria', { exact: true });
+      check(
+        `${tag}: categoria começa em "Sem categoria"`,
+        /Sem categoria/.test(await field.innerText()),
+      );
+      const link = page.getByRole('link', { name: 'Criar categoria' });
+      check(`${tag}: link "Criar categoria" visível`, await link.isVisible());
+      await link.scrollIntoViewIfNeeded();
+      await settle(page);
+    },
+  },
+  {
+    name: 'Nova saída sem nenhuma categoria',
+    group: 'formulario',
+    path: '/finance/transactions/new?kind=expense',
+    combos: ALL,
+    world: () => ({ ...empty(), categories: [] }),
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+      const help = page.getByText('Nenhuma categoria deste tipo ainda.');
+      check(`${tag}: ajuda de estado vazio visível`, await help.isVisible());
+      check(
+        `${tag}: link "Criar categoria" visível`,
+        await page.getByRole('link', { name: 'Criar categoria' }).isVisible(),
+      );
+      await settle(page);
+    },
+  },
+  {
+    name: 'valor com máscara',
+    group: 'formulario',
+    path: '/finance/transactions/new?kind=expense',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+      const amount = page.getByRole('textbox', { name: /Valor previsto/ });
+      await amount.click();
+      await page.keyboard.type('14500');
+      await page.keyboard.press('Tab');
+      check(
+        `${tag}: digitar 14500 mostra R$ 14.500,00`,
+        plain(await amount.inputValue()) === 'R$ 14.500,00',
+        plain(await amount.inputValue()),
+      );
+      await amount.fill('');
+      await amount.click();
+      await amount.fill('14500,5');
+      await page.keyboard.press('Tab');
+      check(
+        `${tag}: colar 14500,5 mostra R$ 14.500,50`,
+        plain(await amount.inputValue()) === 'R$ 14.500,50',
+        plain(await amount.inputValue()),
+      );
+      await amount.fill('14500');
+      await page.keyboard.press('Tab');
+      await settle(page);
+    },
+  },
+  {
+    name: 'salvar com Repetir',
+    group: 'formulario',
+    path: '/finance/transactions/new?kind=expense',
+    combos: ALL,
+    override: (call) => {
+      if (call.method !== 'POST' || call.path !== '/recurring-transactions') return undefined;
+      recurringPosts += 1;
+      return {
+        status: 201,
+        body: {
+          id: 'r9',
+          currency: 'BRL',
+          owner_id: 'u1',
+          visibility: 'personal',
+          open_occurrence: null,
+          ...STAMP,
+          ...call.body,
+        },
+      };
+    },
+    run: async (page, tag) => {
+      recurringPosts = 0;
+      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+      await page.getByRole('textbox', { name: 'Descrição' }).fill('Aluguel');
+      await page.getByLabel('Conta', { exact: true }).click();
+      await page.getByRole('option').first().click();
+      await page.getByRole('textbox', { name: /Valor previsto/ }).fill('2000');
+      await page.getByRole('checkbox', { name: 'Repetir' }).check();
+      await page.getByRole('button', { name: 'Salvar' }).dblclick();
+      await page.getByRole('heading', { level: 1, name: 'Financeiro' }).waitFor();
+      const notice = page.getByText(/Recorrência salva\./);
+      await notice.waitFor();
+      check(`${tag}: aviso "Recorrência salva." visível`, await notice.isVisible());
+      check(
+        `${tag}: tela de Saídas aberta`,
+        (await page.evaluate(() => window.__evidence.href())).startsWith('/finance/expenses'),
+      );
+      const posts = recurringPosts;
+      check(`${tag}: um único POST /recurring-transactions`, posts === 1, String(posts));
+      await settle(page);
+    },
+  },
 ];
 
-async function runScenarios(browser, base) {
+async function runScenarios(
+  browser,
+  base,
+  list = scenarios.filter((sc) => !sc.group),
+  { combos, suffix = '' } = {},
+) {
   const shots = [];
-  for (const sc of scenarios) {
-    for (const [theme, size] of sc.combos) {
-      const tag = `${sc.name} · ${SIZE_LABEL[size]} · ${THEME_LABEL[theme]}`;
+  for (const sc of list) {
+    for (const [theme, size] of combos ?? sc.combos) {
+      const tag = `${sc.name} · ${SIZE_LABEL[size]} · ${THEME_LABEL[theme]}${suffix}`;
       const { page, context, errors } = await openPage(browser, { theme, size });
       try {
         const state = (sc.world ?? seed)();
@@ -1313,9 +1627,177 @@ async function sheet(browser, { title, file, shots, scale }) {
   console.log(`png: ${relative(ROOT, path)} (${shots.length} capturas)`);
 }
 
+/** Marcador do cursor no vídeo: o Playwright não desenha o ponteiro, então mostramos o `cursor` computado. */
+const CURSOR_MARKER = () => {
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;left:0;top:0;display:none;';
+  dot.innerHTML =
+    '<div style="width:12px;height:12px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 1px #000"></div>' +
+    '<div data-label style="margin:4px 0 0 14px;padding:2px 6px;border-radius:4px;background:#111;color:#fff;font:600 12px system-ui;white-space:nowrap"></div>';
+  const label = dot.querySelector('[data-label]');
+  const place = (event) => {
+    dot.style.display = 'block';
+    dot.style.transform = `translate(${event.clientX - 6}px, ${event.clientY - 6}px)`;
+    requestAnimationFrame(() => {
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      label.textContent = `cursor: ${under ? getComputedStyle(under).cursor : 'default'}`;
+    });
+  };
+  window.addEventListener('mousemove', place, true);
+  window.addEventListener('mousedown', place, true);
+  window.addEventListener('mouseup', place, true);
+  document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
+};
+
+async function recordFormVideo(browser, base) {
+  mkdirSync(OUT, { recursive: true });
+  const size = { width: 1280, height: 800 };
+  const context = await browser.newContext({
+    viewport: size,
+    locale: 'pt-BR',
+    timezoneId: 'America/Sao_Paulo',
+    recordVideo: { dir: join(OUT, 'video-tmp'), size },
+  });
+  await context.clock.setFixedTime(NOW);
+  await context.addInitScript((t) => {
+    try {
+      localStorage.setItem('atria_theme', t);
+    } catch {
+      /* sem armazenamento */
+    }
+  }, 'light');
+  await context.addInitScript(CURSOR_MARKER);
+  context.setDefaultTimeout(10000);
+  const page = await context.newPage();
+  const video = page.video();
+  const pause = (ms) => page.waitForTimeout(ms);
+  const clickAt = async (locator) => {
+    const box = await locator.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+    await pause(400);
+    await page.mouse.down();
+    await page.mouse.up();
+    await pause(500);
+  };
+  let posts = 0;
+  const override = (call) => {
+    if (call.method !== 'POST' || call.path !== '/recurring-transactions') return undefined;
+    posts += 1;
+    return {
+      status: 201,
+      body: {
+        id: 'r9',
+        currency: 'BRL',
+        owner_id: 'u1',
+        visibility: 'personal',
+        open_occurrence: null,
+        ...STAMP,
+        ...call.body,
+      },
+    };
+  };
+  try {
+    await mockApi(context, seed(), override);
+    await gotoHarness(page, base, '/finance/transactions/new?kind=expense');
+    await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+    await page.mouse.move(640, 760);
+    await pause(1200);
+
+    // 1. Descrição e conta, para o formulário ficar válido.
+    await clickAt(page.getByRole('textbox', { name: 'Descrição' }));
+    await page.keyboard.type('Aluguel', { delay: 140 });
+    await pause(600);
+    await clickAt(page.getByLabel('Conta', { exact: true }));
+    await clickAt(page.getByRole('option').first());
+
+    // 2. Valor com máscara: digita os dígitos e a máscara monta o R$.
+    const amount = page.getByRole('textbox', { name: /Valor previsto/ });
+    await clickAt(amount);
+    await page.keyboard.type('14500', { delay: 450 });
+    await pause(600);
+    await page.keyboard.press('Tab');
+    await pause(1400);
+    check(
+      'vídeo: digitar 14500 mostra R$ 14.500,00',
+      plain(await amount.inputValue()) === 'R$ 14.500,00',
+      plain(await amount.inputValue()),
+    );
+
+    // 3. Categoria: abre a lista e escolhe Mercado.
+    const field = page.getByLabel('Categoria', { exact: true });
+    await clickAt(field);
+    await pause(900);
+    await clickAt(page.getByRole('option', { name: /Mercado/ }));
+    await pause(1000);
+    check('vídeo: categoria Mercado escolhida', /Mercado/.test(await field.innerText()));
+
+    // 4. Repetir e salvar: aviso de sucesso e tela de Saídas.
+    const repeat = page.getByRole('checkbox', { name: 'Repetir' });
+    await repeat.scrollIntoViewIfNeeded();
+    await clickAt(repeat);
+    await pause(1000);
+    const save = page.getByRole('button', { name: 'Salvar' });
+    await save.scrollIntoViewIfNeeded();
+    await pause(600);
+    await clickAt(save);
+    await page.getByRole('heading', { level: 1, name: 'Financeiro' }).waitFor();
+    const notice = page.getByText(/Recorrência salva\./);
+    await notice.waitFor();
+    check('vídeo: aviso "Recorrência salva." visível', await notice.isVisible());
+    check('vídeo: um único POST /recurring-transactions', posts === 1, String(posts));
+    await pause(2500);
+  } catch (e) {
+    check('vídeo: cenário executou', false, String(e.message).split('\n').slice(0, 3).join(' / '));
+  } finally {
+    await context.close();
+  }
+  const path = join(OUT, 'finance-formulario.webm');
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
 // ---------- principal ----------
 
 const EVIDENCES = {
+  formulario: async (browser, base) => {
+    // As checagens (dois temas, duas larguras, axe) não gravam vídeo; o vídeo é um contexto à parte.
+    await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'formulario'),
+    );
+    await recordFormVideo(browser, base);
+  },
+  painel: async (browser, base) => {
+    const list = scenarios.filter((sc) => sc.group === 'painel');
+    const shots = await runScenarios(browser, base, list);
+    // O Firefox recortava mal o `caption` da tabela dos gráficos: confere o painel nele também.
+    const gecko = await firefox.launch();
+    try {
+      const only = list.filter((sc) =>
+        ['Painel com Cartões', 'tabela dos gráficos sem texto solto'].includes(sc.name),
+      );
+      const extra = await runScenarios(gecko, base, only, {
+        combos: [
+          ['light', 'desktop'],
+          ['dark', 'desktop'],
+        ],
+        suffix: ' · Firefox',
+      });
+      shots.push(...extra);
+    } finally {
+      await gecko.close();
+    }
+    await sheet(browser, {
+      title:
+        'TASK-17 · painel e listas do Financeiro (RF-04, RF-05, RF-09, RF-10, RF-15) · Chromium e Firefox, API simulada, relógio em 05/11/2026',
+      file: 'finance-painel.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   telas: async (browser, base) => {
     const shots = await runScenarios(browser, base);
     await sheet(browser, {
@@ -1332,7 +1814,7 @@ const wanted = process.argv.slice(2);
 const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
-  console.error(`Evidência desconhecida: ${unknown.join(', ')}. Use telas.`);
+  console.error(`Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario ou painel.`);
   process.exit(2);
 }
 

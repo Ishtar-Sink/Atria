@@ -11,6 +11,7 @@ registerMessages('library', messages);
 export type ItemNote = Schemas['ItemNoteResponse'];
 export type ItemNoteList = Schemas['ItemNoteList'];
 export type ItemNoteInput = Schemas['CreateItemNoteRequest'];
+export type ItemNotePatch = Schemas['UpdateItemNoteRequest'];
 
 const SEGMENT: Record<LibraryKind, string> = {
   book: 'book-notes',
@@ -66,4 +67,99 @@ export function useCreateItemNote(kind: LibraryKind, id: string) {
     },
     onSettled: () => client.invalidateQueries({ queryKey: key }),
   });
+}
+
+export interface NoteDraft {
+  quote: string;
+  comment: string;
+  page: string;
+}
+
+export interface NoteValidation {
+  error?: 'library.notes.add_error' | 'library.notes.page_invalid';
+  body?: { quote: string | null; comment: string | null; page: number | null };
+}
+
+/** Regras da nota: trecho ou comentário (aparados) e página maior que zero, se houver. */
+export function validateNote(draft: NoteDraft): NoteValidation {
+  const quote = draft.quote.trim();
+  const comment = draft.comment.trim();
+  const page = draft.page.trim();
+  if (quote === '' && comment === '') return { error: 'library.notes.add_error' };
+  if (page !== '' && !/^[1-9]\d{0,8}$/.test(page)) return { error: 'library.notes.page_invalid' };
+  return {
+    body: {
+      quote: quote === '' ? null : quote,
+      comment: comment === '' ? null : comment,
+      page: page === '' ? null : Number(page),
+    },
+  };
+}
+
+/** Edita a nota na hora e desfaz com aviso se o servidor recusar (RF-31). */
+export function useUpdateItemNote(kind: LibraryKind, id: string) {
+  const client = useQueryClient();
+  const key = libraryKeys.notes(kind, id);
+  return useMutation<
+    ItemNote,
+    Error,
+    { note_id: string; patch: ItemNotePatch },
+    { previous: ItemNoteList | undefined }
+  >({
+    mutationFn: ({ note_id, patch }) =>
+      api.patch<ItemNote>(`${notesPath(kind, id)}/${encodeURIComponent(note_id)}`, patch),
+    onMutate: async ({ note_id, patch }) => {
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<ItemNoteList>(key);
+      if (previous) {
+        client.setQueryData<ItemNoteList>(key, {
+          ...previous,
+          items: previous.items.map((note) =>
+            note.id === note_id
+              ? {
+                  ...note,
+                  ...(patch.quote !== undefined ? { quote: patch.quote } : {}),
+                  ...(patch.comment !== undefined ? { comment: patch.comment } : {}),
+                  ...(patch.page !== undefined ? { page: patch.page } : {}),
+                }
+              : note,
+          ),
+        });
+      }
+      return { previous };
+    },
+    onError: (error, _input, context) => {
+      client.setQueryData(key, context?.previous);
+      pushToast({ tone: 'danger', message_key: refusalMessageKey(error) });
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: key }),
+  });
+}
+
+/** Exclui a nota na hora e a devolve com aviso se o servidor recusar (RF-31). */
+export function useDeleteItemNote(kind: LibraryKind, id: string) {
+  const client = useQueryClient();
+  const key = libraryKeys.notes(kind, id);
+  return useMutation<undefined, Error, { note_id: string }, { previous: ItemNoteList | undefined }>(
+    {
+      mutationFn: ({ note_id }) =>
+        api.delete<undefined>(`${notesPath(kind, id)}/${encodeURIComponent(note_id)}`),
+      onMutate: async ({ note_id }) => {
+        await client.cancelQueries({ queryKey: key });
+        const previous = client.getQueryData<ItemNoteList>(key);
+        if (previous) {
+          client.setQueryData<ItemNoteList>(key, {
+            ...previous,
+            items: previous.items.filter((note) => note.id !== note_id),
+          });
+        }
+        return { previous };
+      },
+      onError: (error, _input, context) => {
+        client.setQueryData(key, context?.previous);
+        pushToast({ tone: 'danger', message_key: refusalMessageKey(error) });
+      },
+      onSettled: () => client.invalidateQueries({ queryKey: key }),
+    },
+  );
 }

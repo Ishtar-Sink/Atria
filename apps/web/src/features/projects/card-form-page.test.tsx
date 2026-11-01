@@ -6,7 +6,6 @@ import { rootRoute } from '../../app/router';
 import { renderWithProviders } from '../../shared/test/render';
 import { clearToasts } from '../../shared/toast/toast-store';
 import { createProjectsRoutes } from './routes';
-import { parseChecklist } from './use-kanban';
 import { callsTo, cardOf, defaultLanes, problem, projectOf, stubServer } from './test-server';
 
 afterEach(() => {
@@ -69,8 +68,10 @@ describe('card form', () => {
     await userEvent.click(document.querySelector<HTMLElement>('[data-day$="-15"]') as HTMLElement);
     await choose('Prioridade', 'Alta');
     await userEvent.type(screen.getByLabelText('Etiquetas'), 'sala{Enter}');
-    await userEvent.click(screen.getByLabelText('Checklist'));
-    await userEvent.paste('[x] Medir o canto\nEscolher a cor');
+    const novo = screen.getByLabelText('Novo item do checklist');
+    await userEvent.type(novo, 'Medir o canto{Enter}');
+    await userEvent.type(novo, 'Escolher a cor{Enter}');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Feito: Medir o canto' }));
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -97,13 +98,41 @@ describe('card form', () => {
     expect(router.state.location.search).toMatchObject({ tab: 'board' });
   });
 
-  it('pd46 parses the checklist lines with done items marked by [x]', () => {
-    expect(parseChecklist('[x] Lixar\n\n  Pintar  \n[X]Secar\n[x] ')).toEqual([
-      { text: 'Lixar', done: true },
-      { text: 'Pintar', done: false },
-      { text: 'Secar', done: true },
-    ]);
-    expect(parseChecklist('')).toEqual([]);
+  it('rf33 saves the checklist in the order and state shown', async () => {
+    const server = seeded();
+    renderAt('/projects/p-1/cards/c-1');
+    await screen.findByLabelText('Título');
+    screen.getByRole('button', { name: 'Reordenar o item Comparar, posição 2 de 2' }).focus();
+    await userEvent.keyboard('{ArrowUp}');
+    await userEvent.click(screen.getByRole('button', { name: 'Remover o item Medir' }));
+    await userEvent.type(screen.getByLabelText('Novo item do checklist'), 'Pintar{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => {
+      expect(callsTo(server, 'PATCH', '/cards/c-1')).toHaveLength(1);
+    });
+    expect(callsTo(server, 'PATCH', '/cards/c-1')[0]?.body).toMatchObject({
+      checklist: [
+        { text: 'Comparar', done: false },
+        { text: 'Pintar', done: false },
+      ],
+    });
+  });
+
+  it('rf33 refuses a checklist item longer than 300 characters inside the form', async () => {
+    const server = seeded();
+    renderAt('/projects/p-1/cards/new');
+    await userEvent.type(await screen.findByLabelText('Título'), 'Cartão');
+    const novo = screen.getByLabelText('Novo item do checklist');
+    await userEvent.click(novo);
+    await userEvent.paste('x'.repeat(301));
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Cada item do checklist tem até 300 caracteres.',
+    );
+    expect(callsTo(server, 'POST', '/projects/p-1/cards')).toHaveLength(0);
   });
 
   it('pd46 edits a card with PATCH and moves it with the move route when the lane changes', async () => {
@@ -111,7 +140,9 @@ describe('card form', () => {
     renderAt('/projects/p-1/cards/c-1');
     const title = await screen.findByLabelText('Título');
     expect(title).toHaveValue('Escolher sofá');
-    expect(screen.getByLabelText('Checklist')).toHaveValue('[x] Medir\nComparar');
+    expect(screen.getByLabelText('Item 1 do checklist')).toHaveValue('Medir');
+    expect(screen.getByLabelText('Item 2 do checklist')).toHaveValue('Comparar');
+    expect(screen.getByRole('checkbox', { name: 'Feito: Medir' })).toBeChecked();
     expect(screen.getByLabelText('Raia')).toHaveTextContent('Aguardando');
     await userEvent.clear(title);
     await userEvent.type(title, 'Escolher o sofá');

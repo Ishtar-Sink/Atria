@@ -364,15 +364,56 @@
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  cursor: grab;
+  transition:
+    transform var(--motion-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-fast) var(--motion-ease-standard),
+    border-color var(--motion-fast) var(--motion-ease-standard);
+  touch-action: manipulation;
 }
 
-.kcard:hover {
-  border-color: var(--border-strong);
+.kcard:active {
+  cursor: grabbing;
 }
 
+/* O link estica sobre o cartão: o cursor é o do cartão, não o de link. */
+.kcard .rowTitle {
+  cursor: inherit;
+}
+
+/* Hover: o cartão eleva e mostra que se arrasta. */
+@media (hover: hover) {
+  .kcard {
+    cursor: grab;
+  }
+
+  .kcard:hover:not(.kcardDragging) {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+    transform: translateY(calc(var(--space) * -0.5));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kcard {
+    transition: none;
+  }
+
+  .kcard:hover:not(.kcardDragging) {
+    transform: none;
+  }
+}
+
+/* Cartão de origem durante o arraste: esmaecido, como marcador de lugar. */
 .kcardDragging {
-  opacity: 0.5;
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+/* Cartão flutuante (DragOverlay): sombra forte, por cima do quadro. */
+.kcardOverlay {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-lg);
+  cursor: grabbing;
 }
 
 .kcardDesc {
@@ -407,8 +448,39 @@
   gap: var(--s2);
 }
 
-/* O rótulo do seletor do pé fica só para leitor de tela (PD-46). */
-.move label,
+/* Texto só para leitor de tela. */
+/* Comandos de teclado no fim do quadro: as teclas e a ação, centralizados. */
+.boardHint {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s4);
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.boardHint li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.boardHint kbd {
+  min-width: calc(var(--space) * 5);
+  padding: 0 var(--s1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, monospace;
+  text-align: center;
+}
+
+.boardHint span {
+  margin-left: var(--s1);
+}
+
 .srOnly {
   position: absolute;
   width: 1px;
@@ -418,11 +490,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.move button {
-  min-height: calc(var(--space) * 7);
-  font-size: var(--font-size-xs);
 }
 
 .laneAdd {
@@ -462,6 +529,7 @@
 .laneRowDragging {
   position: relative;
   z-index: 5;
+  background: var(--surface);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary);
 }
@@ -501,37 +569,13 @@
   font-weight: 600;
 }
 
-.dialog {
-  width: min(480px, calc(100vw - var(--s8)));
-  padding: var(--s5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  color: var(--text);
-}
-
-.dialog::backdrop {
-  background: color-mix(in srgb, var(--text) 40%, transparent);
-}
-
-.dialogTitle {
-  margin: 0 0 var(--s2);
-  font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-}
-
 .dialogText {
-  margin: 0 0 var(--s4);
+  margin: 0;
   color: var(--text-muted);
 }
 
-.dialogActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--s2);
-  margin-top: var(--s4);
+.dialogText:not(:last-child) {
+  margin-bottom: var(--s3);
 }
 
 .error {
@@ -579,6 +623,77 @@
 
 .textarea[aria-invalid='true'] {
   border-color: var(--danger);
+}
+
+/* Checklist do cartão em lista (RF-33). */
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.checklistList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklistRow,
+.checklistNew {
+  display: grid;
+  grid-template-columns: calc(var(--space) * 4) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.checklistRow {
+  transition: transform var(--motion-base) var(--motion-ease-standard);
+}
+
+.checklistRow .handle {
+  height: calc(var(--space) * 8);
+  background: transparent;
+}
+
+.checklistNew > :first-child {
+  grid-column: 3;
+}
+
+.checklistRowDragging {
+  position: relative;
+  z-index: 5;
+  box-shadow: var(--shadow-lg);
+}
+
+.checklistCheck {
+  inline-size: calc(var(--space) * 4);
+  block-size: calc(var(--space) * 4);
+  accent-color: var(--primary);
+}
+
+.checklistInput {
+  width: 100%;
+  min-width: 0;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+}
+
+.checklistInput:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 @media (max-width: 960px) {

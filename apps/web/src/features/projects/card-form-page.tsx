@@ -10,7 +10,7 @@ import {
 } from '@atria/ui';
 import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useId, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiProblem } from '../../shared/api/problem';
 import { FormDate, FormSelect, FormTags } from '../../shared/forms/form-fields';
@@ -18,13 +18,16 @@ import { useT } from '../../shared/i18n/i18n';
 import { FormScreen } from '../../shared/layout/form-screen';
 import { StickyPageHeader } from '../../shared/layout/sticky-page-header';
 import { BackLink } from '../../shared/navigation/back-link';
+import { ChecklistField } from './checklist-field';
 import { MoreIcon } from './icons';
 import styles from './projects.module.css';
 import { useCardTask, useOpenTasks, useSetCardTask, type CardTask } from './use-card-task-link';
 import {
-  formatChecklist,
+  CHECKLIST_MAX_ITEMS,
+  CHECKLIST_TEXT_MAX_CHARS,
   laneLabel,
-  parseChecklist,
+  toChecklistDrafts,
+  toChecklistInput,
   useCard,
   useCreateCard,
   useDeleteCard,
@@ -55,7 +58,12 @@ const schema = z.object({
       (labels) => new Set(labels.map((label) => label.toLowerCase())).size === labels.length,
       { message: 'projects.card_form.label_duplicate' },
     ),
-  checklist: z.string(),
+  checklist: z
+    .array(z.object({ key: z.string(), text: z.string(), done: z.boolean() }))
+    .max(CHECKLIST_MAX_ITEMS, 'projects.card_form.checklist_too_many')
+    .refine((items) => items.every((item) => item.text.trim().length <= CHECKLIST_TEXT_MAX_CHARS), {
+      message: 'projects.card_form.checklist_item_too_long',
+    }),
 });
 type Values = z.infer<typeof schema>;
 
@@ -72,7 +80,6 @@ function CardForm({ project_id, lanes, card, initial_lane, linked }: CardFormPro
   const t = useT();
   const navigate = useNavigate();
   const description_id = useId();
-  const checklist_id = useId();
   const project = useProject(project_id);
   const tasks = useOpenTasks();
   const create = useCreateCard(project_id);
@@ -93,7 +100,7 @@ function CardForm({ project_id, lanes, card, initial_lane, linked }: CardFormPro
       priority: card?.priority ?? '',
       task_id: linked?.task_id ?? '',
       labels: card?.labels ?? [],
-      checklist: formatChecklist(card?.checklist ?? []),
+      checklist: toChecklistDrafts(card?.checklist ?? []),
     },
   });
   const { errors, isSubmitting } = formState;
@@ -115,7 +122,7 @@ function CardForm({ project_id, lanes, card, initial_lane, linked }: CardFormPro
       due_date: values.due_date === '' ? null : values.due_date,
       priority: values.priority === '' ? null : values.priority,
       labels: values.labels,
-      checklist: parseChecklist(values.checklist),
+      checklist: toChecklistInput(values.checklist),
     };
     try {
       let card_id: string;
@@ -240,20 +247,19 @@ function CardForm({ project_id, lanes, card, initial_lane, linked }: CardFormPro
               help={t('projects.card_form.field_labels_help')}
             />
           </div>
-          <div data-span="full" className={styles.textareaRoot}>
-            <label htmlFor={checklist_id} className={styles.textareaLabel}>
-              {t('projects.card_form.field_checklist')}
-            </label>
-            <textarea
-              id={checklist_id}
-              className={styles.textarea}
-              aria-describedby={`${checklist_id}-help`}
-              {...register('checklist')}
-            />
-            <p id={`${checklist_id}-help`} className={styles.hint}>
-              {t('projects.card_form.field_checklist_help')}
-            </p>
-          </div>
+          <Controller
+            control={control}
+            name="checklist"
+            render={({ field, fieldState }) => (
+              <ChecklistField
+                label={t('projects.card_form.field_checklist')}
+                help={t('projects.card_form.checklist_help')}
+                items={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message ? t(fieldState.error.message) : undefined}
+              />
+            )}
+          />
           <FormActions
             cancel_label={t('common.cancel')}
             submit_label={t('common.save')}

@@ -1,7 +1,6 @@
-import type { Schemas } from '@atria/contracts';
 import { createRoute, redirect, type AnyRoute } from '@tanstack/react-router';
-import { api } from '../../shared/api/client';
 import { registerMessages } from '../../shared/i18n/i18n';
+import { fetchSetupRequired, hasSession } from '../../shared/session/current-user';
 import messages from './i18n/pt-br.json';
 import { AdminPasswordResetScreen } from './screens/admin-password-reset-screen';
 import { ForgotPasswordScreen } from './screens/forgot-password-screen';
@@ -12,15 +11,6 @@ import { SignUpScreen } from './screens/sign-up-screen';
 import { TwoFactorScreen } from './screens/two-factor-screen';
 
 registerMessages('auth', messages);
-
-/** Sem resposta do servidor, a tela de entrada abre normalmente em vez de bloquear o acesso. */
-async function setupRequired(): Promise<boolean> {
-  try {
-    return (await api.get<Schemas['SetupStatus']>('/setup')).required;
-  } catch {
-    return false;
-  }
-}
 
 function meta(screen: string, layout: 'app' | 'bare') {
   return {
@@ -39,7 +29,7 @@ export function createAuthRoutes(publicParent: AnyRoute, adminParent: AnyRoute):
     staticData: meta('setup', 'bare'),
     loader: async () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- o redirect() do roteador é lançado por contrato
-      if (!(await setupRequired())) throw redirect({ to: '/sign-in' });
+      if (!(await fetchSetupRequired())) throw redirect({ to: '/sign-in' });
     },
   });
   const sign_in = createRoute({
@@ -49,7 +39,9 @@ export function createAuthRoutes(publicParent: AnyRoute, adminParent: AnyRoute):
     staticData: meta('sign_in', 'bare'),
     loader: async () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- o redirect() do roteador é lançado por contrato
-      if (await setupRequired()) throw redirect({ to: '/setup' });
+      if (await fetchSetupRequired()) throw redirect({ to: '/setup' });
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- o redirect() do roteador é lançado por contrato
+      if (await hasSession()) throw redirect({ to: '/' });
     },
   });
   const sign_up = createRoute({

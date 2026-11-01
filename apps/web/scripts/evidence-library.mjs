@@ -2,11 +2,12 @@
 // (API `createServer`), serve uma página virtual que carrega `src/features/library/evidence/harness.tsx`
 // (as rotas da feature num roteador em memória, com os providers e o layout do app), simula a API no
 // navegador com fixtures em memória, confere o estado no DOM antes de cada captura e monta a prancha
-// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-28/.
-// Uso: node apps/web/scripts/evidence-library.mjs themes-widths|states-focus
+// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-28/ (ou na pasta de VOSTOK_EVIDENCE).
+// Uso: node apps/web/scripts/evidence-library.mjs themes-widths|states-focus|notes-highlights
+// (notes-highlights: TASK-25 da SPEC-002; verificações nos dois temas e larguras e vídeo .webm das notas e destaques).
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +18,9 @@ import { createServer } from 'vite';
 const AxeBuilder = axePackage.default ?? axePackage.AxeBuilder;
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-28');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-28');
 
 const THEMES = ['light', 'dark'];
 const SIZES = {
@@ -281,7 +284,41 @@ function withProgress(book, sessions) {
 /** Modos: normal, empty (lista vazia), loading (listagem segurada) e error (500 na listagem). */
 async function installApi(context, mode, gate) {
   const data = fixtures();
-  const state = { calls: [] };
+  const stamp = { created_at: '2026-10-20T10:00:00Z', updated_at: '2026-10-20T10:00:00Z' };
+  data.notes = [
+    {
+      id: 'note-1',
+      owner_id: U,
+      quote: 'Capitu abriu os olhos de ressaca',
+      comment: 'Reler o capítulo da ressaca',
+      page: 42,
+      ...stamp,
+    },
+    {
+      id: 'note-2',
+      owner_id: U,
+      quote: null,
+      comment: 'Voltar a este trecho depois',
+      page: null,
+      ...stamp,
+    },
+  ];
+  const mark = (id, page, color, text) => ({
+    id,
+    owner_id: U,
+    file_id: 'file-pdf-1',
+    is_current_file: true,
+    page,
+    color,
+    text,
+    rects: [{ x: 0.1, y: 0.1, width: 0.5, height: 0.02 }],
+    created_at: '2026-10-21T10:00:00Z',
+  });
+  data.highlights = [
+    mark('mark-1', 3, 'accent', 'A memória é a única forma de voltar ao que passou.'),
+    mark('mark-2', 9, 'warning', 'Há leituras que só se completam na segunda vez.'),
+  ];
+  const state = { calls: [], bodies: [] };
   await context.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
@@ -290,6 +327,7 @@ async function installApi(context, mode, gate) {
       const path = url.pathname.replace('/api/v1', '');
       const method = request.method();
       state.calls.push(`${method} ${path}`);
+      state.bodies.push(`${method} ${path} ${request.postData() ?? ''}`);
       const reply = (body, status = 200) =>
         route.fulfill({
           status,
@@ -337,8 +375,34 @@ async function installApi(context, mode, gate) {
         /^\/(books|articles|videos)\/[^/]+\/(book-notes|article-notes|video-notes)$/.test(path) &&
         method === 'GET'
       ) {
-        return reply({ items: [] });
+        return reply({ items: data.notes });
       }
+      const note = path.match(
+        /^\/(books|articles|videos)\/[^/]+\/(?:book|article|video)-notes\/([^/]+)$/,
+      );
+      if (note && method === 'PATCH') {
+        const body = request.postDataJSON();
+        data.notes = data.notes.map((n) => (n.id === note[2] ? { ...n, ...body } : n));
+        return reply(data.notes.find((n) => n.id === note[2]));
+      }
+      if (note && method === 'DELETE') {
+        data.notes = data.notes.filter((n) => n.id !== note[2]);
+        return route.fulfill({ status: 204 });
+      }
+      const marks = path.match(/^\/(books|articles)\/([^/]+)\/highlights$/);
+      if (marks && method === 'GET') return reply({ items: data.highlights });
+      const mark = path.match(/^\/(books|articles)\/[^/]+\/highlights\/([^/]+)$/);
+      if (mark && method === 'PATCH') {
+        const body = request.postDataJSON();
+        data.highlights = data.highlights.map((h) => (h.id === mark[2] ? { ...h, ...body } : h));
+        return reply(data.highlights.find((h) => h.id === mark[2]));
+      }
+      if (mark && method === 'DELETE') {
+        data.highlights = data.highlights.filter((h) => h.id !== mark[2]);
+        return route.fulfill({ status: 204 });
+      }
+      if (/^\/(books|articles|videos)\/[^/]+\/links$/.test(path) || path === '/links')
+        return reply({ items: [] });
       return reply({ title: 'Não encontrado', code: 'not_found' }, 404);
     },
   );
@@ -347,10 +411,14 @@ async function installApi(context, mode, gate) {
 
 // ---------- captura ----------
 
-async function openPage(browser, { theme, size, mode = 'normal', tall = false }) {
-  const viewport = { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
+async function openPage(
+  browser,
+  { theme, size, mode = 'normal', tall = false, video, viewport: fixed },
+) {
+  const viewport = fixed ?? { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
   const context = await browser.newContext({
     viewport,
+    ...(video ? { recordVideo: video } : {}),
     reducedMotion: 'reduce',
     locale: 'pt-BR',
     timezoneId: ZONE,
@@ -869,6 +937,276 @@ const statesScenarios = [
   },
 ];
 
+// ---------- notas e destaques editáveis (TASK-25) ----------
+
+const notesPath = `/library/books/${ids.book1}?tab=notes`;
+const marksPath = `/library/books/${ids.book1}?tab=highlights`;
+const callsOf = (state, method, pattern) =>
+  state.calls.filter((c) => c.startsWith(`${method} `) && pattern.test(c));
+
+const notesHighlightsScenarios = [
+  {
+    name: 'nota editada',
+    path: notesPath,
+    tall: true,
+    run: async (page, tag, { state }) => {
+      await page.getByRole('button', { name: /^Editar a nota “Capitu/ }).click();
+      const form = page.getByRole('form', { name: 'Editar nota' });
+      await form.waitFor();
+      const labels =
+        (await form.getByLabel('Trecho').count()) === 1 &&
+        (await form.getByLabel('Comentário').count()) === 1 &&
+        (await form.getByLabel('Página').count()) === 1;
+      const ring = await focusRing(page);
+      check(
+        `${tag}: formulário de edição com rótulos e foco visível`,
+        labels && ring.style !== 'none' && ring.width >= 2,
+        `foco em ${ring.role}: ${ring.style} ${ring.width}px`,
+      );
+      await form.getByLabel('Comentário').fill('Reler o capítulo da ressaca com calma');
+      await form.getByRole('button', { name: 'Salvar' }).click();
+      await page.getByText('Reler o capítulo da ressaca com calma').waitFor();
+      check(
+        `${tag}: nota editada no histórico`,
+        callsOf(state, 'PATCH', /book-notes\/note-1$/).length === 1,
+        state.calls.filter((c) => c.startsWith('PATCH')).join(', '),
+      );
+      await page.getByRole('button', { name: /^Editar a nota “Voltar/ }).click();
+      await page.getByRole('form', { name: 'Editar nota' }).waitFor();
+    },
+  },
+  {
+    name: 'exclusão da nota',
+    path: notesPath,
+    tall: true,
+    run: async (page, tag, { state }) => {
+      await page.getByRole('button', { name: /^Excluir a nota “Voltar/ }).click();
+      const dialog = page.getByRole('alertdialog');
+      await dialog.waitFor();
+      check(
+        `${tag}: diálogo de exclusão da nota`,
+        (await dialog.getByRole('button', { name: 'Excluir nota' }).isVisible()) &&
+          (await dialog.getByRole('button', { name: 'Cancelar' }).isVisible()) &&
+          callsOf(state, 'DELETE', /notes/).length === 0,
+      );
+    },
+  },
+  {
+    name: 'nota excluída',
+    path: notesPath,
+    tall: true,
+    run: async (page, tag, { state }) => {
+      await page.getByRole('button', { name: /^Excluir a nota “Voltar/ }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir nota' }).click();
+      await page.getByText('Voltar a este trecho depois').waitFor({ state: 'detached' });
+      check(
+        `${tag}: nota excluída some da lista`,
+        (await page.getByText('Voltar a este trecho depois').count()) === 0 &&
+          callsOf(state, 'DELETE', /book-notes\/note-2$/).length === 1,
+      );
+    },
+  },
+  {
+    name: 'cor do destaque',
+    path: marksPath,
+    tall: true,
+    run: async (page, tag, { state }) => {
+      const group = page.getByRole('group', { name: 'Cor do destaque da página 3' });
+      const green = group.getByRole('button', { name: 'Trocar para verde' });
+      await green.click();
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector(
+              '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="success"]',
+            )
+            ?.getAttribute('aria-pressed') === 'true',
+      );
+      const patch = state.bodies.filter((c) => /^PATCH .*highlights\/mark-1 /.test(c));
+      check(
+        `${tag}: cor do destaque trocada`,
+        (await green.getAttribute('aria-pressed')) === 'true' &&
+          patch.length === 1 &&
+          patch[0].endsWith('{"color":"success"}'),
+        patch.join(', '),
+      );
+      await group.getByRole('button', { name: 'Trocar para azul' }).focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      const ring = await focusRing(page);
+      check(
+        `${tag}: contorno de foco visível na cor (≥ 2 px)`,
+        ring.style !== 'none' && ring.width >= 2,
+        `${ring.style} ${ring.width}px ${ring.color}`,
+      );
+    },
+  },
+  {
+    name: 'destaque excluído',
+    path: marksPath,
+    tall: true,
+    run: async (page, tag, { state }) => {
+      await page.getByRole('button', { name: 'Excluir o destaque da página 9' }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir destaque' }).click();
+      await page.getByText('Há leituras que só se completam na segunda vez.').waitFor({
+        state: 'detached',
+      });
+      check(
+        `${tag}: destaque excluído some da lista`,
+        (await page
+          .getByRole('list', { name: 'Destaques do item' })
+          .getByRole('listitem')
+          .count()) === 1 && state.calls.some((c) => /^DELETE .*highlights\/mark-2$/.test(c)),
+      );
+    },
+  },
+];
+
+// ---------- vídeo das notas e dos destaques (TASK-25) ----------
+
+/** Marcador do cursor no vídeo: o Playwright não desenha o ponteiro, então mostramos o ponto e o `cursor` computado. */
+const CURSOR_MARKER = () => {
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;left:0;top:0;display:none;';
+  dot.innerHTML =
+    '<div style="width:12px;height:12px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 1px #000"></div>' +
+    '<div data-label style="margin:4px 0 0 14px;padding:2px 6px;border-radius:4px;background:#111;color:#fff;font:600 12px system-ui;white-space:nowrap"></div>';
+  const label = dot.querySelector('[data-label]');
+  const place = (event) => {
+    dot.style.display = 'block';
+    dot.style.transform = `translate(${event.clientX - 6}px, ${event.clientY - 6}px)`;
+    requestAnimationFrame(() => {
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      label.textContent = `cursor: ${under ? getComputedStyle(under).cursor : 'default'}`;
+    });
+  };
+  window.addEventListener('mousemove', place, true);
+  window.addEventListener('mousedown', place, true);
+  window.addEventListener('mouseup', place, true);
+  document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
+};
+
+async function recordNotesHighlightsVideo(browser, base) {
+  mkdirSync(OUT, { recursive: true });
+  const size = { width: 1280, height: 800 };
+  const { page, context, release, state } = await openPage(browser, {
+    theme: 'light',
+    size: 'desktop',
+    viewport: size,
+    video: { dir: join(OUT, 'video-tmp'), size },
+  });
+  await context.addInitScript(CURSOR_MARKER);
+  const video = page.video();
+  const pause = (ms) => page.waitForTimeout(ms);
+  /** Leva o cursor até o alvo, devagar, e clica. */
+  const click = async (locator) => {
+    await locator.scrollIntoViewIfNeeded();
+    const box = await locator.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 25 });
+    await pause(500);
+    await page.mouse.down();
+    await page.mouse.up();
+    await pause(900);
+  };
+  try {
+    await gotoApp(page, base, notesPath);
+    await page.getByRole('button', { name: /^Editar a nota “Capitu/ }).waitFor();
+    await page.mouse.move(640, 700);
+    await pause(1200);
+
+    // 1. Editar uma nota.
+    await click(page.getByRole('button', { name: /^Editar a nota “Capitu/ }));
+    const form = page.getByRole('form', { name: 'Editar nota' });
+    await form.waitFor();
+    await pause(800);
+    await form.getByLabel('Comentário').fill('');
+    await form.getByLabel('Comentário').pressSequentially('Reler o capítulo da ressaca com calma', {
+      delay: 60,
+    });
+    await pause(800);
+    await click(form.getByRole('button', { name: 'Salvar' }));
+    await page.getByText('Reler o capítulo da ressaca com calma').waitFor();
+    check(
+      'vídeo: nota editada no histórico',
+      callsOf(state, 'PATCH', /book-notes\/note-1$/).length === 1,
+    );
+    await pause(1500);
+
+    // 2. Excluir a nota: abre a confirmação, desiste (desfaz) e depois confirma.
+    const remove = page.getByRole('button', { name: /^Excluir a nota “Voltar/ });
+    await click(remove);
+    const dialog = page.getByRole('alertdialog');
+    await dialog.waitFor();
+    await pause(1500);
+    await click(dialog.getByRole('button', { name: 'Cancelar' }));
+    await dialog.waitFor({ state: 'detached' });
+    check(
+      'vídeo: exclusão cancelada mantém a nota',
+      (await page.getByText('Voltar a este trecho depois').count()) === 1 &&
+        callsOf(state, 'DELETE', /notes/).length === 0,
+    );
+    await pause(1200);
+    await click(remove);
+    await dialog.waitFor();
+    await pause(1200);
+    await click(dialog.getByRole('button', { name: 'Excluir nota' }));
+    await page.getByText('Voltar a este trecho depois').waitFor({ state: 'detached' });
+    check(
+      'vídeo: nota excluída some da lista',
+      callsOf(state, 'DELETE', /book-notes\/note-2$/).length === 1,
+    );
+    await pause(1800);
+
+    // 3. Trocar a cor de um destaque.
+    await gotoApp(page, base, marksPath);
+    const group = page.getByRole('group', { name: 'Cor do destaque da página 3' });
+    await group.waitFor();
+    await page.mouse.move(640, 700);
+    await pause(1200);
+    const green = group.getByRole('button', { name: 'Trocar para verde' });
+    await click(green);
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(
+            '[role="group"][aria-label="Cor do destaque da página 3"] [data-color="success"]',
+          )
+          ?.getAttribute('aria-pressed') === 'true',
+    );
+    check(
+      'vídeo: cor do destaque trocada',
+      (await green.getAttribute('aria-pressed')) === 'true' &&
+        state.bodies.some((c) => /^PATCH .*highlights\/mark-1 .*"success"/.test(c)),
+    );
+    await pause(1800);
+
+    // 4. Excluir um destaque.
+    await click(page.getByRole('button', { name: 'Excluir o destaque da página 9' }));
+    const confirm = page.getByRole('alertdialog');
+    await confirm.waitFor();
+    await pause(1200);
+    await click(confirm.getByRole('button', { name: 'Excluir destaque' }));
+    await page.getByText('Há leituras que só se completam na segunda vez.').waitFor({
+      state: 'detached',
+    });
+    check(
+      'vídeo: destaque excluído some da lista',
+      state.calls.some((c) => /^DELETE .*highlights\/mark-2$/.test(c)),
+    );
+    await pause(2000);
+  } catch (e) {
+    check('vídeo: cenário executou', false, String(e.message).split('\n')[0]);
+  } finally {
+    release();
+    await context.close();
+  }
+  const path = join(OUT, 'notes-highlights.webm');
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
 // ---------- principal ----------
 
 const EVIDENCES = {
@@ -880,6 +1218,10 @@ const EVIDENCES = {
       shots,
       scale: { desktop: 0.5, mobile: 0.62 },
     });
+  },
+  'notes-highlights': async (browser, base) => {
+    await runScenarios(browser, base, notesHighlightsScenarios);
+    await recordNotesHighlightsVideo(browser, base);
   },
   'states-focus': async (browser, base) => {
     const shots = await runScenarios(browser, base, statesScenarios);
@@ -896,7 +1238,7 @@ const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
   console.error(
-    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths ou states-focus.`,
+    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths, states-focus ou notes-highlights.`,
   );
   process.exit(2);
 }

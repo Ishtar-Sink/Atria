@@ -32,8 +32,30 @@ export function StickyPageHeader(props: Props) {
     };
   }, []);
 
+  // Como a `syncTopbar` do protótipo: o fundo vai da sidebar à borda, mesmo dentro do
+  // formulário de 880 px ou da página de 1360 px (PD-20).
+  useEffect(() => {
+    const node = wrap.current;
+    const area = node?.closest<HTMLElement>('[data-scroll-area]');
+    if (!node || !area) return;
+    const measure = () => {
+      const left = area.getBoundingClientRect().left - node.getBoundingClientRect().left;
+      node.style.setProperty('--bd-l', `${String(left)}px`);
+      node.style.setProperty('--bd-w', `${String(area.clientWidth)}px`);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(area);
+    observer?.observe(node);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, []);
+
   return (
-    <div ref={wrap} className={styles.sticky}>
+    <div ref={wrap} data-sticky-header="" className={styles.sticky}>
       <PageHeader {...props} stuck={stuck} compact={compact} />
     </div>
   );

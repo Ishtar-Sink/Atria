@@ -1,6 +1,6 @@
-import { useRouter } from '@tanstack/react-router';
+import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useT } from '../i18n/i18n';
-import { useBackTarget, type BackTargetOptions } from './back-target';
+import { pathnameOf, useBackTarget, type BackTargetOptions } from './back-target';
 import styles from './back-link.module.css';
 
 function ArrowLeft() {
@@ -27,6 +27,7 @@ export function BackLink(options: BackTargetOptions) {
   const t = useT();
   const router = useRouter();
   const target = useBackTarget(options);
+  const current = useRouterState({ select: (state) => state.location.pathname });
   return (
     <a
       href={target}
@@ -34,7 +35,9 @@ export function BackLink(options: BackTargetOptions) {
       onClick={(event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
         event.preventDefault();
-        router.history.push(target);
+        const next = pathnameOf(target) === current ? options.fallback_to : target;
+        if (pathnameOf(next) === current) return;
+        router.history.push(next);
       }}
     >
       <ArrowLeft />

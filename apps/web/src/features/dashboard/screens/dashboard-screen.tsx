@@ -5,7 +5,12 @@ import { formatDateTime, formatMoney } from '../../../shared/format/intl';
 import { registerMessages, useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { useCurrentUser } from '../../../shared/session/current-user';
-import { DASHBOARD_BLOCKS, DASH_TODAY_LIMIT, type DashboardBlockId } from '../blocks';
+import {
+  DASHBOARD_BLOCKS,
+  DASH_TODAY_LIMIT,
+  dashboardCells,
+  type DashboardBlockId,
+} from '../blocks';
 import { CalmMessage } from '../components/calm-message';
 import { CompleteTaskButton } from '../components/complete-task-button';
 import { DashboardBlock, type BlockStatus } from '../components/dashboard-block';
@@ -471,14 +476,7 @@ export function DashboardScreen() {
   }
 
   const visible = DASHBOARD_BLOCKS.filter((block) => !isHidden(block.id));
-  const main = visible.filter((block) => block.zone === 'main');
-  const side = visible.filter((block) => block.zone === 'side');
-  const zone_class = [
-    styles.zones,
-    main.length === 0 || side.length === 0 ? styles.zonesSingle : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const cells = dashboardCells(visible);
 
   return (
     <div>
@@ -497,17 +495,18 @@ export function DashboardScreen() {
           </DashboardLink>
         </div>
       ) : (
-        <div className={zone_class}>
-          {main.length > 0 ? (
-            <div className={styles.zone} data-zone="main">
-              {main.map((block) => renderBlock(block.id))}
+        <div className={styles.zones}>
+          {cells.map((cell) => (
+            <div
+              key={cell.id}
+              className={styles.cell}
+              data-zone={cell.zone}
+              data-row={cell.row}
+              {...(cell.alone ? { 'data-alone': '' } : {})}
+            >
+              {renderBlock(cell.id)}
             </div>
-          ) : null}
-          {side.length > 0 ? (
-            <div className={styles.zone} data-zone="side">
-              {side.map((block) => renderBlock(block.id))}
-            </div>
-          ) : null}
+          ))}
         </div>
       )}
     </div>

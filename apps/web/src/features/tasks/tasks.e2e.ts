@@ -9,8 +9,6 @@ async function createTask(page: Page, title: string, recurring: boolean) {
   await page.getByRole('textbox', { name: 'Título' }).fill(title);
   if (recurring) {
     await page.getByRole('radio', { name: 'Recorrente' }).check();
-    // A regra de recorrência tem sempre o horário (ajuste 7 da TASK-35).
-    await page.getByRole('textbox', { name: /Horário/ }).fill('08:00');
   }
   await page.getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
@@ -58,4 +56,61 @@ test('daily task completes only today occurrence', async ({ page }) => {
 
   const scan = await new AxeBuilder({ page }).analyze();
   expect(scan.violations).toEqual([]);
+});
+
+async function createWeekly(page: Page, title: string) {
+  await page.goto('/tasks/new');
+  await page.getByRole('textbox', { name: 'Título' }).fill(title);
+  await page.getByRole('radio', { name: 'Recorrente' }).check();
+  await page.getByRole('button', { name: /^Frequência/ }).click();
+  await page.getByRole('option', { name: 'Semanal' }).click();
+  await page.getByRole('checkbox', { name: 'segunda-feira' }).check();
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+}
+
+test('ct34 saves a daily task without time', async ({ page }) => {
+  const title = unique('Beber água');
+  await createTask(page, title, true);
+
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+  await expect(page.getByText('Tarefa criada.')).toBeVisible();
+});
+
+test('ct36 warns about a single task for tomorrow outside today', async ({ page }) => {
+  const title = unique('Levar o carro à revisão');
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const day = new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(tomorrow);
+  await page.goto('/tasks/new');
+  await page.getByRole('textbox', { name: 'Título' }).fill(title);
+  await page.getByRole('button', { name: /^Data/ }).click();
+  await page.getByRole('button', { name: day }).click();
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+
+  await page.goto('/tasks');
+  const notice = page.getByRole('status').filter({ hasText: 'em outros dias' });
+  await expect(notice).toContainText(/Há \d+ tarefas? abertas? em outros dias\./);
+  await expect(page.getByText(title)).toHaveCount(0);
+
+  await notice.getByRole('button', { name: 'Ver todas as datas' }).click();
+  await expect(page.getByText(title)).toBeVisible();
+});
+
+test('ct37 lists one row per task in all', async ({ page }) => {
+  const daily = unique('Alongamento diário');
+  const weekly = unique('Revisão semanal');
+  const single = unique('Pagar a conta');
+  await createTask(page, daily, true);
+  await createWeekly(page, weekly);
+  await createTask(page, single, false);
+
+  await page.goto('/tasks?range=all');
+  for (const title of [daily, weekly, single]) {
+    await expect(page.getByText(title)).toHaveCount(1);
+  }
 });

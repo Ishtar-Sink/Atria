@@ -55,25 +55,27 @@ export function HorizontalBars({ label, items, currency }: HorizontalBarsProps) 
           </li>
         ))}
       </ul>
-      <table className={styles.srOnly}>
-        <caption>{label}</caption>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <th scope="row">
-                {item.href ? (
-                  <Link to={item.href} search={item.search ?? {}}>
-                    {item.label}
-                  </Link>
-                ) : (
-                  item.label
-                )}
-              </th>
-              <td>{formatMoney(item.value, currency, locale)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className={styles.srOnly}>
+        <table>
+          <caption>{label}</caption>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <th scope="row">
+                  {item.href ? (
+                    <Link to={item.href} search={item.search ?? {}}>
+                      {item.label}
+                    </Link>
+                  ) : (
+                    item.label
+                  )}
+                </th>
+                <td>{formatMoney(item.value, currency, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
@@ -143,25 +145,27 @@ export function ExpectedVsSettledColumns({
           </div>
         ))}
       </dl>
-      <table className={styles.srOnly}>
-        <caption>{label}</caption>
-        <thead>
-          <tr>
-            <td />
-            <th scope="col">{expected_label}</th>
-            <th scope="col">{settled_label}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => (
-            <tr key={group.id}>
-              <th scope="row">{group.label}</th>
-              <td>{money(group.expected)}</td>
-              <td>{money(group.settled)}</td>
+      <div className={styles.srOnly}>
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <td />
+              <th scope="col">{expected_label}</th>
+              <th scope="col">{settled_label}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <tr key={group.id}>
+                <th scope="row">{group.label}</th>
+                <td>{money(group.expected)}</td>
+                <td>{money(group.settled)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

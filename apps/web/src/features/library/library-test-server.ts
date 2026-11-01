@@ -98,6 +98,11 @@ export interface Server {
   mode: 'ok' | 'loading' | 'error';
   /** Resposta de erro para as chamadas que casarem (método e caminho). */
   reject: { method: string; match: RegExp; status: number; code: string }[];
+  /** Segura os envios por `XMLHttpRequest` (capa e PDF) até `release_uploads()`. */
+  hold_uploads: boolean;
+  release_uploads: () => void;
+  /** Faz os envios por `XMLHttpRequest` falharem como queda de rede. */
+  fail_uploads_network: boolean;
 }
 
 type Collection = 'books' | 'articles' | 'videos';
@@ -113,8 +118,16 @@ export function stubLibraryServer(initial: Partial<Server> = {}): Server {
     calls: [],
     mode: 'ok',
     reject: [],
+    hold_uploads: false,
+    release_uploads: () => {
+      held.splice(0).forEach((release) => {
+        release();
+      });
+    },
+    fail_uploads_network: false,
     ...initial,
   };
+  const held: (() => void)[] = [];
   let next_id = 1;
   const book_view = (book: Book): Book => {
     const own = server.sessions.filter((session) => session.book_id === book.id);
@@ -131,137 +144,196 @@ export function stubLibraryServer(initial: Partial<Server> = {}): Server {
     };
   };
 
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(input instanceof Request ? input.url : input, 'http://localhost');
-      const method = init?.method ?? 'GET';
-      const headers = new Headers(init?.headers);
-      const raw = init?.body instanceof File ? init.body : undefined;
-      const body =
-        typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
-      if (url.pathname === '/api/v1/me')
-        return Promise.resolve(json({ id: 'u-1', email: 'a@b.c' }));
-      server.calls.push({
-        method,
-        url,
-        body,
-        file: raw,
-        content_type: headers.get('Content-Type'),
-      });
-      if (server.mode === 'loading') return new Promise<Response>(() => undefined);
-      if (server.mode === 'error') return Promise.resolve(json({ code: 'boom', title: 'x' }, 500));
-      const refused = server.reject.find(
-        (rule) => rule.method === method && rule.match.test(url.pathname),
-      );
-      if (refused) return Promise.resolve(json({ code: refused.code, title: 'x' }, refused.status));
+  const handle = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = new URL(input instanceof Request ? input.url : input, 'http://localhost');
+    const method = init?.method ?? 'GET';
+    const headers = new Headers(init?.headers);
+    const raw = init?.body instanceof File ? init.body : undefined;
+    const body =
+      typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+    if (url.pathname === '/api/v1/me') return Promise.resolve(json({ id: 'u-1', email: 'a@b.c' }));
+    server.calls.push({
+      method,
+      url,
+      body,
+      file: raw,
+      content_type: headers.get('Content-Type'),
+    });
+    if (server.mode === 'loading') return new Promise<Response>(() => undefined);
+    if (server.mode === 'error') return Promise.resolve(json({ code: 'boom', title: 'x' }, 500));
+    const refused = server.reject.find(
+      (rule) => rule.method === method && rule.match.test(url.pathname),
+    );
+    if (refused) return Promise.resolve(json({ code: refused.code, title: 'x' }, refused.status));
 
-      const parts = url.pathname.replace('/api/v1/', '').split('/').filter(Boolean);
-      const [collection, id, section, section_id] = parts as [
-        Collection,
-        string | undefined,
-        string | undefined,
-        string | undefined,
-      ];
-      const items = server[collection] as { id: string }[];
+    const parts = url.pathname.replace('/api/v1/', '').split('/').filter(Boolean);
+    const [collection, id, section, section_id] = parts as [
+      Collection,
+      string | undefined,
+      string | undefined,
+      string | undefined,
+    ];
+    const items = server[collection] as { id: string }[];
 
-      if (id === undefined) {
+    if (id === undefined) {
+      if (method === 'POST') {
+        const created = {
+          ...(collection === 'books'
+            ? bookOf()
+            : collection === 'articles'
+              ? articleOf()
+              : videoOf()),
+          id: `new-${String(next_id++)}`,
+          ...body,
+        };
+        (items as unknown[]).push(created);
+        return Promise.resolve(json(created, 201));
+      }
+      const status = url.searchParams.get('reading_status') ?? url.searchParams.get('watch_status');
+      const q = url.searchParams.get('q')?.toLowerCase();
+      const tag = url.searchParams.get('tag');
+      const found = (items as (Book | Article | Video)[])
+        .filter((item) => {
+          const own_status = 'watch_status' in item ? item.watch_status : item.reading_status;
+          if (status && own_status !== status) return false;
+          if (tag && !item.tags.includes(tag)) return false;
+          if (q && !(item.title ?? '').toLowerCase().includes(q)) return false;
+          return true;
+        })
+        .map((item) => ('page_count' in item ? book_view(item) : item));
+      return Promise.resolve(json({ items: found, next_cursor: null }));
+    }
+
+    if (section === 'reading-sessions') {
+      if (section_id === undefined) {
         if (method === 'POST') {
-          const created = {
-            ...(collection === 'books'
-              ? bookOf()
-              : collection === 'articles'
-                ? articleOf()
-                : videoOf()),
-            id: `new-${String(next_id++)}`,
-            ...body,
-          };
-          (items as unknown[]).push(created);
+          const created = sessionOf({
+            id: `s-new-${String(next_id++)}`,
+            book_id: id,
+            ...(body as Partial<ReadingSession>),
+          });
+          server.sessions.push(created);
           return Promise.resolve(json(created, 201));
         }
-        const status =
-          url.searchParams.get('reading_status') ?? url.searchParams.get('watch_status');
-        const q = url.searchParams.get('q')?.toLowerCase();
-        const tag = url.searchParams.get('tag');
-        const found = (items as (Book | Article | Video)[])
-          .filter((item) => {
-            const own_status = 'watch_status' in item ? item.watch_status : item.reading_status;
-            if (status && own_status !== status) return false;
-            if (tag && !item.tags.includes(tag)) return false;
-            if (q && !(item.title ?? '').toLowerCase().includes(q)) return false;
-            return true;
-          })
-          .map((item) => ('page_count' in item ? book_view(item) : item));
-        return Promise.resolve(json({ items: found, next_cursor: null }));
-      }
-
-      if (section === 'reading-sessions') {
-        if (section_id === undefined) {
-          if (method === 'POST') {
-            const created = sessionOf({
-              id: `s-new-${String(next_id++)}`,
-              book_id: id,
-              ...(body as Partial<ReadingSession>),
-            });
-            server.sessions.push(created);
-            return Promise.resolve(json(created, 201));
-          }
-          return Promise.resolve(
-            json({ items: server.sessions.filter((session) => session.book_id === id) }),
-          );
-        }
-        if (method === 'PATCH') {
-          server.sessions = server.sessions.map((session) =>
-            session.id === section_id ? { ...session, ...body } : session,
-          );
-          return Promise.resolve(
-            json(server.sessions.find((session) => session.id === section_id)),
-          );
-        }
-        server.sessions = server.sessions.filter((session) => session.id !== section_id);
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-
-      if (section?.endsWith('-notes')) {
-        if (method === 'POST') {
-          const created: ItemNote = {
-            id: `n-${String(next_id++)}`,
-            owner_id: 'u-1',
-            created_at: '2026-10-26T10:00:00Z',
-            updated_at: '2026-10-26T10:00:00Z',
-            ...body,
-          };
-          server.notes.push(created);
-          return Promise.resolve(json(created, 201));
-        }
-        return Promise.resolve(json({ items: server.notes }));
-      }
-
-      const found = (items as (Book | Article | Video)[]).find((item) => item.id === id);
-      if (!found) return Promise.resolve(json({ code: 'not_found', title: 'x' }, 404));
-
-      if (section === 'cover' || section === 'thumbnail' || section === 'pdf') {
-        if (method === 'DELETE') {
-          Object.assign(found, { cover_file_id: null, thumbnail_file_id: null });
-          return Promise.resolve(new Response(null, { status: 204 }));
-        }
-        const file_id = `file-${String(next_id++)}`;
-        if (section === 'pdf') Object.assign(found, { pdf_file_id: file_id });
-        else if (section === 'thumbnail') Object.assign(found, { thumbnail_file_id: file_id });
-        else Object.assign(found, { cover_file_id: file_id });
-        return Promise.resolve(json(found));
-      }
-      if (method === 'DELETE') {
-        (server[collection] as { id: string }[]) = items.filter((item) => item.id !== id);
-        return Promise.resolve(new Response(null, { status: 204 }));
+        return Promise.resolve(
+          json({ items: server.sessions.filter((session) => session.book_id === id) }),
+        );
       }
       if (method === 'PATCH') {
-        Object.assign(found, body);
-        return Promise.resolve(json(found));
+        server.sessions = server.sessions.map((session) =>
+          session.id === section_id ? { ...session, ...body } : session,
+        );
+        return Promise.resolve(json(server.sessions.find((session) => session.id === section_id)));
       }
-      return Promise.resolve(json('page_count' in found ? book_view(found) : found));
-    }),
-  );
+      server.sessions = server.sessions.filter((session) => session.id !== section_id);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+
+    if (section?.endsWith('-notes')) {
+      if (section_id !== undefined) {
+        const note = server.notes.find((own) => own.id === section_id);
+        if (!note) return Promise.resolve(json({ code: 'not_found', title: 'x' }, 404));
+        if (method === 'PATCH') {
+          const updated: ItemNote = { ...note, ...body, updated_at: '2026-10-27T10:00:00Z' };
+          server.notes = server.notes.map((own) => (own.id === section_id ? updated : own));
+          return Promise.resolve(json(updated));
+        }
+        server.notes = server.notes.filter((own) => own.id !== section_id);
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (method === 'POST') {
+        const created: ItemNote = {
+          id: `n-${String(next_id++)}`,
+          owner_id: 'u-1',
+          created_at: '2026-10-26T10:00:00Z',
+          updated_at: '2026-10-26T10:00:00Z',
+          ...body,
+        };
+        server.notes.push(created);
+        return Promise.resolve(json(created, 201));
+      }
+      return Promise.resolve(json({ items: server.notes }));
+    }
+
+    const found = (items as (Book | Article | Video)[]).find((item) => item.id === id);
+    if (!found) return Promise.resolve(json({ code: 'not_found', title: 'x' }, 404));
+
+    if (section === 'cover' || section === 'thumbnail' || section === 'pdf') {
+      if (method === 'DELETE') {
+        Object.assign(found, { cover_file_id: null, thumbnail_file_id: null });
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      const file_id = `file-${String(next_id++)}`;
+      if (section === 'pdf') Object.assign(found, { pdf_file_id: file_id });
+      else if (section === 'thumbnail') Object.assign(found, { thumbnail_file_id: file_id });
+      else Object.assign(found, { cover_file_id: file_id });
+      return Promise.resolve(json(found));
+    }
+    if (method === 'DELETE') {
+      (server[collection] as { id: string }[]) = items.filter((item) => item.id !== id);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    if (method === 'PATCH') {
+      Object.assign(found, body);
+      return Promise.resolve(json(found));
+    }
+    return Promise.resolve(json('page_count' in found ? book_view(found) : found));
+  };
+
+  vi.stubGlobal('fetch', vi.fn(handle));
+
+  /** `XMLHttpRequest` falso ligado à mesma API em memória, com progresso (RF-26). */
+  class FakeXhr {
+    withCredentials = false;
+    status = 0;
+    responseText = '';
+    upload: { onprogress: ((event: unknown) => void) | null } = { onprogress: null };
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onabort: (() => void) | null = null;
+    private method = 'GET';
+    private url = '';
+    private headers = new Headers();
+
+    open(method: string, url: string) {
+      this.method = method;
+      this.url = url;
+    }
+
+    setRequestHeader(name: string, value: string) {
+      this.headers.set(name, value);
+    }
+
+    send(body: File) {
+      void this.run(body);
+    }
+
+    private async run(body: File) {
+      const progress = (loaded: number) => {
+        this.upload.onprogress?.({ lengthComputable: true, loaded, total: body.size });
+      };
+      progress(body.size / 2);
+      if (server.fail_uploads_network) {
+        this.onerror?.();
+        return;
+      }
+      if (server.hold_uploads) {
+        await new Promise<void>((resolve) => {
+          held.push(resolve);
+        });
+      }
+      progress(body.size);
+      const response = await handle(this.url, {
+        method: this.method,
+        headers: this.headers,
+        body,
+      });
+      this.status = response.status;
+      this.responseText = await response.text();
+      this.onload?.();
+    }
+  }
+  vi.stubGlobal('XMLHttpRequest', FakeXhr);
   return server;
 }
 

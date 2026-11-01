@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button, EmptyState, ErrorState, LoadingState, ProgressBar } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -229,37 +230,42 @@ function Cards({ summary }: { summary: FinancialSummary }) {
 function Upcoming({ summary }: { summary: FinancialSummary }) {
   const t = useT();
   const { locale } = usePreferences();
-  const bills = summary.upcoming_bills;
+  const items = summary.upcoming_bills;
   return (
     <DataCard title={t('finance.panel.upcoming')}>
-      {bills.length === 0 ? (
+      {items.length === 0 ? (
         <p className={styles.sub}>{t('finance.panel.upcoming_empty')}</p>
       ) : (
         <>
           <ul className={styles.about}>
-            {bills.slice(0, UPCOMING_LIMIT).map((bill) => {
-              const date = formatDate(bill.expected_date, locale, 'UTC');
+            {items.slice(0, UPCOMING_LIMIT).map((entry) => {
+              const date = formatDate(entry.expected_date, locale, 'UTC');
               return (
-                <li key={listItemKey(bill)}>
+                <li key={listItemKey(entry)}>
                   <span>
-                    <Link to={listItemHref(bill)}>
-                      {bill.description ?? t('finance.transactions.no_description_expense')}
+                    <Link to={listItemHref(entry)}>
+                      {entry.description ?? t(`finance.transactions.no_description_${entry.kind}`)}
                     </Link>
                     <br />
                     <span className={styles.sub}>
-                      {bill.status === 'overdue'
+                      {entry.status === 'overdue'
                         ? t('finance.panel.upcoming_overdue', { date })
-                        : date}
+                        : `${t(`finance.kind.${entry.kind}`)} · ${date}`}
                     </span>
                   </span>
-                  <span>{formatMoney(bill.expected_amount, bill.currency, locale)}</span>
+                  <span className={entry.kind === 'income' ? styles.positive : undefined}>
+                    {formatMoney(entry.expected_amount, entry.currency, locale)}
+                  </span>
                 </li>
               );
             })}
           </ul>
           <p className={styles.more}>
+            <Link to="/finance/income" search={{ period: 'next_30_days' }}>
+              {t('finance.panel.upcoming_all_income')}
+            </Link>
             <Link to="/finance/expenses" search={{ period: 'next_30_days' }}>
-              {t('finance.panel.upcoming_all', { count: bills.length })}
+              {t('finance.panel.upcoming_all_expense')}
             </Link>
           </p>
         </>
@@ -299,6 +305,47 @@ function isEmpty(summary: FinancialSummary): boolean {
   );
 }
 
+interface Block {
+  id: string;
+  node: ReactNode;
+}
+
+interface PanelCell extends Block {
+  zone: 'main' | 'side';
+  row: number;
+  alone: boolean;
+}
+
+/** Pareia o N-ésimo bloco da zona principal com o da lateral; a ordem de saída é a de leitura (RF-09). */
+function panelCells(main: readonly Block[], side: readonly Block[]): PanelCell[] {
+  const cellsOf = (blocks: readonly Block[], zone: 'main' | 'side', other: readonly Block[]) =>
+    blocks.map((block, index) => ({
+      ...block,
+      zone,
+      row: index + 1,
+      alone: index >= other.length,
+    }));
+  return [...cellsOf(main, 'main', side), ...cellsOf(side, 'side', main)];
+}
+
+function PanelZones({ label, cells }: { label: string; cells: readonly PanelCell[] }) {
+  return (
+    <section className={styles.zones} aria-label={label}>
+      {cells.map((cell) => (
+        <div
+          key={cell.id}
+          className={styles.cell}
+          data-zone={cell.zone}
+          data-row={cell.row}
+          {...(cell.alone ? { 'data-alone': '' } : {})}
+        >
+          {cell.node}
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /** Aba Painel: tudo vem do resumo do servidor; a tela não recalcula (RF-35, PD-58, RN-01). */
 export function FinancePanelScreen() {
   const t = useT();
@@ -323,18 +370,21 @@ export function FinancePanelScreen() {
       </DataCard>
     );
     return (
-      <section className={styles.zones} aria-label={t('finance.tabs.panel')}>
-        <div className={styles.zone}>
-          {failed(t('finance.panel.closing_short'))}
-          {failed(t('finance.panel.where_it_went'))}
-          {failed(t('finance.panel.expected_vs_settled'))}
-        </div>
-        <div className={styles.zone}>
-          {failed(t('finance.panel.balance'))}
-          {failed(t('finance.panel.upcoming'))}
-          {failed(t('finance.panel.savings'))}
-        </div>
-      </section>
+      <PanelZones
+        label={t('finance.tabs.panel')}
+        cells={panelCells(
+          [
+            { id: 'closing', node: failed(t('finance.panel.closing_short')) },
+            { id: 'where', node: failed(t('finance.panel.where_it_went')) },
+            { id: 'expected', node: failed(t('finance.panel.expected_vs_settled')) },
+          ],
+          [
+            { id: 'balance', node: failed(t('finance.panel.balance')) },
+            { id: 'upcoming', node: failed(t('finance.panel.upcoming')) },
+            { id: 'savings', node: failed(t('finance.panel.savings')) },
+          ],
+        )}
+      />
     );
   }
   const summary = query.data;
@@ -356,19 +406,18 @@ export function FinancePanelScreen() {
       />
     );
   }
-  return (
-    <section className={styles.zones} aria-label={t('finance.tabs.panel')}>
-      <div className={styles.zone}>
-        <Closing summary={summary} search={search} />
-        <WhereItWent summary={summary} search={search} />
-        <ExpectedVsSettled summary={summary} />
-      </div>
-      <div className={styles.zone}>
-        <Balance summary={summary} />
-        {summary.credit_cards.length > 0 ? <Cards summary={summary} /> : null}
-        <Upcoming summary={summary} />
-        <Savings summary={summary} />
-      </div>
-    </section>
-  );
+  const main: Block[] = [
+    { id: 'closing', node: <Closing summary={summary} search={search} /> },
+    { id: 'where', node: <WhereItWent summary={summary} search={search} /> },
+    { id: 'expected', node: <ExpectedVsSettled summary={summary} /> },
+  ];
+  const side: Block[] = [
+    { id: 'balance', node: <Balance summary={summary} /> },
+    ...(summary.credit_cards.length > 0
+      ? [{ id: 'cards', node: <Cards summary={summary} /> }]
+      : []),
+    { id: 'upcoming', node: <Upcoming summary={summary} /> },
+    { id: 'savings', node: <Savings summary={summary} /> },
+  ];
+  return <PanelZones label={t('finance.tabs.panel')} cells={panelCells(main, side)} />;
 }

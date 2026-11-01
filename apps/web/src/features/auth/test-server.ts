@@ -29,7 +29,7 @@ export function mockApi(routes: Record<string, MockHandler>) {
       const path = input.replace(/^\/api\/v1/, '').replace(/\?.*$/, '');
       const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
       const call = { method, path, body };
-      calls.push(call);
+      if (path !== '/me/preferences') calls.push(call);
       const handler = routes[`${method} ${path}`];
       const reply: MockReply =
         handler === undefined

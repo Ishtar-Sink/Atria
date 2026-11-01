@@ -115,9 +115,16 @@ export function InstanceSettingsPage() {
   });
 
   return (
-    <div>
-      <form aria-label={t('settings.section_instance')} onSubmit={(event) => void onSubmit(event)}>
+    <div className={styles.stack}>
+      <form
+        aria-label={t('settings.section_instance')}
+        className={styles.stack}
+        onSubmit={(event) => void onSubmit(event)}
+      >
         <FormGrid>
+          <h2 className={styles.sectionTitle} data-span="full">
+            {t('settings.section_instance')}
+          </h2>
           <div data-span="full" className={styles.group}>
             <Checkbox
               label={t('settings.invite_required')}
@@ -147,6 +154,8 @@ export function InstanceSettingsPage() {
               <p className={styles.hint}>{t('settings.web_push_unavailable')}</p>
             )}
           </div>
+        </FormGrid>
+        <FormGrid>
           <h2 className={styles.sectionTitle} data-span="full">
             {t('settings.smtp')}
           </h2>

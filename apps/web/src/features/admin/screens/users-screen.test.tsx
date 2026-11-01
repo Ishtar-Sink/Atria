@@ -79,6 +79,17 @@ afterEach(() => {
   clearToasts();
 });
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('UsersScreen', () => {
   it('filters and searches users through the url', async () => {
     const { router } = renderUsers('/admin/users?role=elevated&q=caio');
@@ -111,6 +122,12 @@ describe('UsersScreen', () => {
     });
     expect(container.querySelector('select')).toBeNull();
     expect(document.querySelector('select')).toBeNull();
+  });
+
+  it('uses the shared view icons with title and accessible name', async () => {
+    renderUsers();
+    await screen.findByText('ana@casa.test');
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Lista', 'Tabela']);
   });
 
   it('switches between list and table', async () => {

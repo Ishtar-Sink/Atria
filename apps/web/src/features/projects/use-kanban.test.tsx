@@ -14,8 +14,15 @@ import {
   stubServer,
 } from './test-server';
 import {
+  appendChecklistItem,
   laneLabel,
+  moveChecklistItem,
+  removeChecklistItem,
+  toChecklistDrafts,
+  toChecklistInput,
+  keyboardCardTarget,
   moveCardInList,
+  resolveCardDrop,
   reorderLanesInList,
   useCards,
   useLanes,
@@ -205,5 +212,116 @@ describe('kanban helpers', () => {
     expect(laneLabel(laneOf({ id: 'c', name: 'Na fila', system_key: 'waiting' }), t)).toBe(
       'Na fila',
     );
+  });
+});
+
+describe('checklist drafts', () => {
+  const list = [
+    { key: 'a', text: 'A', done: false },
+    { key: 'b', text: 'B', done: true },
+    { key: 'c', text: 'C', done: false },
+  ];
+
+  it('rf33 builds drafts from the card items in position order', () => {
+    expect(
+      toChecklistDrafts([
+        { id: 'i-2', text: 'Segundo', done: true, position: 1 },
+        { id: 'i-1', text: 'Primeiro', done: false, position: 0 },
+      ]),
+    ).toEqual([
+      { key: 'i-1', text: 'Primeiro', done: false },
+      { key: 'i-2', text: 'Segundo', done: true },
+    ]);
+  });
+
+  it('rf33 appends a trimmed item at the end', () => {
+    const next = appendChecklistItem(list, '  Lixar  ');
+    expect(next).toHaveLength(4);
+    expect(next[3]).toMatchObject({ text: 'Lixar', done: false });
+    expect(list.map((item) => item.key)).not.toContain(next[3]?.key);
+  });
+
+  it('cb12 ignores an item made only of spaces', () => {
+    expect(appendChecklistItem(list, '   ')).toEqual(list);
+  });
+
+  it('rf33 moves an item and clamps the target', () => {
+    expect(moveChecklistItem(list, 0, 2).map((item) => item.key)).toEqual(['b', 'c', 'a']);
+    expect(moveChecklistItem(list, 0, -1).map((item) => item.key)).toEqual(['a', 'b', 'c']);
+    expect(moveChecklistItem(list, 2, 9).map((item) => item.key)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('rf33 removes an item by key', () => {
+    expect(removeChecklistItem(list, 'b').map((item) => item.key)).toEqual(['a', 'c']);
+  });
+
+  it('rf33 sends only filled items in order', () => {
+    expect(
+      toChecklistInput([
+        { key: 'a', text: '  A  ', done: true },
+        { key: 'b', text: '   ', done: false },
+        { key: 'c', text: 'C', done: false },
+      ]),
+    ).toEqual([
+      { text: 'A', done: true },
+      { text: 'C', done: false },
+    ]);
+  });
+});
+
+describe('card drop targets', () => {
+  const lanes = [
+    laneOf({ id: 'l-wait', position: 0 }),
+    laneOf({ id: 'l-doing', position: 1 }),
+    laneOf({ id: 'l-done', position: 2 }),
+  ];
+  const cards = [
+    cardOf({ id: 'c-1', title: 'Cartão 1', lane_id: 'l-wait', position: 0 }),
+    cardOf({ id: 'c-2', title: 'Cartão 2', lane_id: 'l-wait', position: 1 }),
+    cardOf({ id: 'c-3', title: 'Cartão 3', lane_id: 'l-doing', position: 0 }),
+  ];
+
+  it('rf34 drops over a card of another lane before that card', () => {
+    expect(resolveCardDrop(cards, 'c-1', { type: 'card', card_id: 'c-3' })).toEqual({
+      lane_id: 'l-doing',
+      position: 0,
+    });
+  });
+
+  it('rf34 drops over a lane at its end', () => {
+    expect(resolveCardDrop(cards, 'c-1', { type: 'lane', lane_id: 'l-done' })).toEqual({
+      lane_id: 'l-done',
+      position: 0,
+    });
+    expect(resolveCardDrop(cards, 'c-1', { type: 'lane', lane_id: 'l-doing' })).toEqual({
+      lane_id: 'l-doing',
+      position: 1,
+    });
+  });
+
+  it('cb13 drops in the same lane changing only the position', () => {
+    expect(resolveCardDrop(cards, 'c-1', { type: 'card', card_id: 'c-2' })).toEqual({
+      lane_id: 'l-wait',
+      position: 1,
+    });
+  });
+
+  it('rf34 ignores a drop on the same place', () => {
+    expect(resolveCardDrop(cards, 'c-1', { type: 'card', card_id: 'c-1' })).toBeNull();
+    expect(resolveCardDrop(cards, 'c-1', null)).toBeNull();
+    expect(resolveCardDrop(cards, 'c-2', { type: 'lane', lane_id: 'l-wait' })).toBeNull();
+  });
+
+  it('rf34 moves with the arrow keys', () => {
+    expect(keyboardCardTarget(lanes, cards, 'c-1', 'ArrowRight')).toEqual({
+      lane_id: 'l-doing',
+      position: 1,
+    });
+    expect(keyboardCardTarget(lanes, cards, 'c-1', 'ArrowLeft')).toBeNull();
+    expect(keyboardCardTarget(lanes, cards, 'c-1', 'ArrowDown')).toEqual({
+      lane_id: 'l-wait',
+      position: 1,
+    });
+    expect(keyboardCardTarget(lanes, cards, 'c-1', 'ArrowUp')).toBeNull();
   });
 });

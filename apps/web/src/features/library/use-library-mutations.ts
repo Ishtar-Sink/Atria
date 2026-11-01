@@ -7,6 +7,7 @@ import {
   type QueryKey,
 } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useSyncExternalStore } from 'react';
 import { api } from '../../shared/api/client';
 import { ApiProblem } from '../../shared/api/problem';
 import { registerMessages } from '../../shared/i18n/i18n';
@@ -56,40 +57,85 @@ function readCookie(name: string): string | undefined {
 
 /**
  * Envia o arquivo no corpo cru, como a API do Acervo pede (capa, miniatura e PDF). O cliente
- * comum só fala JSON, então o envio mantém aqui o mesmo cuidado com o token CSRF.
+ * comum só fala JSON, então o envio mantém aqui o mesmo cuidado com o token CSRF. Usa
+ * `XMLHttpRequest` porque só ele informa o progresso do envio (RF-26).
  */
-export async function uploadRaw<T>(
+export function uploadRaw<T>(
   path: string,
   file: File,
   content_type: string,
+  on_progress?: (percent: number) => void,
   method: 'PUT' = 'PUT',
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': content_type,
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(method, `/api/v1${path}`);
+    request.setRequestHeader('Accept', 'application/json');
+    request.setRequestHeader('Content-Type', content_type);
+    const token = readCookie(CSRF_COOKIE);
+    if (token !== undefined) request.setRequestHeader('X-CSRF-Token', token);
+    request.withCredentials = true;
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        on_progress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    const network = () => {
+      reject(new ApiProblem({ status: 0, code: 'network_error', title: 'Network error' }));
+    };
+    request.onerror = network;
+    request.onabort = network;
+    request.onload = () => {
+      let body: Record<string, unknown> | undefined;
+      try {
+        body = JSON.parse(request.responseText) as Record<string, unknown>;
+      } catch {
+        body = undefined;
+      }
+      if (request.status >= 200 && request.status < 300) {
+        resolve(body as T);
+        return;
+      }
+      reject(
+        new ApiProblem({
+          status: request.status,
+          code: typeof body?.code === 'string' ? body.code : 'unknown_error',
+          title: typeof body?.title === 'string' ? body.title : request.statusText,
+        }),
+      );
+    };
+    request.send(file);
+  });
+}
+
+export type UploadTarget = 'cover' | 'pdf';
+
+type UploadProgress = Record<UploadTarget, number | null>;
+
+let upload_progress: UploadProgress = { cover: null, pdf: null };
+const progress_listeners = new Set<() => void>();
+
+function setUploadProgress(target: UploadTarget, value: number | null) {
+  upload_progress = { ...upload_progress, [target]: value };
+  progress_listeners.forEach((listener) => {
+    listener();
+  });
+}
+
+function subscribeProgress(listener: () => void) {
+  progress_listeners.add(listener);
+  return () => {
+    progress_listeners.delete(listener);
   };
-  const token = readCookie(CSRF_COOKIE);
-  if (token !== undefined) headers['X-CSRF-Token'] = token;
-  let response: Response;
-  try {
-    response = await fetch(`/api/v1${path}`, {
-      method,
-      headers,
-      credentials: 'same-origin',
-      body: file,
-    });
-  } catch {
-    throw new ApiProblem({ status: 0, code: 'network_error', title: 'Network error' });
-  }
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    throw new ApiProblem({
-      status: response.status,
-      code: typeof body.code === 'string' ? body.code : 'unknown_error',
-      title: typeof body.title === 'string' ? body.title : response.statusText,
-    });
-  }
-  return (await response.json().catch(() => undefined)) as T;
+}
+
+/** Progresso (0 a 100) do envio em andamento da capa ou do PDF; `null` sem envio. */
+export function useUploadProgress(target: UploadTarget): number | null {
+  return useSyncExternalStore(
+    subscribeProgress,
+    () => upload_progress[target],
+    () => upload_progress[target],
+  );
 }
 
 /** Capa do livro e do artigo, ou miniatura do vídeo. */
@@ -97,17 +143,47 @@ export function coverPath(kind: LibraryKind, id: string): string {
   return kind === 'video' ? `${itemPath(kind, id)}/thumbnail` : `${itemPath(kind, id)}/cover`;
 }
 
-export function uploadCover(kind: LibraryKind, id: string, file: File) {
-  return uploadRaw<LibraryItem>(coverPath(kind, id), file, file.type);
+export async function uploadCover(kind: LibraryKind, id: string, file: File) {
+  try {
+    return await uploadRaw<LibraryItem>(coverPath(kind, id), file, file.type, (percent) => {
+      setUploadProgress('cover', percent);
+    });
+  } finally {
+    setUploadProgress('cover', null);
+  }
 }
 
-export function uploadPdf(kind: 'book' | 'article', id: string, file: File) {
-  return uploadRaw<LibraryItem>(`${itemPath(kind, id)}/pdf`, file, 'application/octet-stream');
+export async function uploadPdf(kind: 'book' | 'article', id: string, file: File) {
+  try {
+    return await uploadRaw<LibraryItem>(
+      `${itemPath(kind, id)}/pdf`,
+      file,
+      'application/octet-stream',
+      (percent) => {
+        setUploadProgress('pdf', percent);
+      },
+    );
+  } finally {
+    setUploadProgress('pdf', null);
+  }
 }
 
-async function sendFiles(kind: LibraryKind, id: string, files: PendingFiles) {
-  if (files.cover) await uploadCover(kind, id, files.cover);
-  if (files.pdf && kind !== 'video') await uploadPdf(kind, id, files.pdf);
+function notifyUploaded() {
+  pushToast({ tone: 'success', message_key: 'library.upload.success' });
+}
+
+/** Envia os arquivos escolhidos; devolve se algum foi enviado. */
+async function sendFiles(kind: LibraryKind, id: string, files: PendingFiles): Promise<boolean> {
+  let sent = false;
+  if (files.cover) {
+    await uploadCover(kind, id, files.cover);
+    sent = true;
+  }
+  if (files.pdf && kind !== 'video') {
+    await uploadPdf(kind, id, files.pdf);
+    sent = true;
+  }
+  return sent;
 }
 
 type ListData = InfiniteData<LibraryPage, string | undefined>;
@@ -153,11 +229,16 @@ function definedOnly(body: ItemBody): ItemBody {
 export function useCreateItem(kind: LibraryKind) {
   const client = useQueryClient();
   const navigate = useNavigate();
-  return useMutation<LibraryItem, Error, { body: ItemBody; files?: PendingFiles }>({
+  return useMutation<
+    { item: LibraryItem; sent: boolean },
+    Error,
+    { body: ItemBody; files?: PendingFiles }
+  >({
     mutationFn: async ({ body, files = {} }) => {
       const created = await api.post<LibraryItem>(KIND_PATH[kind], body);
+      let sent: boolean;
       try {
-        await sendFiles(kind, created.id, files);
+        sent = await sendFiles(kind, created.id, files);
       } catch (error) {
         // O item já existe: segue para a edição dele em vez de criar outro ao tentar de novo.
         await client.invalidateQueries({ queryKey: libraryKeys.all });
@@ -171,10 +252,11 @@ export function useCreateItem(kind: LibraryKind) {
         await navigate({ to: `/library/${kind}s/${created.id}/edit` });
         throw error;
       }
-      return created;
+      return { item: created, sent };
     },
-    onSuccess: async (item) => {
+    onSuccess: async ({ item, sent }) => {
       await client.invalidateQueries({ queryKey: libraryKeys.all });
+      if (sent) notifyUploaded();
       await navigate({ to: `/library/${kind}s/${item.id}` });
     },
   });
@@ -185,15 +267,15 @@ export function useUpdateItem(kind: LibraryKind) {
   const client = useQueryClient();
   const navigate = useNavigate();
   return useMutation<
-    LibraryItem,
+    { item: LibraryItem; sent: boolean },
     Error,
     { id: string; body: ItemBody; files?: PendingFiles },
     Snapshot
   >({
     mutationFn: async ({ id, body, files = {} }) => {
       const updated = await api.patch<LibraryItem>(itemPath(kind, id), body);
-      await sendFiles(kind, id, files);
-      return updated;
+      const sent = await sendFiles(kind, id, files);
+      return { item: updated, sent };
     },
     onMutate: async ({ id, body }) => {
       await client.cancelQueries({ queryKey: libraryKeys.all });
@@ -211,8 +293,9 @@ export function useUpdateItem(kind: LibraryKind) {
       restore(client, kind, id, snapshot);
       pushToast({ tone: 'danger', message_key: refusalMessageKey(error) });
     },
-    onSuccess: async (_item, { id }) => {
+    onSuccess: async ({ sent }, { id }) => {
       await client.invalidateQueries({ queryKey: libraryKeys.all });
+      if (sent) notifyUploaded();
       await navigate({ to: `/library/${kind}s/${id}` });
     },
     onSettled: () => client.invalidateQueries({ queryKey: libraryKeys.all }),
@@ -257,6 +340,7 @@ export function useCoverMutations(kind: LibraryKind, id: string) {
   const settle = () => client.invalidateQueries({ queryKey: libraryKeys.all });
   const upload = useMutation<LibraryItem, Error, File>({
     mutationFn: (file) => uploadCover(kind, id, file),
+    onSuccess: notifyUploaded,
     onSettled: settle,
   });
   const remove = useMutation<undefined, Error, undefined, Snapshot>({
@@ -286,6 +370,7 @@ export function usePdfUpload(kind: 'book' | 'article', id: string) {
   const client = useQueryClient();
   return useMutation<LibraryItem, Error, File>({
     mutationFn: (file) => uploadPdf(kind, id, file),
+    onSuccess: notifyUploaded,
     onSettled: () => client.invalidateQueries({ queryKey: libraryKeys.all }),
   });
 }

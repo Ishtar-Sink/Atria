@@ -53,7 +53,9 @@ export function TaskItem({ row, today, onToggle }: TaskItemProps) {
       ? t('tasks.item.no_date')
       : row.occurrence_date === null
         ? t('tasks.item.due', { date: formatDate(row.date, locale, 'UTC') })
-        : formatDate(row.date, locale, 'UTC');
+        : row.date > today
+          ? t('tasks.item.next', { date: formatDate(row.date, locale, 'UTC') })
+          : formatDate(row.date, locale, 'UTC');
 
   return (
     <li className={[styles.root, row.done ? styles.done : ''].filter(Boolean).join(' ')}>

@@ -2,10 +2,14 @@
 // (API `createServer`), serve uma página virtual que carrega `src/features/projects/evidence/harness.tsx`
 // (as rotas da feature num roteador em memória, com os providers e o layout do app), simula a API no
 // navegador com fixtures em memória, confere o estado no DOM antes de cada captura e monta a prancha
-// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-30/.
-// Uso: node apps/web/scripts/evidence-projects.mjs themes-widths|states-focus
+// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-30/ ou na pasta de VOSTOK_EVIDENCE.
+// Uso: node apps/web/scripts/evidence-projects.mjs themes-widths|states-focus|checklist|board-drag
+// O modo `checklist` (TASK-26 da SPEC-002) fotografa o checklist do cartão em lista: Enter, alça
+// por teclado e por mouse, e o salvar na ordem mostrada.
+// O modo `board-drag` (TASK-27) move cartões do quadro por mouse, toque emulado e teclado (o cartão em foco,
+// sem alça), e confere o feedback do hover e do arraste.
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +20,9 @@ import { createServer } from 'vite';
 const AxeBuilder = axePackage.default ?? axePackage.AxeBuilder;
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-30');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-30');
 
 const THEMES = ['light', 'dark'];
 const SIZES = {
@@ -362,9 +368,32 @@ async function installApi(context, mode, gate) {
         return reply(target);
       }
       if (section === 'cards') {
+        const withIds = (checklist, id) =>
+          (checklist ?? []).map((it, index) => ({
+            id: `ci-${id}-${index + 1}`,
+            text: it.text,
+            done: it.done,
+            position: index,
+          }));
+        if (child === undefined && method === 'POST') {
+          const created = card(
+            `c-novo-${db.cards.length + 1}`,
+            body.lane_id,
+            db.cards.filter((c) => c.lane_id === body.lane_id).length,
+            body.title,
+            { ...body, checklist: withIds(body.checklist, `n${db.cards.length + 1}`) },
+          );
+          db.cards.push(created);
+          return reply(created, 201);
+        }
         if (child === undefined) return reply({ items: db.cards, next_cursor: null });
         const target = db.cards.find((c) => c.id === child);
         if (!target) return reply({ title: 'Não encontrado', code: 'not_found' }, 404);
+        if (method === 'PATCH') {
+          const { checklist, ...rest } = body;
+          Object.assign(target, rest);
+          if (checklist) target.checklist = withIds(checklist, target.id);
+        }
         if (action === 'move') {
           const others = db.cards
             .filter((c) => c.lane_id === body.lane_id && c.id !== target.id)
@@ -404,13 +433,27 @@ async function warmUp(browser, base) {
   }
 }
 
-async function openPage(browser, { theme, size, mode = 'normal', tall = false }) {
-  const viewport = { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
+async function openPage(
+  browser,
+  {
+    theme,
+    size,
+    mode = 'normal',
+    tall = false,
+    touch = false,
+    motion = false,
+    video,
+    viewport: fixed,
+  },
+) {
+  const viewport = fixed ?? { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
   const context = await browser.newContext({
     viewport,
-    reducedMotion: 'reduce',
+    reducedMotion: motion ? 'no-preference' : 'reduce',
+    ...(video ? { recordVideo: video } : {}),
     locale: 'pt-BR',
     timezoneId: ZONE,
+    ...(touch && size === 'mobile' ? { hasTouch: true, isMobile: true } : {}),
   });
   await context.addInitScript(
     ([k, t]) => {
@@ -508,15 +551,16 @@ async function runScenarios(browser, base, scenarios) {
           size,
           mode: sc.mode,
           tall: sc.tall,
+          touch: sc.touch,
         });
         try {
           await gotoApp(page, base, sc.path);
-          const snap = async (suffix) =>
+          const snap = async (suffix, full = sc.tall === true) =>
             shots.push({
               size,
               row: `${sc.name}-${size}`,
               label: suffix ? `${tag} · ${suffix}` : tag,
-              png: await page.screenshot({ fullPage: sc.tall === true }),
+              png: await page.screenshot({ fullPage: full }),
             });
           await sc.run(page, tag, { theme, size, api, snap });
           await baseChecks(page, errors, tag, theme);
@@ -587,6 +631,14 @@ async function tabUntil(page, predicate, limit = 120) {
     return { style: s.outlineStyle, width: parseFloat(s.outlineWidth), color: s.outlineColor };
   });
   return { reached, outline };
+}
+
+// O foco do link do cartão aparece no cartão inteiro (`.kcard:has(.rowTitle:focus-visible)`).
+async function cardOutline(page) {
+  return page.evaluate(() => {
+    const s = getComputedStyle(document.activeElement.closest('[data-card-id]'));
+    return { style: s.outlineStyle, width: parseFloat(s.outlineWidth), color: s.outlineColor };
+  });
 }
 
 const outlineOk = (r) => r.reached && r.outline.style !== 'none' && r.outline.width >= 2;
@@ -820,19 +872,17 @@ const statesFocus = [
       const focus = await tabUntil(
         page,
         () =>
-          document.activeElement?.getAttribute('aria-haspopup') === 'listbox' &&
+          document.activeElement?.id.startsWith('move-') === true &&
           document.activeElement.closest('[data-card-id]') !== null,
       );
+      focus.outline = await cardOutline(page);
       check(
-        `${tag}: seletor do pé do cartão focado por Tab · contorno de foco visível (≥ 2 px)`,
+        `${tag}: cartão focado por Tab (link) · contorno de foco visível no cartão (≥ 2 px)`,
         outlineOk(focus),
         outlineText(focus),
       );
-      await snap('seletor do pé focado');
-      await page.keyboard.press('ArrowDown');
-      await page.getByRole('option', { name: 'Em progresso' }).waitFor();
-      await page.keyboard.press('ArrowDown');
-      await page.keyboard.press('Enter');
+      await snap('cartão em foco');
+      await page.keyboard.press('ArrowRight');
       await page.waitForTimeout(400);
       const moved = api.calls.find((c) => c.method === 'POST' && c.path.endsWith('/move'));
       const inLane = await page
@@ -898,6 +948,414 @@ const statesFocus = [
   },
 ];
 
+const checklistScenarios = [
+  {
+    name: 'checklist do cartão em lista',
+    path: '/projects/p-obra/cards/c-luminaria',
+    tall: true,
+    own_shots: true,
+    run: async (page, tag, { api, snap }) => {
+      const list = page.getByRole('group', { name: 'Checklist' });
+      const novo = list.getByRole('textbox', { name: 'Novo item do checklist' });
+      await novo.waitFor();
+      const rows = await list.locator('li').count();
+      const parts = await list
+        .locator('li')
+        .first()
+        .evaluate((li) => ({
+          handle: !!li.querySelector('button[aria-label^="Reordenar"]'),
+          box: !!li.querySelector('input[type="checkbox"]'),
+          text: !!li.querySelector('input[type="text"]'),
+          remove: !!li.querySelector('button[aria-label^="Remover"]'),
+        }));
+      check(
+        `${tag}: itens em lista com caixa, campo e remover · ${rows - 1} itens`,
+        rows === 4 && parts.handle && parts.box && parts.text && parts.remove,
+        JSON.stringify(parts),
+      );
+      check(
+        `${tag}: campo vazio no fim`,
+        (await novo.inputValue()) === '' &&
+          (await list.locator('li').last().locator('input').count()) === 1,
+      );
+      const texts = () =>
+        list
+          .locator('li input[type="text"]')
+          .evaluateAll((els) => els.slice(0, -1).map((e) => e.value));
+      await novo.click();
+      await page.keyboard.type('Comprar tinta');
+      await page.keyboard.press('Enter');
+      check(
+        `${tag}: Enter acrescenta e o campo do fim fica vazio`,
+        (await texts()).at(-1) === 'Comprar tinta' && (await novo.inputValue()) === '',
+        (await texts()).join(' | '),
+      );
+      await page.keyboard.type('   ');
+      await page.keyboard.press('Enter');
+      check(
+        `${tag}: só espaços não cria item`,
+        (await texts()).length === 4 && (await novo.inputValue()) === '',
+      );
+
+      const handleOf = (name) =>
+        list.getByRole('button', { name: new RegExp(`^Reordenar o item ${name},`) });
+      await handleOf('Medir o teto').focus();
+      await page.keyboard.press('ArrowDown');
+      let order = await texts();
+      check(
+        `${tag}: alça move pelo teclado · ${order.join(' > ')}`,
+        order[0] === 'Comparar preços' && order[1] === 'Medir o teto',
+      );
+      await handleOf('Comprar tinta').scrollIntoViewIfNeeded();
+      const from = await handleOf('Comprar tinta').boundingBox();
+      const to = await handleOf('Comparar preços').boundingBox();
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2 - 4, { steps: 10 });
+      await page.mouse.up();
+      order = await texts();
+      check(
+        `${tag}: alça move arrastando com o mouse · ${order.join(' > ')}`,
+        order[0] === 'Comprar tinta',
+      );
+      const handle = handleOf('Medir o teto');
+      await handle.focus();
+      await page.keyboard.press('Shift');
+      const outline = await handle.evaluate((el) => parseFloat(getComputedStyle(el).outlineWidth));
+      check(`${tag}: contorno de foco visível na alça (≥ 2 px) · ${outline}px`, outline >= 2);
+      check(`${tag}: sem rolagem horizontal`, await noOverflow(page));
+      check(
+        `${tag}: um item marcado`,
+        await list.getByRole('checkbox', { name: 'Feito: Medir o teto' }).isChecked(),
+      );
+      await snap();
+
+      await page.getByRole('button', { name: 'Salvar' }).click();
+      await page.waitForFunction(() => true);
+      const deadline = Date.now() + 5000;
+      while (
+        Date.now() < deadline &&
+        !api.calls.some(
+          (c) => c.method === 'PATCH' && c.path === '/projects/p-obra/cards/c-luminaria',
+        )
+      )
+        await page.waitForTimeout(100);
+      const patch = api.calls.find(
+        (c) => c.method === 'PATCH' && c.path === '/projects/p-obra/cards/c-luminaria',
+      );
+      const sent = (patch?.body.checklist ?? [])
+        .map((i) => `${i.done ? 'x' : ' '}${i.text}`)
+        .join('|');
+      check(
+        `${tag}: salvar grava a ordem e o estado mostrados`,
+        sent === ' Comprar tinta| Comparar preços|xMedir o teto| Fechar a compra',
+        sent,
+      );
+    },
+  },
+];
+
+const boardDragScenarios = [
+  {
+    name: 'quadro com arrastar',
+    path: BOARD,
+    tall: true,
+    touch: true,
+    own_shots: true,
+    run: async (page, tag, { api, size, snap }) => {
+      await page.getByRole('link', { name: 'Escolher a tinta' }).waitFor();
+      const moves = () => api.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/move'));
+      const laneOfCard = (id) =>
+        page.evaluate(
+          (card) =>
+            document.querySelector(`[data-card-id="${card}"]`)?.closest('[data-lane-id]')?.dataset
+              .laneId,
+          id,
+        );
+      const settle = async (count) => {
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline && moves().length < count) await page.waitForTimeout(100);
+        await page.waitForTimeout(250);
+      };
+
+      const face = await page.evaluate(
+        () =>
+          Array.from(document.querySelectorAll('.kcard, [data-card-id]')).filter(
+            (card) =>
+              card.querySelector('[role="combobox"]') ||
+              Array.from(card.querySelectorAll('button')).some((b) =>
+                /^Mover/.test(b.getAttribute('aria-label') ?? b.textContent ?? ''),
+              ),
+          ).length,
+      );
+      check(`${tag}: face do cartão sem seletor de raia nem alça`, face === 0, String(face));
+
+      const look = (selector) =>
+        page.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          const s = getComputedStyle(el);
+          return {
+            shadow: s.boxShadow,
+            cursor: s.cursor,
+            opacity: parseFloat(s.opacity),
+            transform: s.transform,
+            transition: s.transitionDuration,
+          };
+        }, selector);
+      const rest = await look('[data-card-id]');
+      if (size === 'desktop') {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        const calm = await look('[data-card-id]');
+        check(
+          `${tag}: sem transição com prefers-reduced-motion · ${calm.transition}`,
+          calm.transition === '0s',
+        );
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        const card = page.locator('[data-card-id="c-luminaria"]');
+        await card.scrollIntoViewIfNeeded();
+        await card.hover();
+        await page.waitForTimeout(300);
+        const lifted = await look('[data-card-id="c-luminaria"]');
+        check(
+          `${tag}: hover eleva o cartão (sombra, deslocamento e cursor grab) · ${lifted.cursor}`,
+          lifted.shadow !== rest.shadow && lifted.transform !== 'none' && lifted.cursor === 'grab',
+          `${lifted.shadow} | ${lifted.transform}`,
+        );
+        await snap('cartão em hover elevado');
+        await page.mouse.move(2, 2);
+      }
+
+      // Teclado: Tab até o link do primeiro cartão; ArrowDown só reordena, ArrowRight troca de raia.
+      const focus = await tabUntil(
+        page,
+        () =>
+          document.activeElement?.id.startsWith('move-') === true &&
+          document.activeElement.closest('[data-card-id]') !== null,
+      );
+      focus.outline = await cardOutline(page);
+      check(
+        `${tag}: contorno de foco visível no cartão em foco (≥ 2 px) · ${focus.outline.width}px`,
+        outlineOk(focus),
+        outlineText(focus),
+      );
+      await snap('cartão em foco');
+      await page.keyboard.press('ArrowDown');
+      await settle(1);
+      const same = moves()[0]?.body;
+      check(
+        `${tag}: mesma raia muda só a ordem (CB-13) · ${JSON.stringify(same ?? null)}`,
+        same?.lane_id === 'l-wait' &&
+          same.position === 1 &&
+          (await laneOfCard('c-tinta')) === 'l-wait',
+      );
+      await page.keyboard.press('ArrowRight');
+      await settle(2);
+      const keyed = moves()[1]?.body;
+      check(
+        `${tag}: teclado move pelo cartão em foco · ${JSON.stringify(keyed ?? null)}`,
+        keyed?.lane_id === 'l-doing' && (await laneOfCard('c-tinta')) === 'l-doing',
+      );
+
+      // Ponteiro: a luminária vai da primeira raia para "Em progresso".
+      const grab = page.locator('[data-card-id="c-luminaria"]');
+      await grab.scrollIntoViewIfNeeded();
+      const head = page.getByRole('heading', { level: 2, name: 'Em progresso' });
+      await head.scrollIntoViewIfNeeded();
+      const to = await head.boundingBox();
+      const from = await grab.boundingBox();
+      const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+      // No celular as raias ficam empilhadas: o cartão desce reto, sem sair da coluna.
+      const end = {
+        x: size === 'desktop' ? to.x + to.width / 2 : start.x,
+        y: to.y + to.height + (size === 'desktop' ? 40 : 90),
+      };
+      const floating = () => page.locator('[class*="kcardOverlay"]').count();
+      const dragFeedback = async () => {
+        const flying = await look('[class*="kcardOverlay"]');
+        const origin = await look('[data-card-id="c-luminaria"]');
+        check(
+          `${tag}: cartão flutuante com sombra forte e cursor grabbing · ${flying.cursor}`,
+          flying.cursor === 'grabbing' && flying.shadow !== rest.shadow,
+          flying.shadow,
+        );
+        check(
+          `${tag}: cartão de origem esmaecido no arraste · opacidade ${origin.opacity}`,
+          origin.opacity < 1,
+        );
+      };
+      if (size === 'desktop') {
+        await page.mouse.move(start.x, start.y);
+        await page.mouse.down();
+        await page.mouse.move(end.x, end.y, { steps: 12 });
+        await page.waitForTimeout(150);
+        check(`${tag}: cartão flutuante visível durante o arraste`, (await floating()) === 1);
+        await dragFeedback();
+        // A captura de página inteira redimensiona a janela e cancelaria o arraste em curso.
+        await snap('cartão flutuando sobre a raia de destino', false);
+        await page.mouse.up();
+        await settle(3);
+        const dragged = moves()[2]?.body;
+        check(
+          `${tag}: mouse move entre raias · ${JSON.stringify(dragged ?? null)}`,
+          moves()[2]?.path.includes('c-luminaria') &&
+            dragged?.lane_id === 'l-doing' &&
+            (await laneOfCard('c-luminaria')) === 'l-doing',
+        );
+      } else {
+        const cdp = await page.context().newCDPSession(page);
+        const touch = (type, point) =>
+          cdp.send('Input.dispatchTouchEvent', { type, touchPoints: point ? [point] : [] });
+        await touch('touchStart', start);
+        await page.waitForTimeout(300);
+        for (let i = 1; i <= 12; i += 1) {
+          await touch('touchMove', {
+            x: start.x + ((end.x - start.x) * i) / 12,
+            y: start.y + ((end.y - start.y) * i) / 12,
+          });
+          await page.waitForTimeout(16);
+        }
+        await page.waitForTimeout(150);
+        check(`${tag}: cartão flutuante visível durante o arraste`, (await floating()) === 1);
+        await dragFeedback();
+        // A captura de página inteira redimensiona a janela e cancelaria o arraste em curso.
+        await snap('cartão flutuando sobre a raia de destino', false);
+        await touch('touchEnd');
+        await settle(3);
+        const dragged = moves()[2]?.body;
+        check(
+          `${tag}: toque emulado move entre raias · ${JSON.stringify(dragged ?? null)}`,
+          moves()[2]?.path.includes('c-luminaria') &&
+            dragged?.lane_id === 'l-doing' &&
+            (await laneOfCard('c-luminaria')) === 'l-doing',
+        );
+      }
+      check(`${tag}: sem rolagem horizontal`, await noOverflow(page));
+      await snap('depois dos movimentos');
+    },
+  },
+];
+
+// ---------- vídeo do quadro ----------
+
+/** Marcador do cursor no vídeo: o Playwright não desenha o ponteiro, então mostramos o `cursor` computado. */
+const CURSOR_MARKER = () => {
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;left:0;top:0;display:none;';
+  dot.innerHTML =
+    '<div style="width:12px;height:12px;border-radius:50%;background:#e11d48;border:2px solid #fff;box-shadow:0 0 0 1px #000"></div>' +
+    '<div data-label style="margin:4px 0 0 14px;padding:2px 6px;border-radius:4px;background:#111;color:#fff;font:600 12px system-ui;white-space:nowrap"></div>';
+  const label = dot.querySelector('[data-label]');
+  const place = (event) => {
+    dot.style.display = 'block';
+    dot.style.transform = `translate(${event.clientX - 6}px, ${event.clientY - 6}px)`;
+    requestAnimationFrame(() => {
+      const flying = document.querySelector('[class*="kcardOverlay"]');
+      const under = flying ?? document.elementFromPoint(event.clientX, event.clientY);
+      label.textContent = `cursor: ${under ? getComputedStyle(under).cursor : 'default'}`;
+    });
+  };
+  window.addEventListener('mousemove', place, true);
+  window.addEventListener('mousedown', place, true);
+  window.addEventListener('mouseup', place, true);
+  document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
+};
+
+async function recordBoardVideo(browser, base) {
+  mkdirSync(OUT, { recursive: true });
+  const size = { width: 1280, height: 800 };
+  const { page, context, release, api } = await openPage(browser, {
+    theme: 'light',
+    size: 'desktop',
+    motion: true,
+    viewport: size,
+    video: { dir: join(OUT, 'video-tmp'), size },
+  });
+  await context.addInitScript(CURSOR_MARKER);
+  const video = page.video();
+  const pause = (ms) => page.waitForTimeout(ms);
+  const center = async (locator) => {
+    const box = await locator.boundingBox();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
+  };
+  const moves = () => api.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/move'));
+  const drag = async (from, to_x, to_y) => {
+    await page.mouse.move(from.x, from.y, { steps: 10 });
+    await pause(300);
+    await page.mouse.down();
+    await pause(200);
+    await page.mouse.move(from.x + 12, from.y + 12, { steps: 4 });
+    await page.mouse.move(to_x, to_y, { steps: 30 });
+    await pause(900);
+    await page.mouse.up();
+    await pause(1200);
+  };
+  const card = (id) => page.locator(`[data-card-id="${id}"]`);
+  try {
+    await gotoApp(page, base, BOARD);
+    await page.getByRole('link', { name: 'Escolher a tinta' }).waitFor();
+    await page.mouse.move(640, 760);
+    await pause(1000);
+
+    // 1. Hover: o cartão eleva e o cursor vira grab.
+    const luz = await center(card('c-luminaria'));
+    await page.mouse.move(luz.x, luz.y, { steps: 20 });
+    await pause(1600);
+
+    // 2. Arrastar com o mouse de uma raia para outra: de "Aguardando" para "Pronto".
+    const done = await center(card('c-medir'));
+    await drag(luz, done.x, done.y + 20);
+    check('vídeo: mouse move a luminária entre raias', moves().at(-1)?.body.lane_id === 'l-done');
+
+    // 3. Reordenar na mesma raia: "Lixar as paredes" desce depois de "Pintar a sala".
+    const lixar = await center(card('c-lixar'));
+    const pintar = await center(card('c-pintar'));
+    await pause(500);
+    await drag(lixar, pintar.x, pintar.box.y + pintar.box.height - 4);
+    const same = moves().at(-1);
+    check(
+      'vídeo: mesma raia muda só a ordem',
+      same?.path.includes('c-lixar') && same.body.lane_id === 'l-doing' && same.body.position === 1,
+      JSON.stringify(same?.body ?? null),
+    );
+
+    // 4. Teclado: o cartão em foco e as setas.
+    await page.mouse.move(640, 780, { steps: 10 });
+    const link = card('c-tinta').getByRole('link');
+    await link.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await pause(1400);
+    const before = moves().length;
+    for (const key of ['ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowLeft']) {
+      await page.keyboard.press(key);
+      await pause(1300);
+    }
+    const keyed = moves().length - before;
+    check('vídeo: setas movem o cartão em foco', keyed >= 3, String(keyed));
+    check(
+      'vídeo: foco continua no cartão',
+      await page.evaluate(() => document.activeElement?.id === 'move-c-tinta'),
+    );
+    await pause(1200);
+    // Fecha mostrando a dica dos comandos de teclado, no fim do quadro.
+    await page.mouse.move(1180, 120);
+    const hint = page.getByText('Trocar de raia', { exact: true });
+    await hint.scrollIntoViewIfNeeded();
+    check('vídeo: dica do teclado no fim do quadro', await hint.isVisible());
+    await pause(2000);
+  } catch (e) {
+    check('vídeo: cenário executou', false, String(e.message).split('\n')[0]);
+  } finally {
+    release();
+    await context.close();
+  }
+  const path = join(OUT, 'board-drag.webm');
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
 // ---------- principal ----------
 
 const EVIDENCES = {
@@ -923,13 +1381,29 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  checklist: async (browser, base) => {
+    await warmUp(browser, base);
+    const shots = await runScenarios(browser, base, checklistScenarios);
+    await sheet(browser, {
+      title: 'SPEC-002 TASK-26 · checklist do cartão em lista (RF-33, CT-32, CB-12)',
+      file: 'checklist-form.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'board-drag': async (browser, base) => {
+    await warmUp(browser, base);
+    // As checagens (dois temas, 360 px, toque, axe) não gravam vídeo; o vídeo é um contexto à parte.
+    await runScenarios(browser, base, boardDragScenarios);
+    await recordBoardVideo(browser, base);
+  },
 };
 
 const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
   console.error(
-    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths ou states-focus.`,
+    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use themes-widths, states-focus, checklist ou board-drag.`,
   );
   process.exit(2);
 }

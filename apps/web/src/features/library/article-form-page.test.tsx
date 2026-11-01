@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearToasts } from '../../shared/toast/toast-store';
@@ -41,10 +41,12 @@ describe('article form', () => {
     const server = stubLibraryServer();
     renderLibrary('/library/articles/new');
     await userEvent.type(await screen.findByLabelText('Título'), 'Com capa');
-    const group = screen.getByRole('group', { name: 'Capa do artigo' });
-    expect(group.className).toMatch(/landscape/);
+    const area = screen.getByRole('button', {
+      name: 'Capa do artigo: clique ou arraste uma imagem',
+    });
+    expect(area.className).toMatch(/landscape/);
     await userEvent.upload(
-      within(group).getByLabelText('Capa do artigo', { selector: 'input' }),
+      screen.getByLabelText('Capa do artigo', { selector: 'input' }),
       new File([new Uint8Array(32)], 'capa.webp', { type: 'image/webp' }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));

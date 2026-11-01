@@ -33,6 +33,8 @@ function renderField(props: Parameters<typeof CoverUploadField>[0]) {
   );
 }
 
+const AREA_BOOK = 'Capa do livro: clique ou arraste uma imagem';
+
 const putCalls = (server: ReturnType<typeof stubLibraryServer>) =>
   server.calls.filter((call) => call.method === 'PUT');
 
@@ -51,7 +53,7 @@ describe('cover upload field', () => {
     expect(first?.file).toBeInstanceOf(File);
 
     const jpeg = new File([new Uint8Array(10)], 'outra.jpg', { type: 'image/jpeg' });
-    fireEvent.drop(screen.getByRole('group', { name: 'Capa do livro' }), {
+    fireEvent.drop(screen.getByRole('button', { name: AREA_BOOK }), {
       dataTransfer: { files: [jpeg] },
     });
     await waitFor(() => {
@@ -122,15 +124,21 @@ describe('cover upload field', () => {
   it('pd36 uses 2 by 3 for books and 16 by 9 for articles and videos', () => {
     stubLibraryServer();
     const book = renderField({ kind: 'book' });
-    expect(screen.getByRole('group', { name: 'Capa do livro' }).className).toMatch(/portrait/);
+    expect(screen.getByRole('button', { name: AREA_BOOK }).className).toMatch(/portrait/);
     book.unmount();
     const article = renderField({ kind: 'article' });
-    expect(screen.getByRole('group', { name: 'Capa do artigo' }).className).toMatch(/landscape/);
+    expect(
+      screen.getByRole('button', {
+        name: 'Capa do artigo: clique ou arraste uma imagem',
+      }).className,
+    ).toMatch(/landscape/);
     article.unmount();
     renderField({ kind: 'video' });
-    expect(screen.getByRole('group', { name: 'Miniatura do vídeo' }).className).toMatch(
-      /landscape/,
-    );
+    expect(
+      screen.getByRole('button', {
+        name: 'Miniatura do vídeo: clique ou arraste uma imagem',
+      }).className,
+    ).toMatch(/landscape/);
   });
 
   it('keeps the chosen file for the form to send when the item is not saved yet', async () => {
@@ -153,8 +161,56 @@ describe('cover upload field', () => {
   it('is operable by keyboard only', async () => {
     stubLibraryServer({ books: [bookOf()] });
     renderField({ kind: 'book', title: 'Dom', item_id: 'b-1' });
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click');
     await userEvent.tab();
-    expect(screen.getByRole('button', { name: 'Escolher imagem' })).toHaveFocus();
+    const area = screen.getByRole('button', { name: AREA_BOOK });
+    expect(area).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(click).toHaveBeenCalledTimes(1);
+    await userEvent.keyboard(' ');
+    expect(click).toHaveBeenCalledTimes(2);
+    click.mockRestore();
+  });
+
+  it('has no inner choose button', () => {
+    stubLibraryServer();
+    renderField({ kind: 'book' });
+    expect(screen.queryByRole('button', { name: 'Escolher imagem' })).not.toBeInTheDocument();
+  });
+
+  it('opens the file chooser when the area is clicked', async () => {
+    stubLibraryServer();
+    renderField({ kind: 'book' });
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+    await userEvent.click(screen.getByRole('button', { name: AREA_BOOK }));
+    expect(click).toHaveBeenCalledTimes(1);
+    click.mockRestore();
+  });
+
+  it('shows the upload progress inside the field while the cover is sent', async () => {
+    const server = stubLibraryServer({ books: [bookOf()], hold_uploads: true });
+    renderField({ kind: 'book', title: 'Dom', item_id: 'b-1' });
+    await userEvent.upload(screen.getByLabelText('Capa do livro', { selector: 'input' }), png());
+    const bar = await screen.findByRole('progressbar', { name: 'Enviando a imagem' });
+    expect(bar).toHaveAttribute('aria-valuenow', '50');
+    server.release_uploads();
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+  });
+
+  it('ignores clicks while the cover is being sent', async () => {
+    stubLibraryServer({ books: [bookOf()], hold_uploads: true });
+    renderField({ kind: 'book', title: 'Dom', item_id: 'b-1' });
+    await userEvent.upload(screen.getByLabelText('Capa do livro', { selector: 'input' }), png());
+    const area = screen.getByRole('button', { name: AREA_BOOK });
+    await waitFor(() => {
+      expect(area).toHaveAttribute('aria-disabled', 'true');
+    });
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+    await userEvent.click(area);
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
   });
 
   it('has no axe violations', async () => {

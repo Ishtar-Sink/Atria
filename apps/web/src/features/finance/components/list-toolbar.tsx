@@ -1,4 +1,4 @@
-import { Button, TextField, ViewSwitcher } from '@atria/ui';
+import { Button, GridIcon, ListIcon, TextField, ViewSwitcher } from '@atria/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../../shared/i18n/i18n';
 import { SEARCH_MAX } from '../hooks/use-transactions';
@@ -67,7 +67,7 @@ export function ListToolbar({
         />
       </div>
       {filters ? (
-        <div role="group" aria-label={t('finance.list.filters')} className={styles.filters}>
+        <div role="group" aria-label={t('finance.list.filters')} className={styles.filterFields}>
           {filters}
         </div>
       ) : null}
@@ -78,8 +78,8 @@ export function ListToolbar({
           onView(next === 'grid' ? 'grid' : 'list');
         }}
         options={[
-          { value: 'list', label: t('finance.list.view_list') },
-          { value: 'grid', label: t('finance.list.view_grid') },
+          { value: 'list', label: t('finance.list.view_list'), icon: <ListIcon /> },
+          { value: 'grid', label: t('finance.list.view_grid'), icon: <GridIcon /> },
         ]}
       />
     </div>

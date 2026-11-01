@@ -34,11 +34,13 @@ function emotion(
   id: string,
   system_key: Emotion['system_key'],
   name: string | null = null,
+  icon: Emotion['icon'] = null,
 ): Emotion {
   return {
     id,
     owner_id: 'u1',
     name,
+    icon,
     system_key,
     visibility: 'personal',
     created_at: '2026-10-01T10:00:00Z',
@@ -87,10 +89,12 @@ function handle(state: World, call: Call): Response {
   const params = call.url.searchParams;
   if (path === '/emotions') {
     if (call.method === 'GET') return json({ items: state.emotions });
+    const posted = call.body as { name: string; icon?: Emotion['icon'] };
     const created = emotion(
       `em-${String(state.emotions.length + 1)}`,
       null,
-      (call.body as { name: string }).name,
+      posted.name,
+      posted.icon ?? null,
     );
     state.emotions.push(created);
     return json(created, 201);
@@ -104,7 +108,9 @@ function handle(state: World, call: Call): Response {
       state.emotions.splice(index, 1);
       return new Response(null, { status: 204 });
     }
-    found.name = (call.body as { name: string }).name;
+    const patch = call.body as { name?: string; icon?: Emotion['icon'] };
+    if (patch.name !== undefined) found.name = patch.name;
+    if (patch.icon !== undefined) found.icon = patch.icon;
     return json(found);
   }
   if (path === '/journal-entries') {
@@ -211,12 +217,15 @@ describe('emotions page', () => {
 
     expect(await screen.findByText('Orgulho')).toBeInTheDocument();
     await waitFor(() => {
-      expect(state.calls.find((call) => call.method === 'POST')?.body).toEqual({ name: 'Orgulho' });
+      expect(state.calls.find((call) => call.method === 'POST')?.body).toEqual({
+        name: 'Orgulho',
+        icon: null,
+      });
     });
     // O mesmo cache alimenta o seletor das entradas.
     cleanup();
     renderWithProviders(<PickerProbe />);
-    expect(await screen.findByRole('checkbox', { name: 'Orgulho' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Orgulho' })).toBeInTheDocument();
   });
 
   it('shows default emotions by their translated name', async () => {
@@ -251,6 +260,74 @@ describe('emotions page', () => {
       expect(screen.queryByText('Alegria')).not.toBeInTheDocument();
     });
     expect(state.calls.some((call) => call.method === 'DELETE')).toBe(true);
+  });
+
+  it('shows the icon of each emotion in the list', async () => {
+    open('/journal/emotions');
+    const list = await screen.findByRole('list', { name: 'Lista de emoções' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows[0]?.querySelector('svg[data-icon="sun"]')).not.toBeNull();
+    expect(rows[1]?.querySelector('svg[data-icon="wind"]')).not.toBeNull();
+    expect(rows[2]?.querySelector('svg[data-icon="leaf"]')).not.toBeNull();
+  });
+
+  it('creates a custom emotion with the chosen icon', async () => {
+    const user = userEvent.setup();
+    const { state } = open('/journal/emotions');
+    await screen.findByRole('list', { name: 'Lista de emoções' });
+
+    await user.type(screen.getByRole('textbox', { name: 'Nova emoção' }), 'Orgulho');
+    await user.click(screen.getByRole('radio', { name: 'Estrela' }));
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    await waitFor(() => {
+      expect(state.calls.find((call) => call.method === 'POST')?.body).toEqual({
+        name: 'Orgulho',
+        icon: 'star',
+      });
+    });
+    const row = (await screen.findByText('Orgulho')).closest('li');
+    expect(row?.querySelector('svg[data-icon="star"]')).not.toBeNull();
+  });
+
+  it('changes the icon of a custom emotion', async () => {
+    const user = userEvent.setup();
+    const state = world();
+    state.emotions.push(emotion('em-own', null, 'Saudade', 'star'));
+    open('/journal/emotions', state);
+    await screen.findByText('Saudade');
+
+    await user.click(screen.getByRole('button', { name: 'Trocar ícone de Saudade' }));
+    const choice = screen.getByRole('group', { name: 'Ícone de Saudade' });
+    expect(within(choice).getByRole('radio', { name: 'Estrela' })).toBeChecked();
+    await user.click(within(choice).getByRole('radio', { name: 'Lua' }));
+    await user.click(screen.getByRole('button', { name: 'Usar este ícone' }));
+
+    await waitFor(() => {
+      expect(state.calls.find((call) => call.method === 'PATCH')?.body).toEqual({ icon: 'moon' });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('Saudade').closest('li')?.querySelector('svg[data-icon="moon"]'),
+      ).not.toBeNull();
+    });
+  });
+
+  it('does not offer the icon choice for a default emotion', async () => {
+    const state = world();
+    state.emotions.push(emotion('em-own', null, 'Saudade'));
+    open('/journal/emotions', state);
+    await screen.findByText('Saudade');
+    expect(screen.getAllByRole('button', { name: /^Trocar ícone de/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Trocar ícone de Alegria' })).toBeNull();
+  });
+
+  it('shows the neutral icon for a custom emotion without icon', async () => {
+    const state = world();
+    state.emotions.push(emotion('em-own', null, 'Saudade'));
+    open('/journal/emotions', state);
+    const row = (await screen.findByText('Saudade')).closest('li');
+    expect(row?.querySelector('svg[data-icon="neutral"]')).not.toBeNull();
   });
 
   it('refuses an empty name', async () => {

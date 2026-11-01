@@ -2,9 +2,9 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  SegmentedField,
   SelectField,
   Toolbar,
-  ViewSwitcher,
 } from '@atria/ui';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -100,8 +100,8 @@ export function ConnectionsTab({ entity_type, entity_id }: ConnectionsTabProps) 
         }
       >
         <div className={styles.trailing}>
-          <ViewSwitcher
-            label={t('connections.view_label')}
+          <SegmentedField
+            label={t('connections.group_by')}
             value={grouping}
             options={GROUPINGS.map((value) => ({
               value,

@@ -19,6 +19,7 @@ import {
   type ApiCall,
   type FinanceWorld,
 } from '../test-utils';
+import finance_css from '../components/finance.module.css?raw';
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/[  ]/g, ' ');
 
@@ -198,6 +199,31 @@ describe('incomes and expenses', () => {
     expect(screen.queryByRole('link', { name: 'Feira' })).toBeNull();
   });
 
+  it('keeps the view switcher only as wide as its options', async () => {
+    financeServer(seed());
+    renderFinance('/finance/expenses');
+    await screen.findByRole('link', { name: 'Feira' });
+    const view = screen.getByRole('group', { name: 'Visualização' });
+    expect(view.closest('[role="group"][aria-label="Filtros"]')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Filtros' }).className).toContain('filterFields');
+    expect(finance_css).not.toMatch(/\.filters\s*>\s*\*/);
+  });
+
+  it('shows the period without a visible label in the header', async () => {
+    financeServer(seed());
+    renderFinance('/finance/expenses');
+    await screen.findByRole('link', { name: 'Feira' });
+    const button = screen.getByRole('button', { name: /Período/ });
+    const hidden = Array.from(document.querySelectorAll('span')).filter(
+      (node) => node.textContent === 'Período',
+    );
+    expect(hidden.length).toBeGreaterThan(0);
+    for (const node of hidden) {
+      expect(node.className).toContain('srOnly');
+    }
+    expect(button.textContent).not.toContain('Período');
+  });
+
   it('filters by repetition chips, account and category through the url', async () => {
     const { calls } = financeServer(seed());
     const user = userEvent.setup();
@@ -318,10 +344,99 @@ describe('transaction forms', () => {
     await pageHeading('Nova saída');
     expect(screen.queryByRole('radiogroup', { name: 'Tipo' })).toBeNull();
     expect(screen.queryByLabelText('Tipo')).toBeNull();
-    // A primeira categoria de saída, em ordem alfabética, já vem escolhida.
-    expect(screen.getByLabelText('Categoria')).toHaveTextContent('Casa');
+    // A categoria começa vazia: nada é escolhido pelo usuário sem ele pedir.
+    expect(screen.getByLabelText('Categoria')).toHaveTextContent('Sem categoria');
     await userEvent.click(screen.getByLabelText('Categoria'));
+    const names = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(names).toEqual(['Sem categoria', 'Casa', 'Mercado']);
     expect(screen.queryByRole('option', { name: 'Salário' })).toBeNull();
+  });
+
+  it('starts without category and saves a null category', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Farmácia');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '45,90');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions')?.body).toMatchObject({ category_id: null });
+  });
+
+  it('offers only Sem categoria and the create link without categories', async () => {
+    financeServer({ ...seed(), categories: [] });
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    expect(screen.getByLabelText('Categoria')).toHaveTextContent('Sem categoria');
+    expect(screen.getByText('Nenhuma categoria deste tipo ainda.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Criar categoria' })).toHaveAttribute(
+      'href',
+      '/finance/categories/new?kind=expense',
+    );
+    await userEvent.click(screen.getByLabelText('Categoria'));
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Sem categoria',
+    ]);
+  });
+
+  it('masks the amount while typing and pasting', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    const first = renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Farmácia');
+    await chooseOption('Conta', 'Conta');
+    const typed = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await user.type(typed, '14500');
+    expect((typed as HTMLInputElement).value).toMatch(/^R\$\s14\.500$/);
+    await user.tab();
+    expect((typed as HTMLInputElement).value).toMatch(/^R\$\s14\.500,00$/);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions')?.body).toMatchObject({
+      expected_amount: 1450000,
+    });
+    first.unmount();
+
+    calls.length = 0;
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Farmácia');
+    await chooseOption('Conta', 'Conta');
+    const pasted = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await user.clear(pasted);
+    await user.click(pasted);
+    await user.paste('14500,5');
+    await user.tab();
+    expect((pasted as HTMLInputElement).value).toMatch(/^R\$\s14\.500,50$/);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions')?.body).toMatchObject({
+      expected_amount: 1450050,
+    });
+  });
+
+  it('refuses an empty amount', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Farmácia');
+    await chooseOption('Conta', 'Conta');
+    const amount = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await user.type(amount, '5');
+    await user.clear(amount);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
   });
 
   it('creates an expense with expected amount and date', async () => {
@@ -344,7 +459,7 @@ describe('transaction forms', () => {
     expect(post?.body).toEqual({
       kind: 'expense',
       account_id: 'a1',
-      category_id: 'c2',
+      category_id: null,
       description: 'Farmácia',
       expected_amount: 4590,
       expected_date: '2026-11-05',
@@ -408,8 +523,32 @@ describe('transaction forms', () => {
     });
     expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/finance/recurring-transactions/r2');
+      expect(router.state.location.pathname).toBe('/finance/expenses');
     });
+    expect(
+      await screen.findByText(/Recorrência salva\. A primeira ocorrência fica para .*2026/),
+    ).toBeInTheDocument();
+  });
+
+  it('saves a recurrence only once on a double click', async () => {
+    const state = seed();
+    state.override = (call) =>
+      call.method === 'POST' && call.path === '/recurring-transactions'
+        ? { hang: true }
+        : undefined;
+    const { calls } = financeServer(state);
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Aluguel');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '2000');
+    await user.click(screen.getByRole('checkbox', { name: 'Repetir' }));
+    await user.dblClick(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(calls.filter((call) => call.path === '/recurring-transactions')).toHaveLength(1);
+    });
+    expect(screen.getByRole('button', { name: /Salvar/ })).toHaveAttribute('aria-busy', 'true');
   });
 
   it('changes a recurrence for the open occurrence and the next ones', async () => {
@@ -518,7 +657,7 @@ describe('settlement and detail', () => {
     const { container } = renderFinance('/finance/transactions/t1');
     await pageHeading('Feira');
     const amount = screen.getByRole('textbox', { name: 'Valor efetivo (R$)' });
-    expect(amount).toHaveValue('100,00');
+    expect((amount as HTMLInputElement).value).toMatch(/^R\$\s100,00$/);
     expect(screen.getByLabelText('Data efetiva')).toHaveTextContent('05/11/2026');
     await user.clear(amount);
     await user.type(amount, '80');
@@ -678,7 +817,7 @@ describe('recurrence detail', () => {
     await pageHeading('Aluguel');
     expect(screen.getByText('Ocorrência de 31 de out. de 2026')).toBeInTheDocument();
     const amount = screen.getByRole('textbox', { name: 'Valor efetivo (R$)' });
-    expect(amount).toHaveValue('2000,00');
+    expect((amount as HTMLInputElement).value).toMatch(/^R\$\s2\.000,00$/);
     await user.clear(amount);
     await user.type(amount, '1900');
     await user.click(screen.getByRole('button', { name: 'Liquidar' }));

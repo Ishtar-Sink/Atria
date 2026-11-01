@@ -1,9 +1,9 @@
-// Evidências visuais da TASK-25 (telas de Lembretes), sem passo manual: sobe o Vite numa porta livre
+// Evidências visuais de Lembretes (TASK-25 e TASK-19), sem passo manual: sobe o Vite numa porta livre
 // (API `createServer`), serve uma página virtual que carrega `src/features/reminders/evidence/harness.tsx`
 // (as rotas da feature num roteador em memória, com os providers e o layout do app), simula a API no
 // navegador com fixtures em memória, confere o estado no DOM antes de cada captura e monta a prancha
-// (PNG) em vostok/work/tasks/SPEC-001/evidence/TASK-25/.
-// Uso: node apps/web/scripts/evidence-reminders.mjs telas
+// (PNG) em $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-19/).
+// Uso: node apps/web/scripts/evidence-reminders.mjs telas|push
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -16,7 +16,9 @@ import { createServer } from 'vite';
 const AxeBuilder = axePackage.default ?? axePackage.AxeBuilder;
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = join(WEB, '..', '..');
-const OUT = join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-001', 'evidence', 'TASK-25');
+const OUT =
+  process.env.VOSTOK_EVIDENCE ??
+  join(ROOT, 'vostok', 'work', 'tasks', 'SPEC-002', 'evidence', 'TASK-19');
 
 const THEMES = ['light', 'dark'];
 const SIZES = {
@@ -148,7 +150,7 @@ function fixtures() {
 }
 
 /** Modos: normal, empty (sem lembretes), loading (respostas seguradas) e error (500 na listagem). */
-function installApi(context, mode, gate) {
+function installApi(context, mode, gate, { push = 'on', role = 'user' } = {}) {
   const reminders = fixtures();
   const calls = { upcoming: 0, subscriptions: 0 };
   context.route(
@@ -165,7 +167,12 @@ function installApi(context, mode, gate) {
           body: JSON.stringify(body),
         });
       if (path === '/me')
-        return reply({ id: 'u1', email: 'ana@exemplo.com', display_name: 'Ana Maria Souza' });
+        return reply({
+          id: 'u1',
+          email: 'ana@exemplo.com',
+          display_name: 'Ana Maria Souza',
+          role,
+        });
       if (path === '/me/preferences') return reply({});
       if (path === '/reminders/upcoming') {
         calls.upcoming += 1;
@@ -176,7 +183,11 @@ function installApi(context, mode, gate) {
               : [{ reminder_id: 'rem-vitamina', fire_at: MINUTE_AHEAD, title: 'Tomar a vitamina' }],
         });
       }
-      if (path === '/web-push/public-key') return reply({ public_key: 'AQIDBAUGBwgJCg' });
+      if (path === '/web-push/public-key') {
+        if (push === 'off')
+          return reply({ title: 'Web Push desligado', code: 'web_push_disabled' }, 404);
+        return reply({ public_key: 'AQIDBAUGBwgJCg' });
+      }
       if (path === '/push-subscriptions' && method === 'POST') {
         calls.subscriptions += 1;
         return reply(
@@ -215,48 +226,57 @@ function installApi(context, mode, gate) {
  * `Notification`, service worker e `pushManager` simulados: deixam escolher a permissão e contar os
  * pedidos e os disparos. A notificação real do sistema não aparece numa captura do Chromium sem interface.
  */
-function installBrowserFakes(context, permission) {
-  return context.addInitScript((initial) => {
-    const state = { permission: initial, requests: 0, shown: [], subscribes: 0 };
-    class FakeNotification {
-      constructor(title, options) {
-        state.shown.push({ title, tag: options?.tag ?? null });
+function installBrowserFakes(context, permission, { push_support = true } = {}) {
+  return context.addInitScript(
+    ([initial, supported]) => {
+      const state = { permission: initial, requests: 0, shown: [], subscribes: 0 };
+      class FakeNotification {
+        constructor(title, options) {
+          state.shown.push({ title, tag: options?.tag ?? null });
+        }
+        static get permission() {
+          return state.permission;
+        }
+        static requestPermission() {
+          state.requests += 1;
+          state.permission = 'granted';
+          return Promise.resolve('granted');
+        }
       }
-      static get permission() {
-        return state.permission;
+      window.Notification = FakeNotification;
+      if (!supported) {
+        // Navegador sem Web Push: nem `PushManager` nem service worker.
+        delete window.PushManager;
+        window.__fakes = state;
+        return;
       }
-      static requestPermission() {
-        state.requests += 1;
-        state.permission = 'granted';
-        return Promise.resolve('granted');
-      }
-    }
-    window.Notification = FakeNotification;
-    if (!('PushManager' in window)) window.PushManager = class PushManager {};
-    const pushManager = {
-      getSubscription: async () => null,
-      subscribe: async () => {
-        state.subscribes += 1;
-        return {
-          endpoint: 'https://push.exemplo.com/abc',
-          toJSON: () => ({
+      if (!('PushManager' in window)) window.PushManager = class PushManager {};
+      const pushManager = {
+        getSubscription: async () => null,
+        subscribe: async () => {
+          state.subscribes += 1;
+          return {
             endpoint: 'https://push.exemplo.com/abc',
-            keys: { p256dh: 'p256', auth: 'auth' },
-          }),
-          unsubscribe: async () => true,
-        };
-      },
-    };
-    const registration = { pushManager };
-    Object.defineProperty(navigator, 'serviceWorker', {
-      configurable: true,
-      value: {
-        register: async () => registration,
-        getRegistration: async () => registration,
-      },
-    });
-    window.__fakes = state;
-  }, permission);
+            toJSON: () => ({
+              endpoint: 'https://push.exemplo.com/abc',
+              keys: { p256dh: 'p256', auth: 'auth' },
+            }),
+            unsubscribe: async () => true,
+          };
+        },
+      };
+      const registration = { pushManager };
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: {
+          register: async () => registration,
+          getRegistration: async () => registration,
+        },
+      });
+      window.__fakes = state;
+    },
+    [permission, push_support],
+  );
 }
 
 const fakes = (page) => page.evaluate(() => window.__fakes);
@@ -265,7 +285,16 @@ const fakes = (page) => page.evaluate(() => window.__fakes);
 
 async function openPage(
   browser,
-  { theme, size, mode = 'normal', tall = false, permission = 'default' },
+  {
+    theme,
+    size,
+    mode = 'normal',
+    tall = false,
+    permission = 'default',
+    push = 'on',
+    role = 'user',
+    push_support = true,
+  },
 ) {
   const viewport = { ...SIZES[size], ...(tall ? { height: TALL[size] } : {}) };
   const context = await browser.newContext({
@@ -288,8 +317,8 @@ async function openPage(
   const gate = new Promise((resolve) => {
     release = resolve;
   });
-  const calls = installApi(context, mode, gate);
-  await installBrowserFakes(context, permission);
+  const calls = installApi(context, mode, gate, { push, role });
+  await installBrowserFakes(context, permission, { push_support });
   const page = await context.newPage();
   await page.clock.install({ time: NOW });
   const errors = [];
@@ -364,6 +393,9 @@ async function runScenarios(browser, base, scenarios) {
           mode: sc.mode,
           tall: sc.tall,
           permission: sc.permission,
+          push: sc.push,
+          role: sc.role,
+          push_support: sc.push_support,
         });
         try {
           await gotoApp(page, base, sc.path);
@@ -669,6 +701,94 @@ const scenarios = [
   },
 ];
 
+const NOTICE = 'p, div';
+const instanceLink = (page) => page.getByRole('link', { name: 'Abrir Configurações › Instância' });
+
+/** O aviso do cartão: calmo, com a cor do texto fora do vermelho de perigo. */
+async function checkCalmNotice(page, tag, text) {
+  const notice = page.locator(NOTICE).filter({ hasText: text }).last();
+  await notice.waitFor();
+  const colors = await notice.evaluate((el) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--danger)';
+    document.body.append(probe);
+    const danger = getComputedStyle(probe).color;
+    probe.remove();
+    const style = getComputedStyle(el);
+    return { text: style.color, background: style.backgroundColor, danger };
+  });
+  check(
+    `${tag}: aviso sem vermelho`,
+    colors.text !== colors.danger && colors.background !== colors.danger,
+    `texto ${colors.text} · fundo ${colors.background} · perigo ${colors.danger}`,
+  );
+}
+
+const pushScenarios = [
+  {
+    name: 'push desligado · pessoa comum',
+    path: '/reminders',
+    permission: 'granted',
+    push: 'off',
+    run: async (page, tag) => {
+      const text = page.getByText(/está desligado nesta instância/);
+      await text.waitFor();
+      check(
+        `${tag}: aviso de push desligado visível, sem link para o administrador`,
+        (await text.isVisible()) && (await instanceLink(page).count()) === 0,
+      );
+      await checkCalmNotice(page, tag, 'está desligado nesta instância');
+    },
+  },
+  {
+    name: 'push desligado · administrador',
+    path: '/reminders',
+    permission: 'granted',
+    push: 'off',
+    role: 'admin',
+    run: async (page, tag) => {
+      const link = instanceLink(page);
+      await link.waitFor();
+      const href = await link.getAttribute('href');
+      check(
+        `${tag}: link para Configurações › Instância · href ${href}`,
+        (await link.isVisible()) && href === '/settings/instance',
+      );
+      await checkCalmNotice(page, tag, 'está desligado nesta instância');
+    },
+  },
+  {
+    name: 'navegador sem Web Push',
+    path: '/reminders',
+    permission: 'granted',
+    push_support: false,
+    run: async (page, tag) => {
+      const text = page.getByText(/Este navegador não oferece o aviso/);
+      await text.waitFor();
+      check(
+        `${tag}: aviso de navegador sem suporte visível, sem link`,
+        (await text.isVisible()) && (await instanceLink(page).count()) === 0,
+      );
+      await checkCalmNotice(page, tag, 'Este navegador não oferece o aviso');
+    },
+  },
+  {
+    name: 'aparelho não inscrito',
+    path: '/reminders',
+    permission: 'granted',
+    run: async (page, tag) => {
+      const toggle = page.getByRole('switch', { name: 'Receber com o Atria fechado' });
+      await toggle.waitFor();
+      const text = page.getByText(/Este aparelho ainda não recebe/);
+      check(
+        `${tag}: interruptor desligado e pedido para ligar`,
+        (await toggle.getAttribute('aria-checked')) === 'false' && (await text.isVisible()),
+      );
+      await checkCalmNotice(page, tag, 'Este aparelho ainda não recebe');
+    },
+  },
+];
+
 // ---------- principal ----------
 
 const EVIDENCES = {
@@ -681,13 +801,22 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  push: async (browser, base) => {
+    const shots = await runScenarios(browser, base, pushScenarios);
+    await sheet(browser, {
+      title: 'TASK-19 · avisos do Web Push em Lembretes (RF-16, CT-15, CB-07, FA-05, RNF-03)',
+      file: 'reminders-push.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
 };
 
 const names = process.argv.slice(2);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (names.length === 0 || unknown.length > 0) {
   console.error(
-    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use telas.`,
+    `Evidência desconhecida ou ausente: ${unknown.join(', ') || '(nenhuma)'}. Use telas ou push.`,
   );
   process.exit(2);
 }

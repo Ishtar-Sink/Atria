@@ -1,11 +1,24 @@
-import { Button } from '@atria/ui';
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Button, ProgressBar } from '@atria/ui';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react';
 import { ApiProblem } from '../../shared/api/problem';
 import { registerMessages, useT } from '../../shared/i18n/i18n';
 import messages from './i18n/pt-br.json';
 import { fileUrl } from './library-item-cover';
 import type { LibraryKind } from './use-library-items';
-import { COVER_MAX_BYTES, COVER_TYPES, useCoverMutations } from './use-library-mutations';
+import {
+  COVER_MAX_BYTES,
+  COVER_TYPES,
+  useCoverMutations,
+  useUploadProgress,
+} from './use-library-mutations';
 import styles from './library.module.css';
 
 registerMessages('library', messages);
@@ -63,6 +76,20 @@ export function CoverUploadField({
   const label = t(`library.cover.label_${kind}`);
   const shown = preview ?? (file_id ? fileUrl(file_id) : undefined);
   const wide = kind !== 'book';
+  const progress = useUploadProgress('cover');
+  const busy = upload.isPending;
+
+  function openChooser() {
+    if (!busy) input.current?.click();
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openChooser();
+    }
+  }
 
   function validate(file: File): string | undefined {
     if (!COVER_TYPES.some((type) => type === file.type)) return t('library.cover.invalid_type');
@@ -120,8 +147,10 @@ export function CoverUploadField({
   return (
     <div className={styles.coverField}>
       <div
-        role="group"
-        aria-label={label}
+        role="button"
+        tabIndex={0}
+        aria-label={t(`library.cover.area_label_${kind}`)}
+        aria-disabled={busy ? 'true' : undefined}
         className={[
           styles.coverDrop,
           wide ? styles.landscape : styles.portrait,
@@ -134,6 +163,8 @@ export function CoverUploadField({
           event.preventDefault();
           setOver(true);
         }}
+        onClick={openChooser}
+        onKeyDown={onKeyDown}
         onDragLeave={() => {
           setOver(false);
         }}
@@ -148,33 +179,28 @@ export function CoverUploadField({
             className={styles.coverImage}
           />
         ) : (
-          <div className={styles.dropBody}>
-            <span>{t('library.cover.drop_hint')}</span>
-            <Button
-              type="button"
-              loading={upload.isPending}
-              onClick={() => {
-                input.current?.click();
-              }}
-            >
-              {t('library.cover.choose')}
-            </Button>
-          </div>
+          <span>{t('library.cover.drop_hint')}</span>
         )}
-        <input
-          ref={input}
-          id={input_id}
-          type="file"
-          accept={COVER_TYPES.join(',')}
-          aria-label={label}
-          className={styles.srOnly}
-          tabIndex={-1}
-          onChange={(event) => {
-            choose(event.target.files?.[0]);
-            event.target.value = '';
-          }}
-        />
       </div>
+      <input
+        ref={input}
+        id={input_id}
+        type="file"
+        accept={COVER_TYPES.join(',')}
+        aria-label={label}
+        className={styles.srOnly}
+        tabIndex={-1}
+        onChange={(event) => {
+          choose(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
+      {progress !== null ? (
+        <div className={styles.uploadProgress}>
+          <ProgressBar label={t('library.cover.uploading')} value={progress} />
+          <span>{t('library.upload.percent', { percent: progress })}</span>
+        </div>
+      ) : null}
       {shown ? (
         <div className={styles.coverTools}>
           <Button

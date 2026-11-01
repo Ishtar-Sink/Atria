@@ -17,6 +17,8 @@ export interface TextSelection {
 export interface PdfViewerProps {
   doc: PdfDocument;
   zoom: number;
+  /** Largura, em px, que a página ocupa a 100% (limitada pela largura do palco). */
+  reading_width: number;
   /** Página pedida de fora (botões, teclado, retomada); `nonce` repete o pedido da mesma página. */
   goto: { page: number; nonce: number } | undefined;
   highlights: readonly Highlight[];
@@ -27,6 +29,21 @@ export interface PdfViewerProps {
 const NEAR_MARGIN = '150% 0px';
 const SIDE_PADDING = 32;
 const MAX_RECTS = 50;
+
+/**
+ * Escala da página: a 100% ela tem a largura de leitura, limitada pelo palco (RF-29, CB-11);
+ * os demais zooms são relativos a ela. Sem o palco medido, vale o próprio zoom.
+ */
+export function readingScale(
+  stage_width: number,
+  page_width: number,
+  zoom: number,
+  reading_width: number,
+): number {
+  if (stage_width <= SIDE_PADDING || page_width <= 0) return Math.max(0.1, zoom);
+  const target = Math.min(reading_width, stage_width - SIDE_PADDING);
+  return Math.max(0.1, (target / page_width) * zoom);
+}
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -69,6 +86,7 @@ function readSelection(stage: HTMLElement): TextSelection | undefined {
 export function PdfViewer({
   doc,
   zoom,
+  reading_width,
   goto,
   highlights,
   onPageChange,
@@ -102,8 +120,7 @@ export function PdfViewer({
     };
   }, []);
 
-  const fit = width > SIDE_PADDING ? (width - SIDE_PADDING) / doc.first_page_size.width : 1;
-  const scale = Math.max(0.1, fit * zoom);
+  const scale = readingScale(width, doc.first_page_size.width, zoom, reading_width);
 
   // Páginas perto da área visível.
   useEffect(() => {

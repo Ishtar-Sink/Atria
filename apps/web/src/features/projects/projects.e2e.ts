@@ -4,8 +4,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 // Fluxo ponta a ponta do CT-30. Roda na TASK-35, com o servidor e as rotas de Projetos registradas:
 // lista e grade, projeto aberto na Visão geral com as raias padrão, raia nova com cor HEX em
 // Configurações, reordenar pelo puxador, marcar uma raia como concluída e ver o Andamento mudar,
-// cartão criado pelo "+ Adicionar cartão" com prazo, checklist e tarefa ligada, e movido pelo
-// seletor do pé — em 360 px e em desktop, com o axe no fim.
+// cartão criado pelo "+ Adicionar cartão" com prazo, checklist em lista, com Enter e alça, e tarefa ligada, e movido pelo
+// teclado (link do cartão em foco) e arrastando o cartão inteiro — em 360 px e em desktop, com o axe no fim.
 
 const SIZES = [
   { name: '360', width: 360, height: 760 },
@@ -140,7 +140,16 @@ for (const size of SIZES) {
       );
       await expect(page).toHaveURL(/\/cards\/new/);
       await page.getByLabel('Título').fill('Escolher o sofá');
-      await page.getByLabel('Checklist').fill('[x] Medir a sala\nComparar lojas');
+      const novo = page.getByLabel('Novo item do checklist');
+      await novo.fill('Comparar lojas');
+      await novo.press('Enter');
+      await novo.fill('Medir a sala');
+      await novo.press('Enter');
+      await page
+        .getByRole('button', { name: 'Reordenar o item Medir a sala, posição 2 de 2' })
+        .focus();
+      await page.keyboard.press('ArrowUp');
+      await page.getByRole('checkbox', { name: 'Feito: Medir a sala' }).check();
       await page.getByRole('button', { name: /Prazo/ }).click();
       await page.locator('[data-day$="-15"]').first().click();
       await page.getByLabel('Ligar a uma tarefa').click();
@@ -149,20 +158,82 @@ for (const size of SIZES) {
       await expect(page.getByRole('link', { name: 'Escolher o sofá' })).toBeVisible();
       await expect(page.getByText('1/2')).toBeVisible();
 
-      // Mover pelo seletor do pé.
-      // Pelo teclado: em 360 px a lista abre para cima, sob o cabeçalho fixo, e rolar até a
-      // opção a fecha (o seletor fecha ao rolar a página).
-      await page.getByRole('button', { name: /Mover “Escolher o sofá” para/ }).click();
-      await expect(page.getByRole('option', { name: 'Em progresso' })).toBeVisible();
-      await page.keyboard.type('Em');
-      await page.keyboard.press('Enter');
+      // Mover pelo teclado: o link do cartão em foco e a seta para a direita.
+      await page.getByRole('link', { name: 'Escolher o sofá' }).focus();
+      await page.keyboard.press('ArrowRight');
       const doing = page
         .getByRole('heading', { level: 2, name: 'Em progresso' })
         .locator('xpath=ancestor::li[1]');
       await expect(doing.getByRole('link', { name: 'Escolher o sofá' })).toBeVisible();
+
+      // Mover arrastando com o mouse, até o cabeçalho da raia "Pronto".
+      const finished = page.getByRole('heading', { level: 2, name: 'Pronto' });
+      await finished.scrollIntoViewIfNeeded();
+      const title = page.getByRole('link', { name: 'Escolher o sofá' });
+      await title.scrollIntoViewIfNeeded();
+      await title.hover();
+      await page.mouse.down();
+      const head = await finished.boundingBox();
+      if (!head) throw new Error('cabeçalho da raia Pronto fora da tela');
+      await page.mouse.move(head.x + head.width / 2, head.y + head.height + 20, { steps: 12 });
+      await page.mouse.up();
+      const ready = finished.locator('xpath=ancestor::li[1]');
+      await expect(ready.getByRole('link', { name: 'Escolher o sofá' })).toBeVisible();
 
       await expectNoHorizontalScroll(page);
       await expectNoAxeViolations(page);
     });
   });
 }
+
+test.describe('quadro por toque em 360', () => {
+  test.use({
+    viewport: { width: 360, height: 760 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test('rf34 moves a card between lanes by emulated touch', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/projects/new');
+    await page.getByLabel('Nome').fill('Reforma da cozinha');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Reforma da cozinha' })).toBeVisible();
+    await openTab(page, 'Quadro');
+    await clickSettled(page, page.getByRole('button', { name: 'Adicionar cartão em Aguardando' }));
+    await page.getByLabel('Título').fill('Escolher a pia');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+
+    const card = page.getByRole('link', { name: 'Escolher a pia' });
+    await expect(card).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveCount(0);
+    const doing = page.getByRole('heading', { level: 2, name: 'Em progresso' });
+    await doing.scrollIntoViewIfNeeded();
+    await card.scrollIntoViewIfNeeded();
+
+    const from = await card.boundingBox();
+    const to = await doing.boundingBox();
+    if (!from || !to) throw new Error('cartão ou raia fora da tela');
+    const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+    const end = { x: to.x + to.width / 2, y: to.y + to.height + 40 };
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+    await page.waitForTimeout(300);
+    for (let step = 1; step <= 12; step += 1) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          {
+            x: start.x + ((end.x - start.x) * step) / 12,
+            y: start.y + ((end.y - start.y) * step) / 12,
+          },
+        ],
+      });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+    const lane = doing.locator('xpath=ancestor::li[1]');
+    await expect(lane.getByRole('link', { name: 'Escolher a pia' })).toBeVisible();
+    await expect(page.getByRole('combobox')).toHaveCount(0);
+  });
+});

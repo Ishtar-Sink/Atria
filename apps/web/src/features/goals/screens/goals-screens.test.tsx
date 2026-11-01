@@ -153,6 +153,17 @@ async function expectNoViolations(container: HTMLElement) {
   expect(await axe(container)).toHaveNoViolations();
 }
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('goals list', () => {
   it('filters and searches goals through the url', async () => {
     const server = stubServer({ goals: [goalOf()] });
@@ -205,6 +216,13 @@ describe('goals list', () => {
     await userEvent.click(screen.getByLabelText('Status'));
     const names = screen.getAllByRole('option').map((option) => option.textContent);
     expect(names).toEqual(['Todos', 'Planejada', 'Em andamento', 'Concluída', 'Abandonada']);
+  });
+
+  it('uses the shared view icons with title and accessible name', async () => {
+    stubServer({ goals: [goalOf()] });
+    renderAt('/goals');
+    await screen.findByRole('link', { name: 'Ler doze livros' });
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Lista', 'Grade']);
   });
 
   it('switches between list and grid', async () => {

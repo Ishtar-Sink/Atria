@@ -20,21 +20,6 @@ export function Svg({ children, size = 16 }: { children: ReactNode; size?: numbe
   );
 }
 
-export const ListIcon = () => (
-  <Svg size={18}>
-    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-  </Svg>
-);
-
-export const GridIcon = () => (
-  <Svg size={18}>
-    <rect x="3" y="3" width="7" height="7" rx="1" />
-    <rect x="14" y="3" width="7" height="7" rx="1" />
-    <rect x="3" y="14" width="7" height="7" rx="1" />
-    <rect x="14" y="14" width="7" height="7" rx="1" />
-  </Svg>
-);
-
 export const PlusIcon = () => (
   <Svg size={14}>
     <path d="M12 5v14M5 12h14" />

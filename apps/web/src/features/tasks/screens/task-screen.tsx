@@ -69,11 +69,13 @@ function PencilIcon() {
 function OccurrencesTab({
   task,
   occurrences,
+  next_occurrence,
   today,
   onToggle,
 }: {
   task: Task;
   occurrences: readonly TaskOccurrence[];
+  next_occurrence: string | null;
   today: string;
   onToggle: (occurrence: TaskOccurrence) => void;
 }) {
@@ -85,7 +87,13 @@ function OccurrencesTab({
       {occurrences.length === 0 ? (
         <EmptyState
           title={t('tasks.detail.occurrences_empty')}
-          description={t('tasks.detail.occurrences_help')}
+          description={
+            next_occurrence
+              ? t('tasks.detail.occurrences_next', {
+                  date: formatDate(next_occurrence, locale, 'UTC'),
+                })
+              : t('tasks.detail.occurrences_help')
+          }
         />
       ) : (
         <ul className={styles.occurrences}>
@@ -164,12 +172,12 @@ export function TaskScreen({ task_id, tab, on_tab_change, extra_tabs = [] }: Tas
     );
   }
 
-  const next = occurrences.find((item) => item.occurrence_date > today);
+  const next = task.next_occurrence ?? null;
   const subtitle = task.is_recurring
     ? [
         repetition,
-        today_occurrence === undefined && next !== undefined
-          ? t('tasks.detail.next_date', { date: formatDate(next.occurrence_date, locale, 'UTC') })
+        today_occurrence === undefined && next !== null && next !== today
+          ? t('tasks.detail.next_date', { date: formatDate(next, locale, 'UTC') })
           : null,
       ]
         .filter(Boolean)
@@ -206,6 +214,7 @@ export function TaskScreen({ task_id, tab, on_tab_change, extra_tabs = [] }: Tas
               <OccurrencesTab
                 task={task}
                 occurrences={occurrences}
+                next_occurrence={task.next_occurrence ?? null}
                 today={today}
                 onToggle={(occurrence) => {
                   toggle(

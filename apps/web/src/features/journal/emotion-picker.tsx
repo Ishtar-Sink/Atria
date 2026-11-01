@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useT } from '../../shared/i18n/i18n';
+import { EmotionIcon, resolveEmotionIcon } from './emotion-icons';
 import { emotionLabel, type Emotion } from './use-emotions';
 import styles from './emotion-picker.module.css';
 
@@ -57,42 +58,44 @@ export function EmotionPicker({ emotions, value, onChange, disabled = false }: E
             const current = picked?.intensity;
             return (
               <li key={emotion.id} className={styles.emo} data-on={on ? 'true' : 'false'}>
-                <label className={styles.chip}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(event) => {
-                      toggle(emotion.id, event.target.checked);
-                    }}
-                  />
-                  <span>{label}</span>
-                </label>
-                <div
-                  className={styles.dots}
-                  role="radiogroup"
-                  aria-label={t('journal.form.intensity', { emotion: label })}
+                <button
+                  type="button"
+                  className={styles.toggle}
+                  aria-pressed={on}
+                  onClick={() => {
+                    toggle(emotion.id, !on);
+                  }}
                 >
-                  {LEVELS.map((level) => (
-                    <label key={level} className={styles.dot}>
-                      <input
-                        type="radio"
-                        name={`${base}-${emotion.id}`}
-                        value={level}
-                        checked={current === level}
-                        disabled={!on}
-                        aria-label={t('journal.form.intensity_option', { n: level })}
-                        onChange={() => {
-                          setIntensity(emotion.id, level);
-                        }}
-                      />
-                      <span
-                        className={styles.mark}
-                        data-filled={current !== undefined && level <= current ? 'true' : 'false'}
-                        aria-hidden="true"
-                      />
-                    </label>
-                  ))}
-                </div>
+                  <EmotionIcon icon={resolveEmotionIcon(emotion)} />
+                  <span className={styles.name}>{label}</span>
+                </button>
+                {on ? (
+                  <div
+                    className={styles.dots}
+                    role="radiogroup"
+                    aria-label={t('journal.form.intensity', { emotion: label })}
+                  >
+                    {LEVELS.map((level) => (
+                      <label key={level} className={styles.dot}>
+                        <input
+                          type="radio"
+                          name={`${base}-${emotion.id}`}
+                          value={level}
+                          checked={current === level}
+                          aria-label={t('journal.form.intensity_option', { n: level })}
+                          onChange={() => {
+                            setIntensity(emotion.id, level);
+                          }}
+                        />
+                        <span
+                          className={styles.mark}
+                          data-filled={current !== undefined && level <= current ? 'true' : 'false'}
+                          aria-hidden="true"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
               </li>
             );
           })}

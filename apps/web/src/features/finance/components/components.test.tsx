@@ -185,7 +185,7 @@ describe('finance components', () => {
     ).toBeInTheDocument();
     expect(group.closest('[data-span="full"]')).not.toBeNull();
     const money = screen.getByRole('textbox', { name: 'Valor (R$)' });
-    expect(money).toHaveValue('12,34');
+    expect((money as HTMLInputElement).value).toMatch(/^R\$\s12,34$/);
     expect(money).toHaveAttribute('inputmode', 'decimal');
     expect(container.querySelector('input[type="number"]')).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
@@ -276,5 +276,33 @@ describe('finance components', () => {
     expect(plain(income.textContent)).toContain('R$ 4.000,00');
     expect(screen.getAllByText('Previsto').length).toBeGreaterThan(0);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('keeps the chart table inside a visually hidden container', async () => {
+    quietApi();
+    renderWithProviders(
+      <div>
+        <HorizontalBars
+          label="Saídas por categoria"
+          currency="BRL"
+          items={[{ id: 'c1', label: 'Casa', value: 120000, tone: 'primary' }]}
+        />
+        <ExpectedVsSettledColumns
+          label="Previsto e realizado no período"
+          currency="BRL"
+          expected_label="Previsto"
+          settled_label="Realizado"
+          groups={[{ id: 'income', label: 'Entradas', expected: 500000, settled: 400000 }]}
+        />
+      </div>,
+    );
+    for (const name of ['Saídas por categoria', 'Previsto e realizado no período']) {
+      const table = await screen.findByRole('table', { name });
+      expect(table.className).toBe('');
+      expect(table.parentElement?.className).toContain('srOnly');
+      const caption = table.querySelector('caption');
+      expect(caption?.textContent).toBe(name);
+      expect(table.contains(caption)).toBe(true);
+    }
   });
 });

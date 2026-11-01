@@ -214,6 +214,17 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'serviceWorker');
 });
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('reminders list', () => {
   it('shows the page heading with a subtitle and no axe violations', async () => {
     const { container } = open('/reminders');
@@ -246,6 +257,12 @@ describe('reminders list', () => {
       expect(search(router)['kind']).toBe('recurring');
     });
     expect(document.querySelector('select')).toBeNull();
+  });
+
+  it('uses the shared view icons with title and accessible name', async () => {
+    open('/reminders');
+    await screen.findByText('Ligar para o contador');
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Lista', 'Por dia']);
   });
 
   it('switches between list and grouped by day', async () => {

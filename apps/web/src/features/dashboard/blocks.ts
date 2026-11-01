@@ -33,3 +33,27 @@ export function isDashboardBlockId(value: unknown): value is DashboardBlockId {
 export function isSensitiveBlock(id: DashboardBlockId): boolean {
   return DASHBOARD_BLOCKS.some((block) => block.id === id && block.sensitive);
 }
+
+export interface DashboardCell {
+  readonly id: DashboardBlockId;
+  readonly zone: DashboardZone;
+  readonly row: number;
+  readonly alone: boolean;
+}
+
+/**
+ * Pareia o N-ésimo bloco visível da zona principal com o N-ésimo da lateral (SPEC-002, RF-09).
+ * A saída lista a zona principal e depois a lateral: é a ordem de leitura, de Tab e de uma coluna.
+ */
+export function dashboardCells(visible: readonly DashboardBlockDef[]): DashboardCell[] {
+  const main = visible.filter((block) => block.zone === 'main');
+  const side = visible.filter((block) => block.zone === 'side');
+  const cellsOf = (blocks: readonly DashboardBlockDef[], other: readonly DashboardBlockDef[]) =>
+    blocks.map((block, index) => ({
+      id: block.id,
+      zone: block.zone,
+      row: index + 1,
+      alone: index >= other.length,
+    }));
+  return [...cellsOf(main, side), ...cellsOf(side, main)];
+}

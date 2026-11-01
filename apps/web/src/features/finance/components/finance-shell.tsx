@@ -200,6 +200,7 @@ export function FinanceShell({ tab, children }: FinanceShellProps) {
               <PeriodField
                 label={t('finance.period.label')}
                 placement="toolbar"
+                label_visible={false}
                 presets={FINANCE_PERIOD_PRESETS}
                 allow_custom
                 value={toPeriodValue(search)}

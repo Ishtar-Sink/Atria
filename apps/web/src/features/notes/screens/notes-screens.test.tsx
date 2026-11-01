@@ -109,6 +109,17 @@ async function expectNoViolations(container: HTMLElement) {
   expect(await axe(container)).toHaveNoViolations();
 }
 
+function expectViewIcons(group: HTMLElement, names: string[]): void {
+  const buttons = within(group).getAllByRole('button');
+  expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(names);
+  for (const [i, button] of buttons.entries()) {
+    expect(button).toHaveAttribute('title', names[i]);
+    expect(button).toHaveAccessibleName(names[i] ?? '');
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).toBe('');
+  }
+}
+
 describe('notes list', () => {
   it('filters, sorts and searches notes through the url', async () => {
     const server = stubServer({ notes: [noteOf()] });
@@ -145,6 +156,13 @@ describe('notes list', () => {
     stubServer({ notes: [noteOf()] });
     renderAt('/notes?q=zzz');
     expect(await screen.findByText('Nenhuma nota com esse texto')).toBeInTheDocument();
+  });
+
+  it('uses the shared view icons with title and accessible name', async () => {
+    stubServer({ notes: [noteOf()] });
+    renderAt('/notes');
+    await screen.findByRole('link', { name: 'Ideias de viagem' });
+    expectViewIcons(screen.getByRole('group', { name: 'Visualização' }), ['Lista', 'Grade']);
   });
 
   it('switches between list and grid', async () => {

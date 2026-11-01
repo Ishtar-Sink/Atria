@@ -37,6 +37,7 @@ function emotion(
     id,
     owner_id: 'u1',
     name,
+    icon: null,
     system_key,
     visibility: 'personal',
     created_at: '2026-10-01T10:00:00Z',
@@ -66,6 +67,13 @@ function world(): World {
         emotions: [
           { emotion_id: 'em-joy', intensity: 4, name: null, system_key: 'joy', deleted: false },
           { emotion_id: 'em-calm', name: null, system_key: 'calm', deleted: false },
+          {
+            emotion_id: 'em-anxiety',
+            intensity: 3,
+            name: null,
+            system_key: 'anxiety',
+            deleted: false,
+          },
         ],
       }),
       entry({ id: 'e2', text: 'Fim de tarde corrido.', occurred_at: '2026-11-04T20:00:00Z' }),
@@ -351,6 +359,35 @@ describe('journal list', () => {
       expect(last?.has('from')).toBe(false);
       expect(last?.has('to')).toBe(false);
     });
+  });
+
+  it('uses icons in the view switcher', async () => {
+    open('/journal');
+    await screen.findByText('Dia leve no parque.');
+    expect(screen.getByRole('button', { name: 'Lista' }).querySelector('svg')).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Linha do tempo' }).querySelector('svg'),
+    ).not.toBeNull();
+  });
+
+  it('shows each timeline entry in a card', async () => {
+    open('/journal?view=timeline');
+    const item = (await screen.findByText('Dia leve no parque.')).closest('li[data-card]');
+    expect(item).not.toBeNull();
+    expect(item).toHaveAttribute('data-card', 'true');
+  });
+
+  it('shows the icon and the intensity of each emotion in the timeline', async () => {
+    open('/journal?view=timeline');
+    const item = (await screen.findByText('Dia leve no parque.')).closest('li[data-card]');
+    const emotions = within(item as HTMLElement).getByRole('list', { name: 'Emoções da entrada' });
+    expect(within(emotions).getByText('Ansiedade, intensidade 3 de 5')).toBeInTheDocument();
+    const rows = within(emotions).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    rows.forEach((row) => {
+      expect(row.querySelectorAll('svg[data-icon]').length).toBeGreaterThanOrEqual(1);
+    });
+    expect(rows[2]?.querySelector('svg[data-icon="wind"]')).not.toBeNull();
   });
 
   it('pd61 lists the journal report in the Relatórios menu', async () => {

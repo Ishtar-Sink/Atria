@@ -140,4 +140,44 @@ describe('form fields', () => {
     ]);
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it('offers an empty option first and explains when there are no options', async () => {
+    function Empty({
+      options,
+      empty_help,
+    }: {
+      options: { value: string; label: string }[];
+      empty_help?: string;
+    }) {
+      const { control } = useForm<{ category: string }>({ defaultValues: { category: '' } });
+      return (
+        <FormSelect
+          control={control}
+          name="category"
+          label="Categoria"
+          options={options}
+          empty_option="Sem categoria"
+          {...(empty_help ? { empty_help } : {})}
+        />
+      );
+    }
+    const first = render(
+      <AppProviders>
+        <Empty options={[{ value: 'a', label: 'Casa' }]} />
+      </AppProviders>,
+    );
+    const field = screen.getByLabelText('Categoria');
+    expect(field).toHaveTextContent('Sem categoria');
+    await userEvent.click(field);
+    const names = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(names).toEqual(['Sem categoria', 'Casa']);
+    first.unmount();
+
+    render(
+      <AppProviders>
+        <Empty options={[]} empty_help="Nenhuma categoria ainda." />
+      </AppProviders>,
+    );
+    expect(screen.getByText('Nenhuma categoria ainda.')).toBeInTheDocument();
+  });
 });

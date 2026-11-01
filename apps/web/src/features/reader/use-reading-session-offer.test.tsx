@@ -107,6 +107,54 @@ describe('useReadingSessionOffer', () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
+  it('confirms the session with the footer button of the generic dialog', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn();
+    render(
+      <SessionOfferDialog
+        offer={OFFER}
+        is_pending={false}
+        has_error={false}
+        onConfirm={confirm}
+        onSkip={() => undefined}
+      />,
+    );
+    const dialog = screen.getByRole('dialog');
+    const button = screen.getByRole('button', { name: 'Registrar sessão' });
+    expect(dialog.querySelector('[data-dialog-actions]')).toContainElement(button);
+    expect(dialog.querySelector('[data-dialog-body] form')).not.toContainElement(button);
+    await user.click(button);
+    expect(confirm).toHaveBeenCalledWith(22);
+  });
+
+  it('skips the session with escape without closing the reader', async () => {
+    const user = userEvent.setup();
+    const skip = vi.fn();
+    const reader_key = vi.fn();
+    const seen: boolean[] = [];
+    render(
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- simula o leitor
+      <div
+        onKeyDown={(event) => {
+          seen.push(event.defaultPrevented);
+          if (!event.defaultPrevented) reader_key();
+        }}
+      >
+        <SessionOfferDialog
+          offer={OFFER}
+          is_pending={false}
+          has_error={false}
+          onConfirm={() => undefined}
+          onSkip={skip}
+        />
+      </div>,
+    );
+    await user.keyboard('{Escape}');
+    expect(skip).toHaveBeenCalledTimes(1);
+    expect(seen).toEqual([true]);
+    expect(reader_key).not.toHaveBeenCalled();
+  });
+
   it('does not offer when the reader did not advance', () => {
     stubApi();
     const { result } = renderHook(() => useReadingSessionOffer('book', 'b-1', 40), { wrapper });

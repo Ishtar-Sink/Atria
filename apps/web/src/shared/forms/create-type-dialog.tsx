@@ -1,12 +1,5 @@
-import { Button } from '@atria/ui';
-import {
-  useEffect,
-  useId,
-  useRef,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ReactNode,
-} from 'react';
+import { Button, Dialog } from '@atria/ui';
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../i18n/i18n';
 import { usePreferences } from '../preferences/preferences-context';
 import styles from './create-type-dialog.module.css';
@@ -50,27 +43,17 @@ export function CreateTypeDialog({
   const t = useT();
   const { create_layout } = usePreferences();
   const base = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog || !open) return;
-    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialog.showModal();
-    const cards = Array.from(dialog.querySelectorAll<HTMLElement>('[data-create-type]'));
+    if (!open) return;
+    const cards = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>('[data-create-type]') ?? [],
+    );
     (cards.find((card) => card.dataset.createType === focused_type) ?? cards[0])?.focus();
-    return () => {
-      dialog.close();
-      trigger?.focus();
-    };
   }, [open, focused_type]);
 
-  function onKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      on_close();
-      return;
-    }
+  function onArrowKeys(event: KeyboardEvent<HTMLDivElement>) {
     if (!ARROWS.includes(event.key)) return;
     const cards = Array.from(
       event.currentTarget.querySelectorAll<HTMLElement>('[data-create-type]'),
@@ -93,69 +76,47 @@ export function CreateTypeDialog({
     cards[Math.min(cards.length - 1, Math.max(0, next))]?.focus();
   }
 
-  // Clique no fundo (fora da caixa) fecha; clique no espaçamento interno não.
-  function onBackdropClick(event: MouseEvent<HTMLDialogElement>) {
-    if (event.target !== event.currentTarget) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const outside =
-      event.clientX < rect.left ||
-      event.clientX > rect.right ||
-      event.clientY < rect.top ||
-      event.clientY > rect.bottom;
-    if (outside) on_close();
-  }
-
-  if (!open) return null;
-
   return (
-    // O teclado já é tratado pelos cartões (setas) e pelo próprio diálogo (Esc); o clique no fundo é só atalho.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={`${base}-title`}
-      {...(description ? { 'aria-describedby': `${base}-description` } : {})}
-      className={styles.root}
-      onKeyDown={onKeyDown}
-      onClick={onBackdropClick}
-      onCancel={(event) => {
-        event.preventDefault();
-        on_close();
-      }}
+    <Dialog
+      open={open}
+      title={title}
+      onClose={on_close}
+      size="wide"
+      close_on_backdrop
+      {...(description ? { described_by: `${base}-description` } : {})}
+      actions={<Button onClick={on_close}>{t('common.cancel')}</Button>}
     >
-      <h2 id={`${base}-title`} className={styles.title}>
-        {title}
-      </h2>
       {description ? (
         <p id={`${base}-description`} className={styles.description}>
           {description}
         </p>
       ) : null}
-      <ul className={styles.choices} data-layout={create_layout}>
-        {types.map((type) => (
-          <li key={type.id}>
-            <a
-              href={type.href}
-              className={styles.card}
-              data-create-type={type.id}
-              onClick={(event) => {
-                if (!on_select) return;
-                event.preventDefault();
-                on_select(type);
-                on_close();
-              }}
-            >
-              <span className={styles.icon} aria-hidden="true">
-                {type.icon}
-              </span>
-              <span className={styles.card_title}>{type.label}</span>
-              <span className={styles.card_description}>{type.description}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-      <div className={styles.actions}>
-        <Button onClick={on_close}>{t('common.cancel')}</Button>
+      {/* Setas, Home e End movem o foco entre os cartões; os cartões são os links. */}
+      <div role="presentation" onKeyDown={onArrowKeys}>
+        <ul ref={listRef} className={styles.choices} data-layout={create_layout}>
+          {types.map((type) => (
+            <li key={type.id}>
+              <a
+                href={type.href}
+                className={styles.card}
+                data-create-type={type.id}
+                onClick={(event) => {
+                  if (!on_select) return;
+                  event.preventDefault();
+                  on_select(type);
+                  on_close();
+                }}
+              >
+                <span className={styles.icon} aria-hidden="true">
+                  {type.icon}
+                </span>
+                <span className={styles.card_title}>{type.label}</span>
+                <span className={styles.card_description}>{type.description}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-    </dialog>
+    </Dialog>
   );
 }

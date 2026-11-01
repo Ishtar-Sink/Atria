@@ -11,10 +11,10 @@ import {
   TextField,
 } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { formatMoney } from '../../../shared/format/intl';
+import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { FormDate, FormSelect, useDateLabels } from '../../../shared/forms/form-fields';
 import {
   defaultRecurrenceRule,
@@ -26,6 +26,7 @@ import { FormScreen } from '../../../shared/layout/form-screen';
 import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
+import { pushToast } from '../../../shared/toast/toast-store';
 import styles from '../components/finance.module.css';
 import { MoneyField } from '../components/money-field';
 import { VisibilityField } from '../components/visibility-field';
@@ -126,12 +127,7 @@ function titleKey(mode: Mode): string {
   return `finance.transaction_form.new_${kind}`;
 }
 
-function initialValues(
-  mode: Mode,
-  categories: readonly Category[],
-  time_zone: string,
-  today: string,
-): FormValues {
+function initialValues(mode: Mode, time_zone: string, today: string): FormValues {
   if (mode.type === 'edit') {
     const item = mode.transaction;
     return {
@@ -163,7 +159,7 @@ function initialValues(
   return {
     description: '',
     account_id: '',
-    category_id: categories[0]?.id ?? '',
+    category_id: '',
     expected_amount: null,
     expected_date: today,
     installments: '',
@@ -227,6 +223,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
   const today = todayInTimeZone(new Date(), time_zone);
   const kind = kindOf(mode);
   const idempotency = useIdempotencyKey();
+  const in_flight = useRef(false);
   const create = useCreateTransaction();
   const create_recurring = useCreateRecurringTransaction();
   const update = useUpdateTransaction(mode.type === 'edit' ? mode.transaction.id : '');
@@ -243,7 +240,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     setError: setFieldError,
   } = useForm<FormValues>({
     resolver: zodResolver(form_schema),
-    defaultValues: initialValues(mode, categories, time_zone, today),
+    defaultValues: initialValues(mode, time_zone, today),
   });
   const account_id = useWatch({ control, name: 'account_id' });
   const repeat = useWatch({ control, name: 'repeat' });
@@ -287,11 +284,18 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
         idempotency_key: idempotency.key,
         input: { ...base, rule: toContractRule({ ...values.rule, timezone: time_zone }) },
       });
-      idempotency.renew();
-      await navigate({
-        to: '/finance/recurring-transactions/$recurrenceId',
-        params: { recurrenceId: recurrence.id },
+      pushToast({
+        tone: 'success',
+        message_key: 'finance.transaction_form.repeat_saved',
+        params: {
+          date: formatDate(
+            recurrence.open_occurrence?.occurrence_date ?? recurrence.rule.starts_on,
+            locale,
+            'UTC',
+          ),
+        },
       });
+      await navigate({ to: fallback });
       return;
     }
     const installments = is_card ? Number(values.installments.trim() || '1') : 1;
@@ -318,6 +322,8 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
   }
 
   async function onSubmit(values: FormValues) {
+    if (in_flight.current) return;
+    in_flight.current = true;
     setError(null);
     try {
       if (mode.type === 'create') {
@@ -353,6 +359,8 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
       });
     } catch (failure) {
       onRefused(failure);
+    } finally {
+      in_flight.current = false;
     }
   }
 
@@ -420,7 +428,14 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
             name="category_id"
             label={t('finance.transaction_form.category')}
             options={category_options}
+            empty_option={t('finance.transaction_form.no_category')}
+            empty_help={t('finance.transaction_form.no_categories')}
           />
+          <div className={styles.rowText}>
+            <Link to="/finance/categories/new" search={{ kind }} className={styles.inlineLink}>
+              {t('finance.transaction_form.create_category')}
+            </Link>
+          </div>
           {locked('expected_amount') ? (
             <TextField
               label={t('finance.transaction_form.expected_amount')}
