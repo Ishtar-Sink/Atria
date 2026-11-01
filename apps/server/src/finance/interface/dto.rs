@@ -10,7 +10,7 @@ use crate::finance::application::credit_cards::Statement;
 use crate::finance::application::ports::{Repetition, StatementPayment};
 use crate::finance::application::summaries::{CardView, PeriodSummaryView, WhereView};
 use crate::finance::domain::account::{Account, AccountKind};
-use crate::finance::domain::category::{Category, CategoryColor};
+use crate::finance::domain::category::{Category, CategoryColor, SystemCategory};
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
@@ -274,6 +274,33 @@ pub struct DeleteCategoryQuery {
     pub replacement_id: Option<Uuid>,
 }
 
+/// Chave estável de uma categoria padrão (RF-11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemCategoryKey {
+    Salary,
+    Freelance,
+    Housing,
+    Groceries,
+    Transport,
+    Leisure,
+    Health,
+}
+
+impl From<SystemCategory> for SystemCategoryKey {
+    fn from(category: SystemCategory) -> Self {
+        match category {
+            SystemCategory::Salary => Self::Salary,
+            SystemCategory::Freelance => Self::Freelance,
+            SystemCategory::Housing => Self::Housing,
+            SystemCategory::Groceries => Self::Groceries,
+            SystemCategory::Transport => Self::Transport,
+            SystemCategory::Leisure => Self::Leisure,
+            SystemCategory::Health => Self::Health,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CategoryResponse {
     pub id: Uuid,
@@ -284,6 +311,8 @@ pub struct CategoryResponse {
     pub name: String,
     pub kind: TransactionKindDto,
     pub color: CategoryColorDto,
+    /// Chave da categoria padrão (RF-11): a tela traduz o nome por ela; nula nas criadas pela pessoa e nas padrão renomeadas.
+    pub system_key: Option<SystemCategoryKey>,
 }
 
 impl From<Category> for CategoryResponse {
@@ -297,6 +326,7 @@ impl From<Category> for CategoryResponse {
             name: category.name,
             kind: category.kind.into(),
             color: category.color.into(),
+            system_key: category.system_key.map(Into::into),
         }
     }
 }
@@ -988,7 +1018,7 @@ pub struct FinancialSummaryResponse {
     pub savings_and_losses: SavingsAndLossesDto,
     pub balance: BalanceDto,
     pub credit_cards: Vec<CreditCardSummaryDto>,
-    /// Saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas.
+    /// Entradas e saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas, com as ocorrências abertas das recorrentes (RF-15).
     pub upcoming_bills: Vec<TransactionItemResponse>,
     #[schema(example = "BRL")]
     pub currency: String,

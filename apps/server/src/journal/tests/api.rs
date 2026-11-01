@@ -787,3 +787,186 @@ async fn rls_is_enabled_on_journal_tables() {
         assert!(as_alice > 0, "{table}");
     }
 }
+
+#[tokio::test]
+async fn ct18_custom_emotion_is_created_with_chosen_icon() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+
+    let body = json!({ "name": "Saudade", "icon": "star" });
+    let (status, created) = call(&h, &alice, Method::POST, EMOTIONS, Some(body)).await;
+    let list = emotions(&h, &alice).await;
+
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["icon"], "star");
+    let listed = list
+        .iter()
+        .find(|emotion| emotion["id"] == created["id"])
+        .unwrap();
+    assert_eq!(listed["icon"], "star");
+}
+
+#[tokio::test]
+async fn ct18_emotion_icon_can_be_changed_without_renaming() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+    let custom = create_emotion(&h, &alice, "Saudade").await;
+    let uri = format!("{EMOTIONS}/{}", id_of(&custom));
+
+    let (status, changed) = call(
+        &h,
+        &alice,
+        Method::PATCH,
+        &uri,
+        Some(json!({ "icon": "moon" })),
+    )
+    .await;
+    let (renamed_status, renamed) = call(
+        &h,
+        &alice,
+        Method::PATCH,
+        &uri,
+        Some(json!({ "name": "Nostalgia" })),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["icon"], "moon");
+    assert_eq!(changed["name"], "Saudade");
+    assert_eq!(renamed_status, StatusCode::OK, "{renamed}");
+    assert_eq!(renamed["name"], "Nostalgia");
+    assert_eq!(renamed["icon"], "moon");
+}
+
+#[tokio::test]
+async fn ct18_default_emotions_have_no_icon_and_keep_system_key() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+
+    let list = emotions(&h, &alice).await;
+
+    assert_eq!(list.len(), 7);
+    assert!(
+        list.iter()
+            .all(|emotion| emotion["icon"].is_null() && emotion["system_key"].is_string()),
+        "{list:?}"
+    );
+    assert!(list.iter().all(|emotion| emotion.get("icon").is_some()));
+}
+
+#[tokio::test]
+async fn cb09_custom_emotion_without_icon_has_null_icon() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+
+    let created = create_emotion(&h, &alice, "Tédio").await;
+
+    assert!(created.get("icon").is_some(), "{created}");
+    assert_eq!(created["icon"], Value::Null);
+}
+
+#[tokio::test]
+async fn unknown_emotion_icon_is_rejected() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+    let custom = create_emotion(&h, &alice, "Saudade").await;
+    let uri = format!("{EMOTIONS}/{}", id_of(&custom));
+
+    let body = json!({ "name": "X", "icon": "rocket" });
+    let (created, create_problem) = call(&h, &alice, Method::POST, EMOTIONS, Some(body)).await;
+    let body = json!({ "icon": "rocket" });
+    let (changed, change_problem) = call(&h, &alice, Method::PATCH, &uri, Some(body)).await;
+
+    assert_eq!(created, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(create_problem["code"], "validation_failed");
+    assert_eq!(changed, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(change_problem["code"], "validation_failed");
+}
+
+#[tokio::test]
+async fn other_user_cannot_change_emotion_icon() {
+    let h = harness().await;
+    let alice = h.ctx.sign_in_as(ALICE).await;
+    let bob = h.ctx.sign_in_as(BOB).await;
+    let custom = create_emotion(&h, &alice, "Saudade").await;
+    let uri = format!("{EMOTIONS}/{}", id_of(&custom));
+
+    let body = json!({ "icon": "sun" });
+    let (status, problem) = call(&h, &bob, Method::PATCH, &uri, Some(body)).await;
+    let list = emotions(&h, &alice).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(problem["code"], "emotion_not_found");
+    let kept = list
+        .iter()
+        .find(|emotion| emotion["id"] == custom["id"])
+        .unwrap();
+    assert_eq!(kept["icon"], Value::Null);
+}
+
+#[tokio::test]
+async fn rnf01_icon_migration_keeps_existing_emotions() {
+    let ctx = TestContext::new().await;
+    let mut before = journal::migrator();
+    before.migrations = std::borrow::Cow::Owned(
+        before
+            .migrations
+            .iter()
+            .filter(|migration| migration.version < 20261102010002)
+            .cloned()
+            .collect(),
+    );
+    before.run(&ctx.state.pool).await.unwrap();
+    let mut tx = begin_for_user(&ctx.state.pool, ALICE).await.unwrap();
+    sqlx::query(
+        "INSERT INTO emotions (id, owner_id, name, created_at, updated_at) \
+         VALUES ($1, $2, 'Saudade', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')",
+    )
+    .bind(Uuid::from_u128(1))
+    .bind(ALICE)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO emotions (id, owner_id, system_key, created_at, updated_at) \
+         VALUES ($1, $2, 'joy', '2026-10-02T00:00:00Z', '2026-10-02T00:00:00Z')",
+    )
+    .bind(Uuid::from_u128(2))
+    .bind(ALICE)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    let count_before: i64 = sqlx::query_scalar("SELECT count(*) FROM emotions")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    journal::migrator().run(&ctx.state.pool).await.unwrap();
+    let mut tx = begin_for_user(&ctx.state.pool, ALICE).await.unwrap();
+    let rows: Vec<(Option<String>, Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT name, system_key, icon FROM emotions ORDER BY id")
+            .fetch_all(&mut *tx)
+            .await
+            .unwrap();
+    tx.commit().await.unwrap();
+    let h = Harness {
+        app: ctx.app(journal::router()),
+        ctx,
+    };
+    let alice = h.ctx.sign_in_as(ALICE).await;
+    let list = emotions(&h, &alice).await;
+
+    assert_eq!(count_before, 2);
+    assert_eq!(
+        rows,
+        [
+            (Some("Saudade".to_owned()), None, None),
+            (None, Some("joy".to_owned()), None),
+        ]
+    );
+    assert_eq!(list.len(), 2, "{list:?}");
+    assert!(list.iter().all(|emotion| emotion["icon"].is_null()));
+    assert_eq!(list[0]["name"], "Saudade");
+    assert_eq!(list[1]["system_key"], "joy");
+}

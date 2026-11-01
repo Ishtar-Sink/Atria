@@ -134,6 +134,12 @@ impl Highlight {
     pub fn is_from_current_file(&self, current_pdf: Option<Uuid>) -> bool {
         current_pdf == Some(self.file_id)
     }
+
+    /// Só a cor muda: o texto, a página e os retângulos marcam o trecho do PDF e ficam
+    /// como foram gravados (RF-32).
+    pub fn recolor(&mut self, color: HighlightColor) {
+        self.color = color;
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +216,24 @@ mod tests {
         assert!(highlight.is_from_current_file(Some(Uuid::from_u128(4))));
         assert!(!highlight.is_from_current_file(Some(Uuid::from_u128(5))));
         assert!(!highlight.is_from_current_file(None));
+    }
+
+    #[test]
+    fn recolor_changes_only_the_color() {
+        let original =
+            Highlight::new(new_highlight(vec![rect(0.1, 0.1, 0.1, 0.1)]), now()).unwrap();
+        let mut highlight = original.clone();
+
+        highlight.recolor(HighlightColor::Warning);
+
+        assert_eq!(highlight.color, HighlightColor::Warning);
+        assert_eq!(
+            Highlight {
+                color: original.color,
+                ..highlight
+            },
+            original
+        );
     }
 
     #[test]

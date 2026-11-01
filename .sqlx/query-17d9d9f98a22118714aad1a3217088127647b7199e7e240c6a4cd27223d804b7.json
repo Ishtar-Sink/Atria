@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::text IS NULL OR kind = $2) AND ($3::uuid IS NULL OR id > $3) ORDER BY id LIMIT $4",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, system_key, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::text IS NULL OR kind = $2) AND ($3::uuid IS NULL OR id > $3) ORDER BY id LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -35,11 +35,16 @@
       },
       {
         "ordinal": 6,
+        "name": "system_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
         "name": "created_at: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
       }
@@ -59,9 +64,10 @@
       false,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "0e03cb7814f9a9eef96a0873eaacbe80dbb368d4d05718b8dc7d83fe13aca9ce"
+  "hash": "17d9d9f98a22118714aad1a3217088127647b7199e7e240c6a4cd27223d804b7"
 }

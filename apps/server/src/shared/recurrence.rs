@@ -159,6 +159,71 @@ impl RecurrenceRule {
     }
 }
 
+/// Regra das tarefas (RN-04): sem horário, a ocorrência vale o dia inteiro na data.
+/// Lembretes e Financeiro usam `RecurrenceRule`, que exige o horário.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct TaskRecurrenceRule {
+    pub frequency: Frequency,
+    pub interval: u32,
+    #[serde(default)]
+    pub weekdays: Vec<Weekday>,
+    #[serde(default)]
+    pub month_day: Option<u32>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "optional_hour_minute"
+    )]
+    #[schema(value_type = Option<String>, example = "08:00")]
+    pub time: Option<NaiveTime>,
+    #[schema(example = "America/Sao_Paulo")]
+    pub timezone: String,
+    pub starts_on: NaiveDate,
+    #[serde(default)]
+    pub ends_on: Option<NaiveDate>,
+}
+
+impl TaskRecurrenceRule {
+    /// A regra completa para o cálculo: sem horário, vale o meio-dia local.
+    pub fn to_rule(&self) -> RecurrenceRule {
+        RecurrenceRule {
+            frequency: self.frequency,
+            interval: self.interval,
+            weekdays: self.weekdays.clone(),
+            month_day: self.month_day,
+            time: self.time.unwrap_or_else(all_day_time),
+            timezone: self.timezone.clone(),
+            starts_on: self.starts_on,
+            ends_on: self.ends_on,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), RecurrenceError> {
+        self.to_rule().validate()
+    }
+}
+
+impl From<RecurrenceRule> for TaskRecurrenceRule {
+    fn from(rule: RecurrenceRule) -> Self {
+        Self {
+            frequency: rule.frequency,
+            interval: rule.interval,
+            weekdays: rule.weekdays,
+            month_day: rule.month_day,
+            time: Some(rule.time),
+            timezone: rule.timezone,
+            starts_on: rule.starts_on,
+            ends_on: rule.ends_on,
+        }
+    }
+}
+
+/// O meio-dia nunca cai num salto de horário de verão nem muda a data local, ao
+/// contrário da meia-noite.
+fn all_day_time() -> NaiveTime {
+    NaiveTime::from_hms_opt(12, 0, 0).unwrap_or(NaiveTime::MIN)
+}
+
 fn week_start(date: NaiveDate) -> NaiveDate {
     date - Duration::days(i64::from(date.weekday().num_days_from_monday()))
 }
@@ -210,6 +275,31 @@ mod hour_minute {
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveTime, D::Error> {
         let text = String::deserialize(deserializer)?;
         NaiveTime::parse_from_str(&text, FORMAT).map_err(serde::de::Error::custom)
+    }
+}
+
+mod optional_hour_minute {
+    use chrono::NaiveTime;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    const FORMAT: &str = "%H:%M";
+
+    pub fn serialize<S: Serializer>(
+        time: &Option<NaiveTime>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match time {
+            Some(time) => serializer.serialize_str(&time.format(FORMAT).to_string()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<NaiveTime>, D::Error> {
+        Option::<String>::deserialize(deserializer)?
+            .map(|text| NaiveTime::parse_from_str(&text, FORMAT).map_err(serde::de::Error::custom))
+            .transpose()
     }
 }
 
@@ -395,5 +485,79 @@ mod tests {
         assert_eq!(got, [utc("2026-11-01T11:00:00Z")]);
         assert_eq!(got[0].to_rfc3339(), "2026-11-01T11:00:00+00:00");
         assert_eq!(serde_json::to_value(&rule).unwrap(), json);
+    }
+
+    fn daily_json(time: Option<&str>) -> serde_json::Value {
+        let mut json = serde_json::json!({
+            "frequency": "daily",
+            "interval": 1,
+            "weekdays": [],
+            "month_day": null,
+            "timezone": "America/Sao_Paulo",
+            "starts_on": "2026-11-01",
+            "ends_on": null
+        });
+        if let Some(time) = time {
+            json["time"] = serde_json::json!(time);
+        }
+        json
+    }
+
+    #[test]
+    fn task_rule_without_time_round_trips_without_time() {
+        let json = daily_json(None);
+
+        let rule: TaskRecurrenceRule = serde_json::from_value(json.clone()).unwrap();
+
+        assert_eq!(rule.time, None);
+        assert_eq!(serde_json::to_value(&rule).unwrap(), json);
+    }
+
+    #[test]
+    fn task_rule_with_time_keeps_time() {
+        let json = daily_json(Some("08:00"));
+
+        let rule: TaskRecurrenceRule = serde_json::from_value(json.clone()).unwrap();
+
+        assert_eq!(rule.time, NaiveTime::from_hms_opt(8, 0, 0));
+        assert_eq!(serde_json::to_value(&rule).unwrap(), json);
+    }
+
+    #[test]
+    fn recurrence_rule_still_requires_time() {
+        let result = serde_json::from_value::<RecurrenceRule>(daily_json(None));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn all_day_task_rule_falls_on_local_date_on_dst_start() {
+        // O horário de verão de 2018 começou à meia-noite de 04/11 em São Paulo.
+        let task_rule: TaskRecurrenceRule = serde_json::from_value(serde_json::json!({
+            "frequency": "daily",
+            "interval": 1,
+            "timezone": "America/Sao_Paulo",
+            "starts_on": "2018-11-03"
+        }))
+        .unwrap();
+        let tz: Tz = "America/Sao_Paulo".parse().unwrap();
+
+        let got = task_rule
+            .to_rule()
+            .occurrences_between(utc("2018-11-03T00:00:00Z"), utc("2018-11-07T00:00:00Z"));
+
+        let local: Vec<NaiveDate> = got
+            .iter()
+            .map(|instant| instant.with_timezone(&tz).date_naive())
+            .collect();
+        assert_eq!(
+            local,
+            [
+                date("2018-11-03"),
+                date("2018-11-04"),
+                date("2018-11-05"),
+                date("2018-11-06")
+            ]
+        );
     }
 }

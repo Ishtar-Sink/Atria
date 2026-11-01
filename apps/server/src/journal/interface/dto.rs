@@ -7,7 +7,7 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::journal::application::ports::{EntryEmotionView, JournalEntryView};
-use crate::journal::domain::emotion::{Emotion, SystemEmotion};
+use crate::journal::domain::emotion::{Emotion, EmotionIcon, SystemEmotion};
 use crate::shared::visibility::Visibility;
 
 /// Chave de uma emoção padrão; o nome exibido vem da tradução do frontend
@@ -147,18 +147,79 @@ pub struct JournalEntryPage {
     pub next_cursor: Option<String>,
 }
 
+/// Ícone de uma emoção, de um conjunto fixo (RF-19); uma chave fora dele falha na
+/// leitura do corpo e vira 422 `validation_failed`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EmotionIconKey {
+    Sun,
+    Rain,
+    Flame,
+    Bolt,
+    Wind,
+    Leaf,
+    Heart,
+    Star,
+    Moon,
+    Cloud,
+    Sparkles,
+    Smile,
+}
+
+impl From<EmotionIcon> for EmotionIconKey {
+    fn from(icon: EmotionIcon) -> Self {
+        match icon {
+            EmotionIcon::Sun => Self::Sun,
+            EmotionIcon::Rain => Self::Rain,
+            EmotionIcon::Flame => Self::Flame,
+            EmotionIcon::Bolt => Self::Bolt,
+            EmotionIcon::Wind => Self::Wind,
+            EmotionIcon::Leaf => Self::Leaf,
+            EmotionIcon::Heart => Self::Heart,
+            EmotionIcon::Star => Self::Star,
+            EmotionIcon::Moon => Self::Moon,
+            EmotionIcon::Cloud => Self::Cloud,
+            EmotionIcon::Sparkles => Self::Sparkles,
+            EmotionIcon::Smile => Self::Smile,
+        }
+    }
+}
+
+impl From<EmotionIconKey> for EmotionIcon {
+    fn from(key: EmotionIconKey) -> Self {
+        match key {
+            EmotionIconKey::Sun => Self::Sun,
+            EmotionIconKey::Rain => Self::Rain,
+            EmotionIconKey::Flame => Self::Flame,
+            EmotionIconKey::Bolt => Self::Bolt,
+            EmotionIconKey::Wind => Self::Wind,
+            EmotionIconKey::Leaf => Self::Leaf,
+            EmotionIconKey::Heart => Self::Heart,
+            EmotionIconKey::Star => Self::Star,
+            EmotionIconKey::Moon => Self::Moon,
+            EmotionIconKey::Cloud => Self::Cloud,
+            EmotionIconKey::Sparkles => Self::Sparkles,
+            EmotionIconKey::Smile => Self::Smile,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateEmotionRequest {
     /// De 1 a 50 caracteres depois de aparado, sem repetir outro nome da lista.
     pub name: String,
+    /// Ícone do conjunto fixo; ausente, a tela mostra o ícone neutro.
+    pub icon: Option<EmotionIconKey>,
     pub visibility: Option<Visibility>,
 }
 
+/// Edição parcial: o campo ausente fica como está.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateEmotionRequest {
-    pub name: String,
+    pub name: Option<String>,
+    pub icon: Option<EmotionIconKey>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -171,6 +232,8 @@ pub struct EmotionResponse {
     pub system_key: Option<SystemEmotionKey>,
     /// Nulo numa emoção padrão não renomeada: o frontend traduz pela `system_key`.
     pub name: Option<String>,
+    /// Nulo: a tela usa o ícone pela `system_key` ou o neutro (CB-09).
+    pub icon: Option<EmotionIconKey>,
 }
 
 impl From<Emotion> for EmotionResponse {
@@ -183,6 +246,7 @@ impl From<Emotion> for EmotionResponse {
             updated_at: emotion.updated_at,
             system_key: emotion.system_key.map(SystemEmotionKey::from),
             name: emotion.name,
+            icon: emotion.icon.map(EmotionIconKey::from),
         }
     }
 }

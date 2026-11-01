@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use crate::finance::application::Env;
 use crate::finance::application::ports::{CategoryRepository, Outcome};
-use crate::finance::domain::category::{Category, CategoryColor, validate_name};
+use crate::finance::domain::category::{
+    Category, CategoryColor, default_categories, validate_name,
+};
 use crate::finance::domain::transaction::TransactionKind;
 use crate::shared::visibility::Visibility;
 
@@ -24,17 +26,35 @@ pub struct CategoryPatch {
     pub visibility: Option<Visibility>,
 }
 
+/// Lista as categorias do dono; na primeira vez, semeia as padrão (RF-11).
 pub async fn list<R: CategoryRepository>(
     repo: &R,
+    env: Env<'_>,
     owner_id: Uuid,
     kind: Option<TransactionKind>,
     after: Option<Uuid>,
     limit: u32,
 ) -> Outcome<Vec<Category>> {
+    seed_defaults_once(repo, env, owner_id).await?;
     repo.list(owner_id, kind, after, limit).await
 }
 
-/// Todas as categorias do dono, página a página.
+/// Só quem nunca teve categoria recebe as padrão: excluir todas, ou já ter uma
+/// própria, não as traz de volta (RN-01).
+async fn seed_defaults_once<R: CategoryRepository>(
+    repo: &R,
+    env: Env<'_>,
+    owner_id: Uuid,
+) -> Outcome<()> {
+    if repo.count_all_including_deleted(owner_id).await? > 0 {
+        return Ok(());
+    }
+    let defaults = default_categories(owner_id, env.clock.now(), || env.ids.new_id());
+    repo.insert_defaults(owner_id, &defaults).await
+}
+
+/// Todas as categorias do dono, página a página, sem semear: é usada pelo resumo,
+/// pelos relatórios e pela busca.
 pub async fn list_all<R: CategoryRepository>(repo: &R, owner_id: Uuid) -> Outcome<Vec<Category>> {
     let mut all: Vec<Category> = Vec::new();
     loop {
@@ -62,6 +82,7 @@ pub async fn create<R: CategoryRepository>(
         name: validate_name(&input.name)?,
         kind: input.kind,
         color: input.color,
+        system_key: None,
         created_at: now,
         updated_at: now,
     };
@@ -79,6 +100,8 @@ pub async fn update<R: CategoryRepository>(
     let mut category = repo.get(owner_id, id).await?;
     if let Some(name) = patch.name.as_deref() {
         category.name = validate_name(name)?;
+        // A padrão renomeada passa a mostrar o nome da pessoa, não a tradução.
+        category.system_key = None;
     }
     if let Some(color) = patch.color {
         category.color = color;

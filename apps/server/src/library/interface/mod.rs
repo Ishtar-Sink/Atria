@@ -23,7 +23,8 @@ use uuid::Uuid;
 
 use self::dto::{
     CreateHighlightRequest, CreateItemNoteRequest, HighlightList, HighlightResponse, ItemNoteList,
-    ItemNoteResponse, ReadingPositionRequest, ReadingPositionResponse, UpdateItemNoteRequest,
+    ItemNoteResponse, ReadingPositionRequest, ReadingPositionResponse, UpdateHighlightRequest,
+    UpdateItemNoteRequest,
 };
 use super::application::articles::ArticleService;
 use super::application::books::BookService;
@@ -62,6 +63,7 @@ impl From<LibraryError> for ApiError {
             LibraryError::CoverNotFound => Self::not_found("cover_not_found"),
             LibraryError::ReadingSessionNotFound => Self::not_found("reading_session_not_found"),
             LibraryError::ItemNoteNotFound => Self::not_found("item_note_not_found"),
+            LibraryError::HighlightNotFound => Self::not_found("highlight_not_found"),
             LibraryError::PdfRequired => Self::unprocessable(
                 "pdf_required",
                 vec![FieldError::new("file_id", "pdf_required")],
@@ -115,6 +117,53 @@ pub(crate) fn file_response(
         ),
     ];
     Ok((StatusCode::OK, headers, bytes).into_response())
+}
+
+/// Resposta de um arquivo enviado: os cabeçalhos de `file_response`, com cache privado
+/// porque o conteúdo de um id nunca muda (um envio novo gera outro id), `ETag` pelo
+/// hash e, num trecho, 206 com `Content-Range` (RF-27).
+pub(crate) fn stored_file_response(
+    file: &LibraryFile,
+    bytes: Bytes,
+    download: bool,
+    part: Option<(u64, u64)>,
+) -> Result<Response, ApiError> {
+    let mut response = file_response(file, bytes, download)?;
+    let etag =
+        HeaderValue::from_str(&format!("\"{}\"", file.sha256)).map_err(|_| ApiError::internal())?;
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=3600"),
+    );
+    headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    headers.insert(header::ETAG, etag);
+    let Some((start, end)) = part else {
+        return Ok(response);
+    };
+    let content_range = HeaderValue::from_str(&format!("bytes {start}-{end}/{}", file.size_bytes))
+        .map_err(|_| ApiError::internal())?;
+    response
+        .headers_mut()
+        .insert(header::CONTENT_RANGE, content_range);
+    *response.status_mut() = StatusCode::PARTIAL_CONTENT;
+    Ok(response)
+}
+
+/// 416 com o tamanho em `Content-Range`, para o cliente refazer o pedido (CB-10).
+pub(crate) fn range_not_satisfiable(size: u64) -> Response {
+    let mut response = ApiError::new(
+        StatusCode::RANGE_NOT_SATISFIABLE,
+        "range_not_satisfiable",
+        "Range Not Satisfiable",
+    )
+    .into_response();
+    let headers = response.headers_mut();
+    if let Ok(content_range) = HeaderValue::from_str(&format!("bytes */{size}")) {
+        headers.insert(header::CONTENT_RANGE, content_range);
+    }
+    headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    response
 }
 
 /// Corpo JSON cuja falha de leitura vira `problem+json` com código estável.
@@ -330,6 +379,10 @@ pub fn router() -> Router<AppState> {
             get(books::list_book_highlights).post(books::create_book_highlight),
         )
         .route(
+            "/books/{id}/highlights/{highlight_id}",
+            patch(books::update_book_highlight).delete(books::delete_book_highlight),
+        )
+        .route(
             "/articles",
             get(articles::list_articles).post(articles::create_article),
         )
@@ -365,6 +418,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/articles/{id}/highlights",
             get(articles::list_article_highlights).post(articles::create_article_highlight),
+        )
+        .route(
+            "/articles/{id}/highlights/{highlight_id}",
+            patch(articles::update_article_highlight).delete(articles::delete_article_highlight),
         )
         .route(
             "/videos",
@@ -497,4 +554,29 @@ pub(crate) async fn create_highlight_of(
         .create_highlight(owner_id, item, input)
         .await?;
     Ok((StatusCode::CREATED, Json(view.into())))
+}
+
+pub(crate) async fn update_highlight_of(
+    state: &AppState,
+    owner_id: Uuid,
+    item: ItemRef,
+    highlight_id: Uuid,
+    body: UpdateHighlightRequest,
+) -> Result<Json<HighlightResponse>, ApiError> {
+    let view = item_ops(state)
+        .update_highlight(owner_id, item, highlight_id, body.color)
+        .await?;
+    Ok(Json(view.into()))
+}
+
+pub(crate) async fn delete_highlight_of(
+    state: &AppState,
+    owner_id: Uuid,
+    item: ItemRef,
+    highlight_id: Uuid,
+) -> Result<StatusCode, ApiError> {
+    item_ops(state)
+        .delete_highlight(owner_id, item, highlight_id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }

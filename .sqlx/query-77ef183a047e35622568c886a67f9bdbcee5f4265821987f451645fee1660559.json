@@ -1,12 +1,13 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO emotions (id, owner_id, visibility, system_key, name, created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+  "query": "INSERT INTO emotions (id, owner_id, visibility, system_key, name, icon, created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING",
   "describe": {
     "columns": [],
     "parameters": {
       "Left": [
         "Uuid",
         "Uuid",
+        "Text",
         "Text",
         "Text",
         "Text",
@@ -17,5 +18,5 @@
     },
     "nullable": []
   },
-  "hash": "ffc0c2667a58782df3652277b62ae65f31071e21e004023c3061b0955df087ee"
+  "hash": "77ef183a047e35622568c886a67f9bdbcee5f4265821987f451645fee1660559"
 }

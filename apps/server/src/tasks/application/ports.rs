@@ -6,7 +6,7 @@ use std::future::Future;
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
-use crate::shared::recurrence::RecurrenceRule;
+use crate::shared::recurrence::TaskRecurrenceRule;
 use crate::tasks::domain::{CompletionLog, Schedule, Task, TasksError};
 
 /// Gancho chamado depois do commit de uma exclusão, com `(owner_id, entity_type,
@@ -92,7 +92,7 @@ pub trait TasksTransaction: Send {
     fn current_rules(
         &mut self,
         task_ids: &[Uuid],
-    ) -> impl Future<Output = Result<HashMap<Uuid, RecurrenceRule>, TasksError>> + Send;
+    ) -> impl Future<Output = Result<HashMap<Uuid, TaskRecurrenceRule>, TasksError>> + Send;
 
     fn load_schedule(
         &mut self,

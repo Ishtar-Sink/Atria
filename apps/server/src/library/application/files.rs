@@ -80,4 +80,26 @@ impl<F: FileStore> FileService<F> {
             .await?
             .ok_or(LibraryError::FileNotFound)
     }
+
+    /// Metadados sem ler o conteúdo; 404 para inexistente, excluído ou de outra
+    /// pessoa (RN-03), antes de qualquer leitura do storage.
+    pub async fn describe(&self, owner_id: Uuid, id: Uuid) -> Result<LibraryFile, LibraryError> {
+        self.store
+            .find(owner_id, id)
+            .await?
+            .ok_or(LibraryError::FileNotFound)
+    }
+
+    /// Um trecho de um arquivo já conferido por `describe` (RF-27).
+    pub async fn read_range(
+        &self,
+        file: &LibraryFile,
+        start: u64,
+        len: u64,
+    ) -> Result<Bytes, LibraryError> {
+        self.store
+            .load_range(file, start, len)
+            .await?
+            .ok_or(LibraryError::FileNotFound)
+    }
 }

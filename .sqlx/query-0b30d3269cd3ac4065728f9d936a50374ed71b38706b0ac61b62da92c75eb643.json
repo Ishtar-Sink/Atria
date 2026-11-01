@@ -1,0 +1,79 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, book_id, article_id, file_id, page, color, text, rects AS \"rects: _\", created_at AS \"created_at: _\" FROM highlights WHERE owner_id = $1 AND book_id IS NOT DISTINCT FROM $2 AND article_id IS NOT DISTINCT FROM $3 AND id = $4 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "book_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "article_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "file_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "rects: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0b30d3269cd3ac4065728f9d936a50374ed71b38706b0ac61b62da92c75eb643"
+}

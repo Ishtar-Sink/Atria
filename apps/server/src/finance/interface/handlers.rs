@@ -409,9 +409,16 @@ pub async fn list_categories(
     let limit = page_limit(&page);
     let repo = PgCategories::new(state.pool.clone());
     let kind = query.kind.map(Into::into);
-    let items = categories::list(&repo, user.user_id, kind, page_after(&page)?, limit + 1)
-        .await
-        .map_err(api_error)?;
+    let items = categories::list(
+        &repo,
+        env(&state),
+        user.user_id,
+        kind,
+        page_after(&page)?,
+        limit + 1,
+    )
+    .await
+    .map_err(api_error)?;
     let (items, next_cursor) = paginate(items, limit, |c| id_cursor(c.id));
     Ok(Json(CategoryPage {
         items: items.into_iter().map(Into::into).collect(),

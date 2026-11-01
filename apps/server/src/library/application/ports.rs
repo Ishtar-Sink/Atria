@@ -205,6 +205,29 @@ pub trait ItemRepository: Send + Sync {
         item: ItemRef,
     ) -> impl Future<Output = Result<Vec<Highlight>, LibraryError>> + Send;
 
+    /// Só o destaque vivo do item.
+    fn find_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<Highlight>, LibraryError>> + Send;
+
+    fn update_highlight_color(
+        &self,
+        highlight: &Highlight,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<bool, LibraryError>> + Send;
+
+    /// Marca `deleted_at`; `false` se o destaque não existe ou já foi excluído.
+    fn soft_delete_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Result<bool, LibraryError>> + Send;
+
     /// `Some(página)` ou `Some(None)` sem posição gravada; `None` se o item não existe.
     fn get_position(
         &self,
@@ -244,6 +267,21 @@ pub trait FileStore: Send + Sync {
         owner_id: Uuid,
         id: Uuid,
     ) -> impl Future<Output = Result<Option<(LibraryFile, Bytes)>, LibraryError>> + Send;
+
+    /// Só os metadados, se o arquivo for do dono e não estiver excluído.
+    fn find(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<LibraryFile>, LibraryError>> + Send;
+
+    /// Um trecho do conteúdo; `None` se o conteúdo sumiu do storage.
+    fn load_range(
+        &self,
+        file: &LibraryFile,
+        start: u64,
+        len: u64,
+    ) -> impl Future<Output = Result<Option<Bytes>, LibraryError>> + Send;
 
     /// Marca `deleted_at` e remove o conteúdo do storage.
     fn discard(

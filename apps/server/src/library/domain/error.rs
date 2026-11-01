@@ -18,6 +18,8 @@ pub enum LibraryError {
     ReadingSessionNotFound,
     #[error("nota do item não encontrada")]
     ItemNoteNotFound,
+    #[error("destaque não encontrado")]
+    HighlightNotFound,
     #[error("o item não tem capa")]
     CoverNotFound,
     #[error("o item não tem PDF anexado")]

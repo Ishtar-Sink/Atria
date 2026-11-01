@@ -5,7 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::ports::EmotionRepository;
-use crate::journal::domain::emotion::Emotion;
+use crate::journal::domain::emotion::{Emotion, EmotionIcon};
 use crate::journal::domain::error::JournalError;
 use crate::shared::clock::Clock;
 use crate::shared::ids::IdGenerator;
@@ -50,6 +50,7 @@ impl<M: EmotionRepository> EmotionService<M> {
         &self,
         owner_id: Uuid,
         name: &str,
+        icon: Option<EmotionIcon>,
         visibility: Visibility,
     ) -> Result<Emotion, JournalError> {
         // Criar a primeira emoção antes de abrir a lista não deixa a pessoa sem as padrão.
@@ -59,20 +60,33 @@ impl<M: EmotionRepository> EmotionService<M> {
             owner_id,
             visibility,
             name,
+            icon,
             self.clock.now(),
         )?;
         self.repository.insert(&emotion).await?;
         Ok(emotion)
     }
 
-    pub async fn rename(
+    /// Edição parcial: o nome e o ícone ausentes ficam como estão; sem nenhum dos
+    /// dois, nada é gravado.
+    pub async fn update(
         &self,
         owner_id: Uuid,
         id: Uuid,
-        name: &str,
+        name: Option<&str>,
+        icon: Option<EmotionIcon>,
     ) -> Result<Emotion, JournalError> {
         let mut emotion = self.get(owner_id, id).await?;
-        emotion.rename(name, self.clock.now())?;
+        if name.is_none() && icon.is_none() {
+            return Ok(emotion);
+        }
+        let now = self.clock.now();
+        if let Some(name) = name {
+            emotion.rename(name, now)?;
+        }
+        if let Some(icon) = icon {
+            emotion.set_icon(icon, now)?;
+        }
         self.repository.update(&emotion).await?;
         Ok(emotion)
     }

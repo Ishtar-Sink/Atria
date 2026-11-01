@@ -51,6 +51,62 @@ impl SystemEmotion {
     }
 }
 
+/// Conjunto fixo de ícones, o mesmo da tela de Emoções (TASK-20). A emoção padrão
+/// sem ícone escolhido tem o ícone decidido pela tela a partir da `system_key`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EmotionIcon {
+    Sun,
+    Rain,
+    Flame,
+    Bolt,
+    Wind,
+    Leaf,
+    Heart,
+    Star,
+    Moon,
+    Cloud,
+    Sparkles,
+    Smile,
+}
+
+impl EmotionIcon {
+    pub const ALL: [Self; 12] = [
+        Self::Sun,
+        Self::Rain,
+        Self::Flame,
+        Self::Bolt,
+        Self::Wind,
+        Self::Leaf,
+        Self::Heart,
+        Self::Star,
+        Self::Moon,
+        Self::Cloud,
+        Self::Sparkles,
+        Self::Smile,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Sun => "sun",
+            Self::Rain => "rain",
+            Self::Flame => "flame",
+            Self::Bolt => "bolt",
+            Self::Wind => "wind",
+            Self::Leaf => "leaf",
+            Self::Heart => "heart",
+            Self::Star => "star",
+            Self::Moon => "moon",
+            Self::Cloud => "cloud",
+            Self::Sparkles => "sparkles",
+            Self::Smile => "smile",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|icon| icon.key() == key)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Emotion {
     pub id: Uuid,
@@ -58,6 +114,8 @@ pub struct Emotion {
     pub visibility: Visibility,
     pub system_key: Option<SystemEmotion>,
     pub name: Option<String>,
+    /// Nulo: a tela usa o ícone pela `system_key` ou o neutro (CB-09).
+    pub icon: Option<EmotionIcon>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -80,6 +138,7 @@ impl Emotion {
         owner_id: Uuid,
         visibility: Visibility,
         name: &str,
+        icon: Option<EmotionIcon>,
         now: DateTime<Utc>,
     ) -> Result<Self, JournalError> {
         Ok(Self {
@@ -88,6 +147,7 @@ impl Emotion {
             visibility,
             system_key: None,
             name: Some(validate_name(name)?),
+            icon,
             created_at: now,
             updated_at: now,
             deleted_at: None,
@@ -101,6 +161,7 @@ impl Emotion {
             visibility: Visibility::Personal,
             system_key: Some(key),
             name: None,
+            icon: None,
             created_at: now,
             updated_at: now,
             deleted_at: None,
@@ -130,6 +191,16 @@ impl Emotion {
             return Err(JournalError::EmotionNotFound);
         }
         self.name = Some(validate_name(name)?);
+        self.updated_at = now;
+        Ok(())
+    }
+
+    /// Trocar o ícone não mexe no nome nem na chave.
+    pub fn set_icon(&mut self, icon: EmotionIcon, now: DateTime<Utc>) -> Result<(), JournalError> {
+        if self.is_deleted() {
+            return Err(JournalError::EmotionNotFound);
+        }
+        self.icon = Some(icon);
         self.updated_at = now;
         Ok(())
     }
@@ -166,6 +237,7 @@ mod tests {
                 owner(),
                 Visibility::Personal,
                 name,
+                None,
                 now,
             )
         };
@@ -257,5 +329,42 @@ mod tests {
             emotion.rename("Medo", now),
             Err(JournalError::EmotionNotFound)
         ));
+    }
+
+    #[test]
+    fn emotion_icon_keys_round_trip() {
+        for icon in EmotionIcon::ALL {
+            assert_eq!(EmotionIcon::from_key(icon.key()), Some(icon));
+        }
+        assert_eq!(EmotionIcon::from_key("rocket"), None);
+    }
+
+    #[test]
+    fn set_icon_keeps_name_and_system_key() {
+        let created = instant("2026-11-01T12:00:00Z");
+        let later = instant("2026-11-02T09:00:00Z");
+        let mut emotion =
+            Emotion::system(Uuid::from_u128(10), owner(), SystemEmotion::Joy, created);
+        emotion.rename("Alegria plena", created).unwrap();
+
+        emotion.set_icon(EmotionIcon::Sun, later).unwrap();
+
+        assert_eq!(emotion.icon, Some(EmotionIcon::Sun));
+        assert_eq!(emotion.name.as_deref(), Some("Alegria plena"));
+        assert_eq!(emotion.system_key, Some(SystemEmotion::Joy));
+        assert_eq!(emotion.updated_at, later);
+    }
+
+    #[test]
+    fn deleted_emotion_icon_cannot_change() {
+        let now = instant("2026-11-01T12:00:00Z");
+        let mut emotion = Emotion::system(Uuid::from_u128(10), owner(), SystemEmotion::Fear, now);
+        emotion.delete(now).unwrap();
+
+        assert!(matches!(
+            emotion.set_icon(EmotionIcon::Moon, now),
+            Err(JournalError::EmotionNotFound)
+        ));
+        assert_eq!(emotion.icon, None);
     }
 }

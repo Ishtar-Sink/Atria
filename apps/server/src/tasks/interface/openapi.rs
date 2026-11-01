@@ -3,7 +3,7 @@
 use utoipa::OpenApi;
 
 use crate::shared::error::{FieldError, ProblemDetails};
-use crate::shared::recurrence::{Frequency, RecurrenceRule, Weekday};
+use crate::shared::recurrence::{Frequency, TaskRecurrenceRule, Weekday};
 use crate::shared::visibility::Visibility;
 use crate::tasks::interface::dto::{
     CompletionRequest, CompletionResponse, CreateTaskRequest, OccurrenceListResponse,
@@ -33,7 +33,7 @@ use crate::tasks::interface::handlers;
         TaskStatusParam,
         OccurrenceResponse,
         OccurrenceListResponse,
-        RecurrenceRule,
+        TaskRecurrenceRule,
         Frequency,
         Weekday,
         Visibility,
@@ -77,7 +77,7 @@ mod tests {
         }
         assert_eq!(doc.paths.paths.len(), expected.len());
         let schemas = &doc.components.as_ref().unwrap().schemas;
-        for schema in ["TaskResponse", "RecurrenceRule", "ProblemDetails"] {
+        for schema in ["TaskResponse", "TaskRecurrenceRule", "ProblemDetails"] {
             assert!(schemas.contains_key(schema), "{schema}");
         }
     }
@@ -112,5 +112,28 @@ mod tests {
             .map(|p| p["name"].as_str().unwrap())
             .collect();
         assert!(params.contains(&"label"), "{params:?}");
+    }
+
+    #[test]
+    fn documents_optional_time_and_next_occurrence() {
+        let json = serde_json::to_value(TasksApi::openapi()).unwrap();
+        let schemas = &json["components"]["schemas"];
+
+        let rule_required = schemas["TaskRecurrenceRule"]["required"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(!rule_required.iter().any(|name| name == "time"));
+        assert!(schemas["TaskRecurrenceRule"]["properties"]["time"].is_object());
+        assert!(schemas["TaskResponse"]["properties"]["next_occurrence"].is_object());
+        let response_required = schemas["TaskResponse"]["required"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            !response_required
+                .iter()
+                .any(|name| name == "next_occurrence")
+        );
     }
 }

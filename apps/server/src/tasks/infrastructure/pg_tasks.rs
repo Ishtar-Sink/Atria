@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::shared::db::begin_for_user;
 use crate::shared::ids::IdGenerator;
-use crate::shared::recurrence::RecurrenceRule;
+use crate::shared::recurrence::TaskRecurrenceRule;
 use crate::shared::visibility::Visibility;
 use crate::tasks::application::ports::{
     DatedTask, TaskFilter, TaskStatus, TasksRepository, TasksTransaction,
@@ -86,7 +86,7 @@ impl From<TaskRow> for Task {
 
 struct SegmentRow {
     task_id: Uuid,
-    rule: Json<RecurrenceRule>,
+    rule: Json<TaskRecurrenceRule>,
     effective_from: NaiveDate,
     effective_until: Option<NaiveDate>,
 }
@@ -196,7 +196,7 @@ impl TasksTransaction for PgTasksTx<'_> {
     async fn current_rules(
         &mut self,
         task_ids: &[Uuid],
-    ) -> Result<HashMap<Uuid, RecurrenceRule>, TasksError> {
+    ) -> Result<HashMap<Uuid, TaskRecurrenceRule>, TasksError> {
         if task_ids.is_empty() {
             return Ok(HashMap::new());
         }

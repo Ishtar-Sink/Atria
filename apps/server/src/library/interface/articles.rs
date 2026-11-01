@@ -8,12 +8,14 @@ use axum::{Extension, Json};
 use super::dto::{
     ArticleListQuery, ArticlePage, ArticleResponse, CreateArticleRequest, CreateHighlightRequest,
     CreateItemNoteRequest, HighlightList, HighlightResponse, ItemNoteList, ItemNoteResponse,
-    ReadingPositionRequest, ReadingPositionResponse, UpdateArticleRequest, UpdateItemNoteRequest,
+    ReadingPositionRequest, ReadingPositionResponse, UpdateArticleRequest, UpdateHighlightRequest,
+    UpdateItemNoteRequest,
 };
 use super::{
     Upload, ValidJson, ValidQuery, article_service, child_extractor, create_highlight_of,
-    create_note_of, delete_note_of, file_response, get_position_of, id_extractor,
-    list_highlights_of, list_notes_of, list_query, put_position_of, update_note_of,
+    create_note_of, delete_highlight_of, delete_note_of, file_response, get_position_of,
+    id_extractor, list_highlights_of, list_notes_of, list_query, put_position_of,
+    update_highlight_of, update_note_of,
 };
 use crate::http::AppState;
 use crate::http::session::CurrentUser;
@@ -378,4 +380,52 @@ pub async fn create_article_highlight(
     ValidJson(body): ValidJson<CreateHighlightRequest>,
 ) -> Result<(StatusCode, Json<HighlightResponse>), ApiError> {
     create_highlight_of(&state, user.user_id, ItemRef::Article(id), body).await
+}
+
+#[utoipa::path(
+    patch, path = "/api/v1/articles/{id}/highlights/{highlight_id}", tag = "library",
+    request_body = UpdateHighlightRequest,
+    params(
+        ("id" = Uuid, Path, description = "Id do artigo"),
+        ("highlight_id" = Uuid, Path, description = "Id do destaque"),
+    ),
+    responses(
+        (status = 200, body = HighlightResponse, description = "Troca a cor do destaque"),
+        (status = 404, body = ProblemDetails, description = "article_not_found ou highlight_not_found"),
+        (status = 422, body = ProblemDetails, description = "validation_failed"),
+    )
+)]
+pub async fn update_article_highlight(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    ArticleChild(id, highlight_id): ArticleChild,
+    ValidJson(body): ValidJson<UpdateHighlightRequest>,
+) -> Result<Json<HighlightResponse>, ApiError> {
+    update_highlight_of(
+        &state,
+        user.user_id,
+        ItemRef::Article(id),
+        highlight_id,
+        body,
+    )
+    .await
+}
+
+#[utoipa::path(
+    delete, path = "/api/v1/articles/{id}/highlights/{highlight_id}", tag = "library",
+    params(
+        ("id" = Uuid, Path, description = "Id do artigo"),
+        ("highlight_id" = Uuid, Path, description = "Id do destaque"),
+    ),
+    responses(
+        (status = 204, description = "Destaque excluído do leitor e das listas"),
+        (status = 404, body = ProblemDetails, description = "article_not_found ou highlight_not_found"),
+    )
+)]
+pub async fn delete_article_highlight(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    ArticleChild(id, highlight_id): ArticleChild,
+) -> Result<StatusCode, ApiError> {
+    delete_highlight_of(&state, user.user_id, ItemRef::Article(id), highlight_id).await
 }

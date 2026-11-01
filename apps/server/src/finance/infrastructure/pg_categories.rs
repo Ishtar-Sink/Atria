@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::finance::application::ports::{CategoryRepository, Outcome};
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::category::{
-    Category, CategoryColor, ensure_same_kind, replacement_for_deletion,
+    Category, CategoryColor, SystemCategory, ensure_same_kind, replacement_for_deletion,
 };
 use crate::finance::domain::transaction::TransactionKind;
 use crate::finance::infrastructure::{Tx, begin, commit, corrupt, is_unique_violation, storage};
@@ -32,6 +32,7 @@ struct CategoryRow {
     name: String,
     kind: String,
     color: String,
+    system_key: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -45,6 +46,10 @@ impl CategoryRow {
             name: self.name,
             kind: TransactionKind::parse(&self.kind).ok_or_else(|| corrupt("kind"))?,
             color: CategoryColor::parse(&self.color).ok_or_else(|| corrupt("color"))?,
+            system_key: self
+                .system_key
+                .map(|key| SystemCategory::from_key(&key).ok_or_else(|| corrupt("system_key")))
+                .transpose()?,
             created_at: self.created_at,
             updated_at: self.updated_at,
         })
@@ -99,7 +104,7 @@ impl CategoryRepository for PgCategories {
         limit: u32,
     ) -> Outcome<Vec<Category>> {
         let mut tx = begin(&self.pool, owner_id).await?;
-        let rows: Vec<CategoryRow> = sqlx::query_as!(CategoryRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE owner_id = $1 AND deleted_at IS NULL \
+        let rows: Vec<CategoryRow> = sqlx::query_as!(CategoryRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, system_key, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE owner_id = $1 AND deleted_at IS NULL \
              AND ($2::text IS NULL OR kind = $2) \
              AND ($3::uuid IS NULL OR id > $3) ORDER BY id LIMIT $4", owner_id, kind.map(TransactionKind::as_str), after, i64::from(limit))
         .fetch_all(&mut *tx)
@@ -111,7 +116,7 @@ impl CategoryRepository for PgCategories {
 
     async fn get(&self, owner_id: Uuid, id: Uuid) -> Outcome<Category> {
         let mut tx = begin(&self.pool, owner_id).await?;
-        let row: Option<CategoryRow> = sqlx::query_as!(CategoryRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
+        let row: Option<CategoryRow> = sqlx::query_as!(CategoryRow, "SELECT id, owner_id, visibility AS \"visibility: _\", name, kind, color, system_key, created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM categories WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(storage)?;
@@ -142,20 +147,60 @@ impl CategoryRepository for PgCategories {
     async fn update(&self, category: &Category) -> Outcome<()> {
         let mut tx = begin(&self.pool, category.owner_id).await?;
         let result = sqlx::query!(
-            "UPDATE categories SET name = $1, color = $2, visibility = $3, updated_at = $4 \
-             WHERE id = $5 AND owner_id = $6 AND deleted_at IS NULL",
+            "UPDATE categories SET name = $1, color = $2, visibility = $3, updated_at = $4, \
+             system_key = $7 WHERE id = $5 AND owner_id = $6 AND deleted_at IS NULL",
             &category.name,
             category.color.as_str(),
             category.visibility as _,
             category.updated_at as _,
             category.id,
-            category.owner_id
+            category.owner_id,
+            category.system_key.map(SystemCategory::key)
         )
         .execute(&mut *tx)
         .await
         .map_err(name_error)?;
         if result.rows_affected() == 0 {
             return Err(FinanceError::NotFound);
+        }
+        commit(tx).await
+    }
+
+    async fn count_all_including_deleted(&self, owner_id: Uuid) -> Outcome<i64> {
+        let mut tx = begin(&self.pool, owner_id).await?;
+        let count = sqlx::query_scalar!(
+            "SELECT count(*) AS \"count!\" FROM categories WHERE owner_id = $1",
+            owner_id
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(storage)?;
+        commit(tx).await?;
+        Ok(count)
+    }
+
+    async fn insert_defaults(&self, owner_id: Uuid, categories: &[Category]) -> Outcome<()> {
+        let mut tx = begin(&self.pool, owner_id).await?;
+        for category in categories {
+            // Duas listagens simultâneas da mesma pessoa batem no índice único de nome
+            // por tipo; a segunda só ignora as que a primeira já gravou.
+            sqlx::query!(
+                "INSERT INTO categories (id, owner_id, visibility, name, kind, color, system_key, \
+                 created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+                 ON CONFLICT DO NOTHING",
+                category.id,
+                owner_id,
+                category.visibility as _,
+                &category.name,
+                category.kind.as_str(),
+                category.color.as_str(),
+                category.system_key.map(SystemCategory::key),
+                category.created_at as _,
+                category.updated_at as _
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(storage)?;
         }
         commit(tx).await
     }

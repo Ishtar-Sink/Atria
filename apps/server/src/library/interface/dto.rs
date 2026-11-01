@@ -454,6 +454,13 @@ pub struct CreateHighlightRequest {
     pub rects: Vec<HighlightRect>,
 }
 
+/// Só a cor muda; texto, página e retângulos ficam.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateHighlightRequest {
+    pub color: HighlightColor,
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct HighlightResponse {
     pub id: Uuid,

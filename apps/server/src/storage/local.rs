@@ -1,11 +1,11 @@
 //! Armazenamento em disco local, em `ATRIA_STORAGE_PATH` ([project/stack-11]).
 
-use std::io::ErrorKind;
+use std::io::{ErrorKind, SeekFrom};
 use std::path::PathBuf;
 
 use axum::body::Bytes;
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use super::{FileStorage, StorageError, StorageFuture, StorageKey, StoredFile};
@@ -55,6 +55,18 @@ async fn write_atomically(path: PathBuf, bytes: Bytes) -> Result<StoredFile, Sto
     })
 }
 
+/// Teto da reserva inicial do buffer: um `len` enorme não aloca antes de ler.
+const RANGE_BUFFER_CAP: usize = 1024 * 1024;
+
+async fn read_range(path: PathBuf, start: u64, len: u64) -> Result<Bytes, StorageError> {
+    let mut file = tokio::fs::File::open(path).await.map_err(not_found_as)?;
+    file.seek(SeekFrom::Start(start)).await?;
+    let capacity = usize::try_from(len).map_or(RANGE_BUFFER_CAP, |len| len.min(RANGE_BUFFER_CAP));
+    let mut buffer = Vec::with_capacity(capacity);
+    file.take(len).read_to_end(&mut buffer).await?;
+    Ok(Bytes::from(buffer))
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -71,6 +83,15 @@ impl FileStorage for LocalFileStorage {
                 .map_err(not_found_as)?;
             Ok(Bytes::from(bytes))
         })
+    }
+
+    fn get_range<'a>(
+        &'a self,
+        key: &'a StorageKey,
+        start: u64,
+        len: u64,
+    ) -> StorageFuture<'a, Bytes> {
+        Box::pin(read_range(self.path(key), start, len))
     }
 
     fn delete<'a>(&'a self, key: &'a StorageKey) -> StorageFuture<'a, ()> {

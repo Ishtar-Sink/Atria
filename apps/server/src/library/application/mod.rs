@@ -18,7 +18,7 @@ use uuid::Uuid;
 use self::ports::{ItemRepository, ListFilter};
 use super::domain::ItemRef;
 use super::domain::error::LibraryError;
-use super::domain::highlight::{Highlight, NewHighlight};
+use super::domain::highlight::{Highlight, HighlightColor, NewHighlight};
 use super::domain::item_note::{ItemNote, ItemNoteChanges, NewItemNote};
 use super::domain::positive_page;
 use crate::shared::clock::Clock;
@@ -296,5 +296,50 @@ impl<I: ItemRepository> ItemOps<I> {
             highlight,
             is_current_file: true,
         })
+    }
+
+    pub async fn update_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+        color: HighlightColor,
+    ) -> Result<HighlightView, LibraryError> {
+        let current = self.ensure_item(owner_id, item).await?;
+        let mut highlight = self
+            .items
+            .find_highlight(owner_id, item, id)
+            .await?
+            .ok_or(LibraryError::HighlightNotFound)?;
+        highlight.recolor(color);
+        if !self
+            .items
+            .update_highlight_color(&highlight, self.env.clock.now())
+            .await?
+        {
+            return Err(LibraryError::HighlightNotFound);
+        }
+        Ok(HighlightView {
+            is_current_file: highlight.is_from_current_file(current),
+            highlight,
+        })
+    }
+
+    /// Exclusão lógica: o destaque sai do leitor e das listas (RN-08).
+    pub async fn delete_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+    ) -> Result<(), LibraryError> {
+        self.ensure_item(owner_id, item).await?;
+        if self
+            .items
+            .soft_delete_highlight(owner_id, item, id, self.env.clock.now())
+            .await?
+        {
+            return Ok(());
+        }
+        Err(LibraryError::HighlightNotFound)
     }
 }

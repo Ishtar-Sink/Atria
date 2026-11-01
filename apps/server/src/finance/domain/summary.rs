@@ -1,6 +1,6 @@
 //! Painel do Financeiro por período livre (RF-35, PD-55, PD-58): fechamento realizado
 //! e previsto, comparação com o período anterior, "Para onde foi", previsto x
-//! realizado, economias e perdas, saldo previsto, cartões e próximas contas. As
+//! realizado, economias e perdas, saldo previsto, cartões e próximas movimentações. As
 //! transferências ficam fora de todos os totais (RN-05).
 
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ use crate::finance::domain::transaction::{Transaction, TransactionKind};
 
 /// Maior período do resumo, para limitar a projeção das recorrentes.
 pub const MAX_PERIOD_DAYS: i64 = 3660;
-/// "Próximas contas" olha sempre os próximos 30 dias.
+/// "Próximas movimentações" olha sempre os próximos 30 dias.
 pub const UPCOMING_DAYS: i64 = 30;
 /// Categorias com barra própria em "Para onde foi"; o resto vira "Outras".
 pub const WHERE_TOP: usize = 6;
@@ -257,20 +257,16 @@ pub fn card_usage(items: &[Transaction], open: StatementPeriod) -> CardUsage {
     usage
 }
 
-/// Próximas contas: saídas não liquidadas até hoje + 30 dias, inclusive as
-/// atrasadas, pela data prevista.
-pub fn upcoming_bills(items: Vec<FinanceItem>, today: NaiveDate) -> Vec<FinanceItem> {
+/// Próximas movimentações: entradas e saídas não liquidadas até hoje + 30 dias,
+/// inclusive as atrasadas, pela data prevista (RF-15).
+pub fn upcoming_movements(items: Vec<FinanceItem>, today: NaiveDate) -> Vec<FinanceItem> {
     let until = today + Duration::days(UPCOMING_DAYS);
-    let mut bills: Vec<FinanceItem> = items
+    let mut movements: Vec<FinanceItem> = items
         .into_iter()
-        .filter(|item| {
-            item.kind() == TransactionKind::Expense
-                && !item.is_settled()
-                && item.expected_date() <= until
-        })
+        .filter(|item| !item.is_settled() && item.expected_date() <= until)
         .collect();
-    bills.sort_by_key(|item| (item.expected_date(), item.key()));
-    bills
+    movements.sort_by_key(|item| (item.expected_date(), item.key()));
+    movements
 }
 
 #[cfg(test)]
@@ -541,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn upcoming_bills_cover_overdue_and_next_30_days() {
+    fn upcoming_movements_cover_overdue_and_next_30_days() {
         let mut paid = stored(TransactionKind::Expense, 9_000, "2026-11-05");
         paid.settle(9_000, date("2026-11-05"), instant()).unwrap();
         let mut rent = rent();
@@ -559,7 +555,7 @@ mod tests {
         .collect();
         items.extend(projected.into_iter().map(FinanceItem::Virtual));
 
-        let bills = upcoming_bills(items, date("2026-11-01"));
+        let bills = upcoming_movements(items, date("2026-11-01"));
 
         assert_eq!(
             bills
@@ -568,6 +564,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             [
                 (date("2026-10-20"), 1_000),
+                (date("2026-11-10"), 2_000),
                 (date("2026-11-30"), 200_000),
                 (date("2026-12-01"), 3_000),
             ]

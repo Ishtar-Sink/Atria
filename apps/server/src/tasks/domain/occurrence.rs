@@ -107,14 +107,14 @@ fn ensure_not_past(date: NaiveDate, today: NaiveDate) -> Result<(), TasksError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shared::recurrence::{Frequency, RecurrenceRule, Weekday};
+    use crate::shared::recurrence::{Frequency, RecurrenceRule, TaskRecurrenceRule, Weekday};
     use chrono::NaiveTime;
 
     fn date(text: &str) -> NaiveDate {
         text.parse().unwrap()
     }
 
-    fn rule(frequency: Frequency, weekdays: Vec<Weekday>) -> RecurrenceRule {
+    fn rule(frequency: Frequency, weekdays: Vec<Weekday>) -> TaskRecurrenceRule {
         RecurrenceRule {
             frequency,
             interval: 1,
@@ -125,6 +125,7 @@ mod tests {
             starts_on: date("2026-11-01"),
             ends_on: None,
         }
+        .into()
     }
 
     fn daily() -> Schedule {

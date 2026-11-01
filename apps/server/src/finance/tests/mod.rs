@@ -3,6 +3,7 @@
 
 mod accounts;
 mod authorization;
+mod categories;
 mod credit_cards;
 mod deletion_hook;
 mod listings;

@@ -20,9 +20,8 @@ use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::summary::{
     CardUsage, Entry, ExpectedVsSettled, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS,
     WhereItem, card_usage, expected_vs_settled, forecast_balance, period_totals,
-    savings_and_losses, upcoming_bills, where_it_went,
+    savings_and_losses, upcoming_movements, where_it_went,
 };
-use crate::finance::domain::transaction::TransactionKind;
 use crate::shared::money::Currency;
 
 /// Limites pedidos; os ausentes seguem a DEC-004.
@@ -248,7 +247,6 @@ async fn upcoming<T: TransactionRepository>(
     let filter = TransactionFilter {
         to: Some(until),
         settled: Some(false),
-        kind: Some(TransactionKind::Expense),
         ..TransactionFilter::default()
     };
     let stored = transactions::list_all(transactions, owner_id, &filter).await?;
@@ -257,7 +255,7 @@ async fn upcoming<T: TransactionRepository>(
         .map(FinanceItem::Stored)
         .chain(projected(models, None, until, now))
         .collect();
-    Ok(upcoming_bills(items, today))
+    Ok(upcoming_movements(items, today))
 }
 
 async fn cards<T: TransactionRepository>(

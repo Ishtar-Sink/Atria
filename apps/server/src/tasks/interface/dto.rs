@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::shared::recurrence::RecurrenceRule;
+use crate::shared::recurrence::TaskRecurrenceRule;
 use crate::shared::visibility::Visibility;
 use crate::tasks::application::tasks::{CompletionView, OccurrenceView, TaskView};
 
@@ -21,9 +21,10 @@ pub struct CreateTaskRequest {
     pub due_on: Option<NaiveDate>,
     #[serde(default)]
     pub visibility: Visibility,
-    /// Com a regra, a tarefa é recorrente.
+    /// Com a regra, a tarefa é recorrente. `time` opcional: sem ele, a ocorrência vale
+    /// o dia inteiro (RN-04).
     #[serde(default)]
-    pub recurrence: Option<RecurrenceRule>,
+    pub recurrence: Option<TaskRecurrenceRule>,
     /// Até 20 etiquetas de até 50 caracteres, sem repetidas; ausente, nenhuma.
     #[serde(default)]
     #[schema(example = json!(["casa", "obra"]))]
@@ -44,9 +45,10 @@ pub struct UpdateTaskRequest {
     pub due_on: Option<Option<NaiveDate>>,
     #[serde(default)]
     pub visibility: Option<Visibility>,
-    /// Regra nova da tarefa recorrente, valendo a partir de `effective_from`.
+    /// Regra nova da tarefa recorrente, valendo a partir de `effective_from`. `time`
+    /// opcional: sem ele, a ocorrência vale o dia inteiro (RN-04).
     #[serde(default)]
-    pub recurrence: Option<RecurrenceRule>,
+    pub recurrence: Option<TaskRecurrenceRule>,
     /// Padrão: hoje, no fuso da regra nova.
     #[serde(default)]
     pub effective_from: Option<NaiveDate>,
@@ -117,11 +119,14 @@ pub struct TaskResponse {
     pub title: String,
     pub description: Option<String>,
     pub due_on: Option<NaiveDate>,
+    /// Recorrente: a próxima data não concluída a partir de hoje; pontual: igual a `due_on`; terminada: nulo (RF-38).
+    pub next_occurrence: Option<NaiveDate>,
     pub is_recurring: bool,
     /// Só na tarefa pontual.
     pub completed_at: Option<DateTime<Utc>>,
-    /// Regra vigente da tarefa recorrente.
-    pub recurrence: Option<RecurrenceRule>,
+    /// Regra vigente da tarefa recorrente. `time` opcional: sem ele, a ocorrência vale
+    /// o dia inteiro (RN-04).
+    pub recurrence: Option<TaskRecurrenceRule>,
     pub labels: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -137,6 +142,7 @@ impl From<TaskView> for TaskResponse {
             title: task.title,
             description: task.description,
             due_on: task.due_on,
+            next_occurrence: view.next_occurrence,
             is_recurring: task.is_recurring,
             completed_at: task.completed_at,
             recurrence: view.recurrence,

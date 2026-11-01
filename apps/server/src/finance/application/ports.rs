@@ -70,6 +70,18 @@ pub trait CategoryRepository: Send + Sync {
     fn get(&self, owner_id: Uuid, id: Uuid) -> impl Future<Output = Outcome<Category>> + Send;
     fn insert(&self, category: &Category) -> impl Future<Output = Outcome<()>> + Send;
     fn update(&self, category: &Category) -> impl Future<Output = Outcome<()>> + Send;
+    /// Conta também as excluídas: quem excluiu as categorias padrão não as recebe de
+    /// novo (RN-01).
+    fn count_all_including_deleted(
+        &self,
+        owner_id: Uuid,
+    ) -> impl Future<Output = Outcome<i64>> + Send;
+    /// Grava todas numa só transação e ignora as que já existem.
+    fn insert_defaults(
+        &self,
+        owner_id: Uuid,
+        categories: &[Category],
+    ) -> impl Future<Output = Outcome<()>> + Send;
     /// Exclusão lógica; uma categoria em uso passa as movimentações e as
     /// recorrências para a categoria de destino, do mesmo tipo (CB-15, PD-49).
     fn delete(

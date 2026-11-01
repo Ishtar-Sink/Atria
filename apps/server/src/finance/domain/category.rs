@@ -56,8 +56,106 @@ pub struct Category {
     /// Imutável depois da criação: as movimentações dela têm o mesmo tipo.
     pub kind: TransactionKind,
     pub color: CategoryColor,
+    /// Chave da categoria padrão; nula nas criadas pela pessoa e nas padrão renomeadas.
+    pub system_key: Option<SystemCategory>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Categorias padrão que cada pessoa recebe na primeira listagem (RF-11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemCategory {
+    Salary,
+    Freelance,
+    Housing,
+    Groceries,
+    Transport,
+    Leisure,
+    Health,
+}
+
+impl SystemCategory {
+    pub const ALL: [Self; 7] = [
+        Self::Salary,
+        Self::Freelance,
+        Self::Housing,
+        Self::Groceries,
+        Self::Transport,
+        Self::Leisure,
+        Self::Health,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Salary => "salary",
+            Self::Freelance => "freelance",
+            Self::Housing => "housing",
+            Self::Groceries => "groceries",
+            Self::Transport => "transport",
+            Self::Leisure => "leisure",
+            Self::Health => "health",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|category| category.key() == key)
+    }
+
+    pub fn kind(self) -> TransactionKind {
+        match self {
+            Self::Salary | Self::Freelance => TransactionKind::Income,
+            _ => TransactionKind::Expense,
+        }
+    }
+
+    /// Os mesmos tons do protótipo.
+    pub fn color(self) -> CategoryColor {
+        match self {
+            Self::Salary => CategoryColor::Success,
+            Self::Freelance => CategoryColor::Accent,
+            Self::Housing => CategoryColor::Primary,
+            Self::Groceries => CategoryColor::Success,
+            Self::Transport => CategoryColor::Info,
+            Self::Leisure => CategoryColor::Accent,
+            Self::Health => CategoryColor::Danger,
+        }
+    }
+
+    /// Só o valor gravado na coluna `name`, que é obrigatória: a tela mostra o nome
+    /// traduzido pela chave ([project/language-06]).
+    pub fn default_name(self) -> &'static str {
+        match self {
+            Self::Salary => "Salário",
+            Self::Freelance => "Freelance",
+            Self::Housing => "Moradia",
+            Self::Groceries => "Mercado",
+            Self::Transport => "Transporte",
+            Self::Leisure => "Lazer",
+            Self::Health => "Saúde",
+        }
+    }
+}
+
+/// As categorias padrão de uma pessoa, uma por `SystemCategory::ALL`.
+pub fn default_categories(
+    owner_id: Uuid,
+    now: DateTime<Utc>,
+    mut new_id: impl FnMut() -> Uuid,
+) -> Vec<Category> {
+    SystemCategory::ALL
+        .into_iter()
+        .map(|system| Category {
+            id: new_id(),
+            owner_id,
+            visibility: Visibility::Personal,
+            name: system.default_name().to_owned(),
+            kind: system.kind(),
+            color: system.color(),
+            system_key: Some(system),
+            created_at: now,
+            updated_at: now,
+        })
+        .collect()
 }
 
 pub fn validate_name(name: &str) -> Result<String, FinanceError> {
@@ -132,6 +230,36 @@ mod tests {
             ensure_same_kind(TransactionKind::Income, TransactionKind::Expense),
             Err(FinanceError::CategoryKindMismatch)
         ));
+    }
+
+    #[test]
+    fn system_category_keys_round_trip() {
+        for category in SystemCategory::ALL {
+            assert_eq!(SystemCategory::from_key(category.key()), Some(category));
+        }
+        assert_eq!(SystemCategory::from_key("other"), None);
+    }
+
+    #[test]
+    fn default_categories_have_two_income_and_five_expense() {
+        let owner = Uuid::from_u128(7);
+        let now = DateTime::<Utc>::UNIX_EPOCH;
+        let mut next = 0u128;
+
+        let defaults = default_categories(owner, now, || {
+            next += 1;
+            Uuid::from_u128(next)
+        });
+
+        let income = defaults
+            .iter()
+            .filter(|category| category.kind == TransactionKind::Income)
+            .count();
+        assert_eq!(defaults.len(), 7);
+        assert_eq!(income, 2);
+        assert!(defaults.iter().all(|category| category.owner_id == owner
+            && category.system_key.is_some()
+            && category.visibility == Visibility::Personal));
     }
 
     #[test]

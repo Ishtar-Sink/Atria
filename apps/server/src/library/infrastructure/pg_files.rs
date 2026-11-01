@@ -80,6 +80,21 @@ impl PgFileStore {
         .map_err(infra)?;
         tx.commit().await.map_err(infra)
     }
+
+    async fn find_live(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<LibraryFile>, LibraryError> {
+        let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
+        let row = sqlx::query_as!(FileRow, "SELECT id, owner_id, kind, content_type, size_bytes, sha256, storage_key, \
+     created_at AS \"created_at: _\" FROM library_files WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL", owner_id, id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(infra)?;
+        tx.commit().await.map_err(infra)?;
+        row.map(FileRow::into_file).transpose()
+    }
 }
 
 fn storage_key(key: &str) -> Result<StorageKey, LibraryError> {
@@ -113,19 +128,29 @@ impl FileStore for PgFileStore {
         owner_id: Uuid,
         id: Uuid,
     ) -> Result<Option<(LibraryFile, Bytes)>, LibraryError> {
-        let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
-        let row = sqlx::query_as!(FileRow, "SELECT id, owner_id, kind, content_type, size_bytes, sha256, storage_key, \
-     created_at AS \"created_at: _\" FROM library_files WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL", owner_id, id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(infra)?;
-        tx.commit().await.map_err(infra)?;
-        let Some(row) = row else {
+        let Some(file) = self.find_live(owner_id, id).await? else {
             return Ok(None);
         };
-        let file = row.into_file()?;
         match self.storage.get(&storage_key(&file.storage_key)?).await {
             Ok(bytes) => Ok(Some((file, bytes))),
+            Err(StorageError::NotFound) => Ok(None),
+            Err(error) => Err(infra(error)),
+        }
+    }
+
+    async fn find(&self, owner_id: Uuid, id: Uuid) -> Result<Option<LibraryFile>, LibraryError> {
+        self.find_live(owner_id, id).await
+    }
+
+    async fn load_range(
+        &self,
+        file: &LibraryFile,
+        start: u64,
+        len: u64,
+    ) -> Result<Option<Bytes>, LibraryError> {
+        let key = storage_key(&file.storage_key)?;
+        match self.storage.get_range(&key, start, len).await {
+            Ok(bytes) => Ok(Some(bytes)),
             Err(StorageError::NotFound) => Ok(None),
             Err(error) => Err(infra(error)),
         }

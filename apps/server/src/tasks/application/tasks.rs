@@ -1,6 +1,7 @@
 //! Casos de uso de tarefas: cadastro, edição, mudança de regra, exclusão, conclusão,
 //! reabertura e listagem de ocorrências.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -8,13 +9,13 @@ use uuid::Uuid;
 
 use crate::shared::clock::Clock;
 use crate::shared::ids::IdGenerator;
-use crate::shared::recurrence::RecurrenceRule;
+use crate::shared::recurrence::TaskRecurrenceRule;
 use crate::shared::visibility::Visibility;
-use crate::tasks::application::ports::{TaskFilter, TasksRepository, TasksTransaction};
+use crate::tasks::application::ports::{TaskFilter, TaskStatus, TasksRepository, TasksTransaction};
 use crate::tasks::domain::task::{
     normalize_description, normalize_label_filter, normalize_title, validate_labels,
 };
-use crate::tasks::domain::{CompletionTarget, Schedule, Task, TasksError};
+use crate::tasks::domain::{CompletionLog, CompletionTarget, Schedule, Task, TasksError};
 
 /// Maior intervalo da listagem de ocorrências, em dias.
 pub const MAX_OCCURRENCE_RANGE_DAYS: i64 = 366;
@@ -25,7 +26,7 @@ pub struct NewTask {
     pub description: Option<String>,
     pub due_on: Option<NaiveDate>,
     pub visibility: Visibility,
-    pub recurrence: Option<RecurrenceRule>,
+    pub recurrence: Option<TaskRecurrenceRule>,
     pub labels: Vec<String>,
 }
 
@@ -36,7 +37,7 @@ pub struct TaskChanges {
     pub description: Option<Option<String>>,
     pub due_on: Option<Option<NaiveDate>>,
     pub visibility: Option<Visibility>,
-    pub recurrence: Option<RecurrenceRule>,
+    pub recurrence: Option<TaskRecurrenceRule>,
     pub effective_from: Option<NaiveDate>,
     /// `None` mantém as etiquetas; `Some` troca a lista inteira.
     pub labels: Option<Vec<String>>,
@@ -45,7 +46,9 @@ pub struct TaskChanges {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskView {
     pub task: Task,
-    pub recurrence: Option<RecurrenceRule>,
+    pub recurrence: Option<TaskRecurrenceRule>,
+    /// Recorrente: a próxima data não concluída; pontual: `due_on`; terminada: nulo.
+    pub next_occurrence: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone)]
@@ -115,16 +118,19 @@ impl<R: TasksRepository> TasksService<R> {
             tx.save_schedule(task.id, schedule, now).await?;
         }
         tx.commit().await?;
+        let next_occurrence = next_of(&task, schedule.as_ref(), &CompletionLog::default(), now);
         Ok(TaskView {
             task,
             recurrence: input.recurrence,
+            next_occurrence,
         })
     }
 
     pub async fn get(&self, owner_id: Uuid, id: Uuid) -> Result<TaskView, TasksError> {
+        let now = self.clock.now();
         let mut tx = self.repository.begin(owner_id).await?;
         let task = find(&mut tx, id).await?;
-        let view = with_rule(&mut tx, task).await?;
+        let view = with_rule(&mut tx, task, now).await?;
         tx.commit().await?;
         Ok(view)
     }
@@ -140,6 +146,7 @@ impl<R: TasksRepository> TasksService<R> {
             .map(normalize_label_filter)
             .transpose()?;
         let limit = filter.limit as usize;
+        let now = self.clock.now();
         let mut tx = self.repository.begin(owner_id).await?;
         let mut tasks = tx
             .list_tasks(&TaskFilter {
@@ -157,14 +164,32 @@ impl<R: TasksRepository> TasksService<R> {
             .map(|task| task.id)
             .collect();
         let mut rules = tx.current_rules(&recurring).await?;
-        tx.commit().await?;
-        let items = tasks
+        let mut schedules: HashMap<Uuid, Schedule> = tx
+            .recurring_schedules()
+            .await?
             .into_iter()
-            .map(|task| TaskView {
-                recurrence: rules.remove(&task.id),
-                task,
-            })
+            .filter(|(id, _)| recurring.contains(id))
             .collect();
+        let mut items = Vec::with_capacity(tasks.len());
+        for task in tasks {
+            let schedule = schedules.remove(&task.id);
+            let log = match &schedule {
+                Some(schedule) => tx.load_completions(task.id, schedule.today(now)).await?,
+                None => CompletionLog::default(),
+            };
+            let next_occurrence = next_of(&task, schedule.as_ref(), &log, now);
+            items.push(TaskView {
+                recurrence: rules.remove(&task.id),
+                next_occurrence,
+                task,
+            });
+        }
+        tx.commit().await?;
+        // O cursor já foi calculado: tirar as terminadas pode deixar a página com menos
+        // itens, e o cursor continua válido.
+        if filter.status == Some(TaskStatus::Open) {
+            items.retain(|item| !item.task.is_recurring || item.next_occurrence.is_some());
+        }
         Ok(TaskPage { items, next })
     }
 
@@ -186,7 +211,7 @@ impl<R: TasksRepository> TasksService<R> {
             schedule.change_rule(rule, changes.effective_from.unwrap_or(today), today)?;
             tx.save_schedule(id, &schedule, now).await?;
         }
-        let view = with_rule(&mut tx, task).await?;
+        let view = with_rule(&mut tx, task, now).await?;
         tx.commit().await?;
         Ok(view)
     }
@@ -309,22 +334,51 @@ async fn find<T: TasksTransaction>(tx: &mut T, id: Uuid) -> Result<Task, TasksEr
     tx.find_task(id).await?.ok_or(TasksError::NotFound)
 }
 
-async fn with_rule<T: TasksTransaction>(tx: &mut T, task: Task) -> Result<TaskView, TasksError> {
-    let recurrence = if task.is_recurring {
-        tx.load_schedule(task.id).await?.current_rule().cloned()
-    } else {
-        None
-    };
-    Ok(TaskView { task, recurrence })
+async fn with_rule<T: TasksTransaction>(
+    tx: &mut T,
+    task: Task,
+    now: DateTime<Utc>,
+) -> Result<TaskView, TasksError> {
+    if !task.is_recurring {
+        let next_occurrence = next_of(&task, None, &CompletionLog::default(), now);
+        return Ok(TaskView {
+            task,
+            recurrence: None,
+            next_occurrence,
+        });
+    }
+    let schedule = tx.load_schedule(task.id).await?;
+    let log = tx.load_completions(task.id, schedule.today(now)).await?;
+    let next_occurrence = next_of(&task, Some(&schedule), &log, now);
+    Ok(TaskView {
+        recurrence: schedule.current_rule().cloned(),
+        next_occurrence,
+        task,
+    })
+}
+
+/// Pontual: a data limite; recorrente: a próxima data em aberto a partir de hoje.
+fn next_of(
+    task: &Task,
+    schedule: Option<&Schedule>,
+    log: &CompletionLog,
+    now: DateTime<Utc>,
+) -> Option<NaiveDate> {
+    match schedule {
+        Some(schedule) if task.is_recurring => {
+            schedule.next_open_date(schedule.today(now), |date| log.is_completed(date))
+        }
+        _ => task.due_on,
+    }
 }
 
 /// A agenda começa hoje, no fuso da regra: antes disso não há ocorrências.
-fn new_schedule(rule: RecurrenceRule, now: DateTime<Utc>) -> Result<Schedule, TasksError> {
+fn new_schedule(rule: TaskRecurrenceRule, now: DateTime<Utc>) -> Result<Schedule, TasksError> {
     let today = today_in(&rule, now);
     Schedule::start(rule, today)
 }
 
-fn today_in(rule: &RecurrenceRule, now: DateTime<Utc>) -> NaiveDate {
+fn today_in(rule: &TaskRecurrenceRule, now: DateTime<Utc>) -> NaiveDate {
     rule.timezone.parse::<chrono_tz::Tz>().map_or_else(
         |_| now.date_naive(),
         |tz| now.with_timezone(&tz).date_naive(),

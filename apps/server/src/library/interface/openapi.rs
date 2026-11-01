@@ -7,8 +7,8 @@ use super::dto::{
     CreateHighlightRequest, CreateItemNoteRequest, CreateReadingSessionRequest, CreateVideoRequest,
     HighlightList, HighlightResponse, ItemNoteList, ItemNoteResponse, ReadingPositionRequest,
     ReadingPositionResponse, ReadingSessionList, ReadingSessionResponse, UpdateArticleRequest,
-    UpdateBookRequest, UpdateItemNoteRequest, UpdateReadingSessionRequest, UpdateVideoRequest,
-    VideoPage, VideoResponse,
+    UpdateBookRequest, UpdateHighlightRequest, UpdateItemNoteRequest, UpdateReadingSessionRequest,
+    UpdateVideoRequest, VideoPage, VideoResponse,
 };
 use super::{articles, books, files, videos};
 use crate::library::domain::article::ReadingStatus;
@@ -42,6 +42,8 @@ use crate::shared::visibility::Visibility;
         books::put_book_position,
         books::list_book_highlights,
         books::create_book_highlight,
+        books::update_book_highlight,
+        books::delete_book_highlight,
         articles::list_articles,
         articles::create_article,
         articles::get_article,
@@ -59,6 +61,8 @@ use crate::shared::visibility::Visibility;
         articles::put_article_position,
         articles::list_article_highlights,
         articles::create_article_highlight,
+        articles::update_article_highlight,
+        articles::delete_article_highlight,
         videos::list_videos,
         videos::create_video,
         videos::get_video,
@@ -98,6 +102,7 @@ use crate::shared::visibility::Visibility;
         ReadingStatus,
         UpdateArticleRequest,
         UpdateBookRequest,
+        UpdateHighlightRequest,
         UpdateItemNoteRequest,
         UpdateReadingSessionRequest,
         UpdateVideoRequest,
@@ -109,3 +114,28 @@ use crate::shared::visibility::Visibility;
     tags((name = "library", description = "Acervo: livros, artigos, vídeos, leitura de PDF e arquivos"))
 )]
 pub struct LibraryApi;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn documents_partial_file_responses() {
+        let doc = serde_json::to_value(LibraryApi::openapi()).unwrap();
+        let get = &doc["paths"]["/api/v1/files/{id}"]["get"];
+
+        for status in ["200", "206", "404", "416"] {
+            assert!(
+                get["responses"][status].is_object(),
+                "falta a resposta {status}: {get}"
+            );
+        }
+        let params = get["parameters"].as_array().unwrap();
+        assert!(
+            params
+                .iter()
+                .any(|param| param["name"] == "Range" && param["in"] == "header"),
+            "falta o cabeçalho Range: {params:?}"
+        );
+    }
+}

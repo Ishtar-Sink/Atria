@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::http::AppState;
 use crate::journal::application::ports::EmotionRepository;
-use crate::journal::domain::emotion::{Emotion, SystemEmotion};
+use crate::journal::domain::emotion::{Emotion, EmotionIcon, SystemEmotion};
 use crate::journal::domain::error::JournalError;
 use crate::shared::db::begin_for_user;
 use crate::shared::visibility::Visibility;
@@ -21,6 +21,7 @@ struct EmotionRow {
     visibility: Visibility,
     system_key: Option<String>,
     name: Option<String>,
+    icon: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     deleted_at: Option<DateTime<Utc>>,
@@ -59,6 +60,13 @@ impl TryFrom<EmotionRow> for Emotion {
             owner_id: row.owner_id,
             visibility: row.visibility,
             name: row.name,
+            icon: row
+                .icon
+                .map(|key| {
+                    EmotionIcon::from_key(&key)
+                        .ok_or_else(|| JournalError::infrastructure("ícone de emoção desconhecido"))
+                })
+                .transpose()?,
             created_at: row.created_at,
             updated_at: row.updated_at,
             deleted_at: row.deleted_at,
@@ -71,13 +79,14 @@ async fn insert_in(
     emotion: &Emotion,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO emotions (id, owner_id, visibility, system_key, name, \
-         created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "INSERT INTO emotions (id, owner_id, visibility, system_key, name, icon, \
+         created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         emotion.id,
         emotion.owner_id,
         emotion.visibility as _,
         emotion.system_key.map(SystemEmotion::key),
         emotion.name.as_deref(),
+        emotion.icon.map(EmotionIcon::key),
         emotion.created_at as _,
         emotion.updated_at as _,
         emotion.deleted_at as _
@@ -94,14 +103,15 @@ async fn insert_ignoring_existing(
     emotion: &Emotion,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO emotions (id, owner_id, visibility, system_key, name, \
-         created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+        "INSERT INTO emotions (id, owner_id, visibility, system_key, name, icon, \
+         created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          ON CONFLICT DO NOTHING",
         emotion.id,
         emotion.owner_id,
         emotion.visibility as _,
         emotion.system_key.map(SystemEmotion::key),
         emotion.name.as_deref(),
+        emotion.icon.map(EmotionIcon::key),
         emotion.created_at as _,
         emotion.updated_at as _,
         emotion.deleted_at as _
@@ -129,7 +139,7 @@ impl PgEmotionRepository {
 impl EmotionRepository for PgEmotionRepository {
     async fn list_live(&self, owner_id: Uuid) -> Result<Vec<Emotion>, JournalError> {
         let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
-        let rows = sqlx::query_as!(EmotionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", system_key, name, created_at AS \"created_at: _\", \
+        let rows = sqlx::query_as!(EmotionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", system_key, name, icon, created_at AS \"created_at: _\", \
      updated_at AS \"updated_at: _\", deleted_at AS \"deleted_at: _\" FROM emotions \
      WHERE owner_id = $1 AND deleted_at IS NULL ORDER BY created_at, id", owner_id)
             .fetch_all(&mut *tx)
@@ -141,7 +151,7 @@ impl EmotionRepository for PgEmotionRepository {
 
     async fn find_live(&self, owner_id: Uuid, id: Uuid) -> Result<Option<Emotion>, JournalError> {
         let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
-        let row = sqlx::query_as!(EmotionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", system_key, name, created_at AS \"created_at: _\", \
+        let row = sqlx::query_as!(EmotionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", system_key, name, icon, created_at AS \"created_at: _\", \
      updated_at AS \"updated_at: _\", deleted_at AS \"deleted_at: _\" FROM emotions \
      WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL", owner_id, id)
             .fetch_optional(&mut *tx)
@@ -187,13 +197,14 @@ impl EmotionRepository for PgEmotionRepository {
             .await
             .map_err(infra)?;
         let result = sqlx::query!(
-            "UPDATE emotions SET name = $3, visibility = $4, updated_at = $5 \
+            "UPDATE emotions SET name = $3, visibility = $4, updated_at = $5, icon = $6 \
              WHERE owner_id = $1 AND id = $2 AND deleted_at IS NULL",
             emotion.owner_id,
             emotion.id,
             emotion.name.as_deref(),
             emotion.visibility as _,
-            emotion.updated_at as _
+            emotion.updated_at as _,
+            emotion.icon.map(EmotionIcon::key)
         )
         .execute(&mut *tx)
         .await

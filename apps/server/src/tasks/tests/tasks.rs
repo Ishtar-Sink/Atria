@@ -758,3 +758,168 @@ async fn task_label_filter_rejects_invalid_value_with_422() {
     assert_eq!(status, StatusCode::OK, "{page}");
     assert_eq!(page["items"], json!([]));
 }
+
+fn rule_without_time(frequency: &str, weekdays: &[&str], starts_on: &str) -> Value {
+    json!({
+        "frequency": frequency,
+        "interval": 1,
+        "weekdays": weekdays,
+        "month_day": null,
+        "timezone": "America/Sao_Paulo",
+        "starts_on": starts_on,
+        "ends_on": null
+    })
+}
+
+async fn list_tasks(t: &TestApp, query: &str) -> Vec<Value> {
+    let (status, json) = t
+        .call(
+            &t.alice,
+            Method::GET,
+            &format!("/api/v1/tasks{query}"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    json["items"].as_array().cloned().unwrap_or_default()
+}
+
+fn next_of_title(items: &[Value], title: &str) -> Value {
+    items
+        .iter()
+        .find(|item| item["title"] == title)
+        .unwrap_or_else(|| panic!("{title}"))["next_occurrence"]
+        .clone()
+}
+
+#[tokio::test]
+async fn ct34_recurring_task_without_time_is_saved() {
+    let t = TestApp::new().await;
+
+    let task = t
+        .create(
+            &t.alice,
+            json!({
+                "title": "Regar as plantas",
+                "recurrence": rule_without_time("daily", &[], "2026-11-01")
+            }),
+        )
+        .await;
+    let id = id_of(&task);
+
+    assert!(task["recurrence"].get("time").is_none(), "{task}");
+    assert_eq!(task["next_occurrence"], "2026-11-01");
+    let items = t.occurrences(&t.alice, "2026-11-01", "2026-11-03").await;
+    assert_eq!(
+        completions_of(&items, &id),
+        pairs(&[
+            ("2026-11-01", false),
+            ("2026-11-02", false),
+            ("2026-11-03", false)
+        ])
+    );
+    let (status, updated) = t
+        .call(
+            &t.alice,
+            Method::PATCH,
+            &format!("/api/v1/tasks/{id}"),
+            Some(json!({ "recurrence": rule_without_time("daily", &[], "2026-11-01") })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+}
+
+#[tokio::test]
+async fn ct37_list_has_one_row_per_task_with_next_occurrence() {
+    let t = TestApp::new().await;
+    t.create(
+        &t.alice,
+        json!({ "title": "Diária", "recurrence": rule_without_time("daily", &[], "2026-11-01") }),
+    )
+    .await;
+    t.create(
+        &t.alice,
+        json!({
+            "title": "Semanal",
+            "recurrence": rule_without_time("weekly", &["wed"], "2026-11-01")
+        }),
+    )
+    .await;
+    t.create(
+        &t.alice,
+        json!({ "title": "Pontual", "due_on": "2026-11-02" }),
+    )
+    .await;
+
+    let items = list_tasks(&t, "").await;
+
+    assert_eq!(items.len(), 3);
+    assert_eq!(next_of_title(&items, "Diária"), "2026-11-01");
+    assert_eq!(next_of_title(&items, "Semanal"), "2026-11-04");
+    assert_eq!(next_of_title(&items, "Pontual"), "2026-11-02");
+}
+
+#[tokio::test]
+async fn ct37_completing_today_moves_next_occurrence() {
+    let t = TestApp::new().await;
+    let task = t
+        .create(
+            &t.alice,
+            json!({ "title": "Diária", "recurrence": rule_without_time("daily", &[], "2026-11-01") }),
+        )
+        .await;
+    let id = id_of(&task);
+
+    let (status, done) = t
+        .call(
+            &t.alice,
+            Method::POST,
+            &format!("/api/v1/tasks/{id}/completion"),
+            Some(json!({ "occurrence_date": "2026-11-01" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{done}");
+
+    let items = list_tasks(&t, "").await;
+    assert_eq!(next_of_title(&items, "Diária"), "2026-11-02");
+}
+
+#[tokio::test]
+async fn cb05_weekly_task_without_occurrence_in_seven_days_shows_next() {
+    let t = TestApp::new().await;
+    t.create(
+        &t.alice,
+        json!({
+            "title": "Semanal distante",
+            "recurrence": rule_without_time("weekly", &["wed"], "2026-11-11")
+        }),
+    )
+    .await;
+
+    let items = list_tasks(&t, "").await;
+
+    assert_eq!(next_of_title(&items, "Semanal distante"), "2026-11-11");
+}
+
+#[tokio::test]
+async fn cb06_ended_recurring_task_is_not_open() {
+    let t = TestApp::new().await;
+    let mut rule = rule_without_time("daily", &[], "2026-10-20");
+    rule["ends_on"] = json!("2026-10-31");
+    let (status, created) = t
+        .call(
+            &t.alice,
+            Method::POST,
+            "/api/v1/tasks",
+            Some(json!({ "title": "Terminada", "recurrence": rule })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+
+    let all = list_tasks(&t, "").await;
+    let open = list_tasks(&t, "?status=open").await;
+
+    assert_eq!(all.len(), 1);
+    assert!(all[0]["next_occurrence"].is_null(), "{all:?}");
+    assert!(open.is_empty(), "{open:?}");
+}

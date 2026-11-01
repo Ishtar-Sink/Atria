@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, book_id, article_id, file_id, page, color, text, rects AS \"rects: _\", created_at AS \"created_at: _\" FROM highlights WHERE owner_id = $1 AND book_id IS NOT DISTINCT FROM $2 AND article_id IS NOT DISTINCT FROM $3 ORDER BY page, created_at, id",
+  "query": "SELECT id, owner_id, book_id, article_id, file_id, page, color, text, rects AS \"rects: _\", created_at AS \"created_at: _\" FROM highlights WHERE owner_id = $1 AND book_id IS NOT DISTINCT FROM $2 AND article_id IS NOT DISTINCT FROM $3 AND deleted_at IS NULL ORDER BY page, created_at, id",
   "describe": {
     "columns": [
       {
@@ -74,5 +74,5 @@
       false
     ]
   },
-  "hash": "544f1898789cc5f0f0406b066b97c91798085d4f11c87ef5d59d50f80ab2a34d"
+  "hash": "022edaa3e206295090b57318711edb8941a3abd2d493458cdfb30c71e10bda75"
 }

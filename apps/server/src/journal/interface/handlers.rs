@@ -317,7 +317,12 @@ pub async fn create_emotion(
 ) -> Result<(StatusCode, Json<EmotionResponse>), ApiError> {
     let visibility = body.visibility.unwrap_or_default();
     let emotion = emotions(&state)
-        .create(user.user_id, &body.name, visibility)
+        .create(
+            user.user_id,
+            &body.name,
+            body.icon.map(Into::into),
+            visibility,
+        )
         .await?;
     Ok((StatusCode::CREATED, Json(emotion.into())))
 }
@@ -326,7 +331,7 @@ pub async fn create_emotion(
     patch, path = "/api/v1/emotions/{id}", tag = "journal", request_body = UpdateEmotionRequest,
     params(("id" = Uuid, Path, description = "Id da emoção")),
     responses(
-        (status = 200, body = EmotionResponse),
+        (status = 200, body = EmotionResponse, description = "Renomeia ou troca o ícone"),
         (status = 404, body = ProblemDetails, description = "emotion_not_found"),
         (status = 422, body = ProblemDetails, description = "validation_failed, emotion_name_taken"),
     )
@@ -338,7 +343,12 @@ pub async fn update_emotion(
     ValidJson(body): ValidJson<UpdateEmotionRequest>,
 ) -> Result<Json<EmotionResponse>, ApiError> {
     let emotion = emotions(&state)
-        .rename(user.user_id, id, &body.name)
+        .update(
+            user.user_id,
+            id,
+            body.name.as_deref(),
+            body.icon.map(Into::into),
+        )
         .await?;
     Ok(Json(emotion.into()))
 }

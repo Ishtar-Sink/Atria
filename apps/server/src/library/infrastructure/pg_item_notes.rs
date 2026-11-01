@@ -299,12 +299,92 @@ impl ItemRepository for PgItemRepository {
         let rows = sqlx::query_as!(HighlightRow, "SELECT id, owner_id, book_id, article_id, file_id, page, color, \
      text, rects AS \"rects: _\", created_at AS \"created_at: _\" FROM highlights \
      WHERE owner_id = $1 AND book_id IS NOT DISTINCT FROM $2 AND article_id IS NOT DISTINCT FROM $3 \
+       AND deleted_at IS NULL \
      ORDER BY page, created_at, id", owner_id, book, article)
             .fetch_all(&mut *tx)
             .await
             .map_err(infra)?;
         tx.commit().await.map_err(infra)?;
         rows.into_iter().map(HighlightRow::into_highlight).collect()
+    }
+
+    async fn find_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+    ) -> Result<Option<Highlight>, LibraryError> {
+        let (book, article, _) = note_keys(item);
+        let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
+        let row = sqlx::query_as!(
+            HighlightRow,
+            "SELECT id, owner_id, book_id, article_id, file_id, page, color, \
+     text, rects AS \"rects: _\", created_at AS \"created_at: _\" FROM highlights \
+     WHERE owner_id = $1 AND book_id IS NOT DISTINCT FROM $2 AND article_id IS NOT DISTINCT FROM $3 \
+       AND id = $4 AND deleted_at IS NULL",
+            owner_id,
+            book,
+            article,
+            id
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(infra)?;
+        tx.commit().await.map_err(infra)?;
+        row.map(HighlightRow::into_highlight).transpose()
+    }
+
+    async fn update_highlight_color(
+        &self,
+        highlight: &Highlight,
+        now: DateTime<Utc>,
+    ) -> Result<bool, LibraryError> {
+        let (book, article, _) = note_keys(highlight.item);
+        let mut tx = begin_for_user(&self.pool, highlight.owner_id)
+            .await
+            .map_err(infra)?;
+        let result = sqlx::query!(
+            "UPDATE highlights SET color = $1, updated_at = $2 \
+             WHERE owner_id = $3 AND id = $4 AND book_id IS NOT DISTINCT FROM $5 \
+               AND article_id IS NOT DISTINCT FROM $6 AND deleted_at IS NULL",
+            highlight.color.as_str(),
+            now as _,
+            highlight.owner_id,
+            highlight.id,
+            book,
+            article
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(infra)?;
+        tx.commit().await.map_err(infra)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    async fn soft_delete_highlight(
+        &self,
+        owner_id: Uuid,
+        item: ItemRef,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<bool, LibraryError> {
+        let (book, article, _) = note_keys(item);
+        let mut tx = begin_for_user(&self.pool, owner_id).await.map_err(infra)?;
+        let result = sqlx::query!(
+            "UPDATE highlights SET deleted_at = $1, updated_at = $1 \
+             WHERE owner_id = $2 AND id = $3 AND book_id IS NOT DISTINCT FROM $4 \
+               AND article_id IS NOT DISTINCT FROM $5 AND deleted_at IS NULL",
+            now as _,
+            owner_id,
+            id,
+            book,
+            article
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(infra)?;
+        tx.commit().await.map_err(infra)?;
+        Ok(result.rows_affected() == 1)
     }
 
     async fn get_position(

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE highlights SET deleted_at = $1, updated_at = $1 WHERE owner_id = $2 AND id = $3 AND book_id IS NOT DISTINCT FROM $4 AND article_id IS NOT DISTINCT FROM $5 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9d33be2d92b566c329f6a96ad0ef8279f2d7fc8f8b37357164a1cf2658f904f7"
+}

@@ -278,7 +278,7 @@ async fn summary_cards_show_open_statement_due_date_and_used_limit() {
 }
 
 #[tokio::test]
-async fn upcoming_bills_cover_next_30_days_regardless_of_period() {
+async fn upcoming_movements_cover_income_and_expense_of_next_30_days() {
     let t = FinanceTest::new().await;
     let account = t.default_account(&t.alice).await;
     for (amount, day) in [
@@ -324,13 +324,42 @@ async fn upcoming_bills_cover_next_30_days_regardless_of_period() {
         bills,
         [
             ("2026-10-20".to_owned(), 1_000, "overdue".to_owned()),
+            ("2026-11-10".to_owned(), 9_000, "open".to_owned()),
             ("2026-11-15".to_owned(), 2_000, "open".to_owned()),
             ("2026-11-20".to_owned(), 5_000, "open".to_owned()),
             ("2026-12-01".to_owned(), 3_000, "open".to_owned()),
         ]
     );
-    assert_eq!(body["upcoming_bills"][2]["recurrence_id"], rent["id"]);
-    assert_eq!(body["upcoming_bills"][2]["id"], Value::Null);
+    assert_eq!(body["upcoming_bills"][1]["kind"], "income");
+    assert_eq!(body["upcoming_bills"][3]["recurrence_id"], rent["id"]);
+    assert_eq!(body["upcoming_bills"][3]["id"], Value::Null);
+}
+
+#[tokio::test]
+async fn ct14_recurring_income_in_7_days_is_upcoming() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let salary = t
+        .create_recurring(
+            &t.alice,
+            &account,
+            "income",
+            650_000,
+            monthly_rule("2026-11-08", 8),
+        )
+        .await;
+
+    let body = summary(&t, "").await;
+
+    let upcoming = body["upcoming_bills"].as_array().unwrap();
+    let income = upcoming
+        .iter()
+        .find(|item| item["recurrence_id"] == salary["id"])
+        .unwrap_or_else(|| panic!("entrada recorrente fora das próximas: {body}"));
+    assert_eq!(income["kind"], "income");
+    assert_eq!(income["expected_date"], "2026-11-08");
+    assert_eq!(income["expected_amount"], 650_000);
+    assert_eq!(income["id"], Value::Null);
 }
 
 #[tokio::test]

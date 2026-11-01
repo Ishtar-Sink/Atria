@@ -1,9 +1,14 @@
 //! Arquivos: acesso só do dono, tipo e tamanho, RLS, busca e listagem.
 
-use axum::http::{Method, StatusCode};
+use axum::body::Body;
+use axum::http::{HeaderMap, Method, StatusCode, header};
+use http_body_util::BodyExt;
 use serde_json::json;
+use sha2::{Digest, Sha256};
+use tower::ServiceExt;
 
 use super::{ALICE, BOB, Harness, book_body, ids, minimal_pdf, minimal_png};
+use crate::http::test_support::TestSession;
 use crate::library::LibrarySearch;
 
 async fn book_pdf_file(h: &Harness) -> (String, String) {
@@ -65,11 +70,138 @@ async fn file_response_has_nosniff_and_inline_disposition() {
         .await;
 
     assert_eq!(headers["x-content-type-options"], "nosniff");
-    assert_eq!(headers["cache-control"], "private, no-store");
+    assert_eq!(headers["cache-control"], "private, max-age=3600");
+    assert_eq!(headers["accept-ranges"], "bytes");
     assert_eq!(
         headers["content-disposition"],
         format!("inline; filename=\"{file_id}.pdf\"").as_str()
     );
+}
+
+/// Pedido com `Range`, enviado como em `Harness::download`.
+async fn get_with_range(
+    h: &Harness,
+    session: &TestSession,
+    uri: &str,
+    range: &str,
+) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let request = session
+        .request(Method::GET, uri)
+        .header(header::RANGE, range)
+        .body(Body::empty())
+        .expect("pedido");
+    let response = h.app.clone().oneshot(request).await.expect("resposta");
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("corpo")
+        .to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+fn large_pdf() -> Vec<u8> {
+    let mut pdf = minimal_pdf();
+    pdf.resize(200_000, b'0');
+    pdf
+}
+
+async fn large_pdf_file(h: &Harness, pdf: Vec<u8>) -> String {
+    let id = h.create_book(&h.alice, book_body("Livro grande", 10)).await;
+    let book = h
+        .upload_ok(&h.alice, &format!("/api/v1/books/{id}/pdf"), pdf)
+        .await;
+    format!("/api/v1/files/{}", book["pdf_file_id"].as_str().unwrap())
+}
+
+#[tokio::test]
+async fn ct26_range_returns_206_with_content_range() {
+    let h = Harness::new().await;
+    let pdf = large_pdf();
+    let uri = large_pdf_file(&h, pdf.clone()).await;
+
+    let (status, headers, bytes) = get_with_range(&h, &h.alice, &uri, "bytes=0-65535").await;
+
+    assert_eq!(status, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(bytes.len(), 65_536);
+    assert_eq!(bytes, pdf[..65_536]);
+    assert_eq!(headers["content-range"], "bytes 0-65535/200000");
+    assert_eq!(headers["accept-ranges"], "bytes");
+    assert_eq!(headers["cache-control"], "private, max-age=3600");
+}
+
+#[tokio::test]
+async fn ct26_suffix_range_returns_last_bytes() {
+    let h = Harness::new().await;
+    let pdf = large_pdf();
+    let uri = large_pdf_file(&h, pdf.clone()).await;
+
+    let (status, headers, bytes) = get_with_range(&h, &h.alice, &uri, "bytes=-4").await;
+
+    assert_eq!(status, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(bytes, pdf[pdf.len() - 4..]);
+    assert_eq!(headers["content-range"], "bytes 199996-199999/200000");
+}
+
+#[tokio::test]
+async fn ct26_without_range_returns_200_with_accept_ranges_and_etag() {
+    let h = Harness::new().await;
+    let pdf = large_pdf();
+    let uri = large_pdf_file(&h, pdf.clone()).await;
+    let sha: String = Sha256::digest(&pdf)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+
+    let (status, headers, bytes) = h.download(&h.alice, &uri).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bytes, pdf);
+    assert_eq!(headers["accept-ranges"], "bytes");
+    assert_eq!(headers["cache-control"], "private, max-age=3600");
+    assert_eq!(headers["etag"], format!("\"{sha}\"").as_str());
+}
+
+#[tokio::test]
+async fn cb10_range_beyond_size_returns_416_with_size() {
+    let h = Harness::new().await;
+    let uri = large_pdf_file(&h, large_pdf()).await;
+
+    let (status, headers, bytes) = get_with_range(&h, &h.alice, &uri, "bytes=200000-").await;
+
+    let problem: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status, StatusCode::RANGE_NOT_SATISFIABLE);
+    assert_eq!(headers["content-range"], "bytes */200000");
+    assert_eq!(problem["code"], "range_not_satisfiable");
+}
+
+#[tokio::test]
+async fn ct26_malformed_range_returns_416() {
+    let h = Harness::new().await;
+    let uri = large_pdf_file(&h, large_pdf()).await;
+
+    let (status, _, _) = get_with_range(&h, &h.alice, &uri, "bytes=abc").await;
+
+    assert_eq!(status, StatusCode::RANGE_NOT_SATISFIABLE);
+}
+
+#[tokio::test]
+async fn rn03_range_from_other_user_returns_404() {
+    let h = Harness::new().await;
+    let uri = large_pdf_file(&h, large_pdf()).await;
+
+    let (other_status, _, other_bytes) = get_with_range(&h, &h.bob, &uri, "bytes=0-3").await;
+    let (malformed_status, _, malformed_bytes) =
+        get_with_range(&h, &h.alice, "/api/v1/files/nao-e-uuid", "bytes=0-3").await;
+
+    let problem: serde_json::Value = serde_json::from_slice(&other_bytes).unwrap();
+    assert_eq!(other_status, StatusCode::NOT_FOUND);
+    assert_eq!(problem["code"], "file_not_found");
+    assert!(!String::from_utf8_lossy(&other_bytes).contains("%PDF"));
+    assert_eq!(malformed_status, StatusCode::NOT_FOUND);
+    assert!(!String::from_utf8_lossy(&malformed_bytes).contains("%PDF"));
 }
 
 #[tokio::test]

@@ -4,6 +4,7 @@
 mod articles;
 mod books;
 mod files;
+mod highlights;
 mod videos;
 
 use std::sync::{Arc, Mutex};

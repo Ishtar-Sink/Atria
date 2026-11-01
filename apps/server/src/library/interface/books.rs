@@ -9,13 +9,14 @@ use super::dto::{
     BookListQuery, BookPage, BookResponse, CreateBookRequest, CreateHighlightRequest,
     CreateItemNoteRequest, CreateReadingSessionRequest, HighlightList, HighlightResponse,
     ItemNoteList, ItemNoteResponse, ReadingPositionRequest, ReadingPositionResponse,
-    ReadingSessionList, ReadingSessionResponse, UpdateBookRequest, UpdateItemNoteRequest,
-    UpdateReadingSessionRequest,
+    ReadingSessionList, ReadingSessionResponse, UpdateBookRequest, UpdateHighlightRequest,
+    UpdateItemNoteRequest, UpdateReadingSessionRequest,
 };
 use super::{
     Upload, ValidJson, ValidQuery, book_service, child_extractor, create_highlight_of,
-    create_note_of, delete_note_of, file_response, get_position_of, id_extractor,
-    list_highlights_of, list_notes_of, list_query, put_position_of, update_note_of,
+    create_note_of, delete_highlight_of, delete_note_of, file_response, get_position_of,
+    id_extractor, list_highlights_of, list_notes_of, list_query, put_position_of,
+    update_highlight_of, update_note_of,
 };
 use crate::http::AppState;
 use crate::http::session::CurrentUser;
@@ -490,4 +491,45 @@ pub async fn create_book_highlight(
     ValidJson(body): ValidJson<CreateHighlightRequest>,
 ) -> Result<(StatusCode, Json<HighlightResponse>), ApiError> {
     create_highlight_of(&state, user.user_id, ItemRef::Book(id), body).await
+}
+
+#[utoipa::path(
+    patch, path = "/api/v1/books/{id}/highlights/{highlight_id}", tag = "library",
+    request_body = UpdateHighlightRequest,
+    params(
+        ("id" = Uuid, Path, description = "Id do livro"),
+        ("highlight_id" = Uuid, Path, description = "Id do destaque"),
+    ),
+    responses(
+        (status = 200, body = HighlightResponse, description = "Troca a cor do destaque"),
+        (status = 404, body = ProblemDetails, description = "book_not_found ou highlight_not_found"),
+        (status = 422, body = ProblemDetails, description = "validation_failed"),
+    )
+)]
+pub async fn update_book_highlight(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    BookChild(id, highlight_id): BookChild,
+    ValidJson(body): ValidJson<UpdateHighlightRequest>,
+) -> Result<Json<HighlightResponse>, ApiError> {
+    update_highlight_of(&state, user.user_id, ItemRef::Book(id), highlight_id, body).await
+}
+
+#[utoipa::path(
+    delete, path = "/api/v1/books/{id}/highlights/{highlight_id}", tag = "library",
+    params(
+        ("id" = Uuid, Path, description = "Id do livro"),
+        ("highlight_id" = Uuid, Path, description = "Id do destaque"),
+    ),
+    responses(
+        (status = 204, description = "Destaque excluído do leitor e das listas"),
+        (status = 404, body = ProblemDetails, description = "book_not_found ou highlight_not_found"),
+    )
+)]
+pub async fn delete_book_highlight(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    BookChild(id, highlight_id): BookChild,
+) -> Result<StatusCode, ApiError> {
+    delete_highlight_of(&state, user.user_id, ItemRef::Book(id), highlight_id).await
 }

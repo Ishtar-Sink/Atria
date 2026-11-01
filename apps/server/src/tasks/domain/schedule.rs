@@ -5,13 +5,17 @@
 use chrono::{DateTime, Days, NaiveDate, NaiveTime, Utc};
 use chrono_tz::Tz;
 
-use crate::shared::recurrence::{RecurrenceError, RecurrenceRule};
+use crate::shared::recurrence::{RecurrenceError, TaskRecurrenceRule};
 use crate::tasks::domain::error::TasksError;
+
+/// Quanto a próxima data em aberto procura à frente de hoje: dez anos, o mesmo teto
+/// de período do resumo do Financeiro.
+pub const NEXT_LOOKAHEAD_DAYS: u64 = 3660;
 
 /// Uma regra vale de `effective_from` até `effective_until` (inclusive; aberto se nulo).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
-    pub rule: RecurrenceRule,
+    pub rule: TaskRecurrenceRule,
     pub effective_from: NaiveDate,
     pub effective_until: Option<NaiveDate>,
 }
@@ -23,7 +27,7 @@ pub struct Schedule {
 
 impl Schedule {
     /// Agenda nova, com a regra valendo a partir de `effective_from`.
-    pub fn start(rule: RecurrenceRule, effective_from: NaiveDate) -> Result<Self, TasksError> {
+    pub fn start(rule: TaskRecurrenceRule, effective_from: NaiveDate) -> Result<Self, TasksError> {
         validate_rule(&rule)?;
         Ok(Self {
             segments: vec![Segment {
@@ -44,7 +48,7 @@ impl Schedule {
     }
 
     /// A regra vigente: a do último segmento.
-    pub fn current_rule(&self) -> Option<&RecurrenceRule> {
+    pub fn current_rule(&self) -> Option<&TaskRecurrenceRule> {
         self.segments.last().map(|segment| &segment.rule)
     }
 
@@ -71,6 +75,47 @@ impl Schedule {
         dates
     }
 
+    /// Primeira data a partir de `today` que a agenda gera e `is_completed` não marca
+    /// como concluída; `None` quando a agenda terminou ou nada se abre em dez anos.
+    pub fn next_open_date(
+        &self,
+        today: NaiveDate,
+        is_completed: impl Fn(NaiveDate) -> bool,
+    ) -> Option<NaiveDate> {
+        let limit = today.checked_add_days(Days::new(NEXT_LOOKAHEAD_DAYS))?;
+        let last = self.last_date();
+        let mut from = today;
+        while from <= limit && last.is_none_or(|last| from <= last) {
+            let to = from
+                .checked_add_days(Days::new(365))?
+                .min(limit)
+                .min(last.unwrap_or(NaiveDate::MAX));
+            if let Some(date) = self
+                .dates_between(from, to)
+                .into_iter()
+                .find(|date| !is_completed(*date))
+            {
+                return Some(date);
+            }
+            from = to.checked_add_days(Days::new(1))?;
+        }
+        None
+    }
+
+    /// Último dia em que a agenda pode gerar datas; `None` quando não termina.
+    fn last_date(&self) -> Option<NaiveDate> {
+        let mut last = None;
+        for segment in &self.segments {
+            let end = match (segment.effective_until, segment.rule.ends_on) {
+                (Some(until), Some(end)) => until.min(end),
+                (Some(date), None) | (None, Some(date)) => date,
+                (None, None) => return None,
+            };
+            last = last.max(Some(end));
+        }
+        last
+    }
+
     pub fn generates(&self, date: NaiveDate) -> bool {
         !self.dates_between(date, date).is_empty()
     }
@@ -80,7 +125,7 @@ impl Schedule {
     /// As datas anteriores continuam com a regra antiga (RN-08).
     pub fn change_rule(
         &mut self,
-        rule: RecurrenceRule,
+        rule: TaskRecurrenceRule,
         effective_from: NaiveDate,
         today: NaiveDate,
     ) -> Result<(), TasksError> {
@@ -102,7 +147,7 @@ impl Schedule {
     }
 }
 
-pub fn validate_rule(rule: &RecurrenceRule) -> Result<(), TasksError> {
+pub fn validate_rule(rule: &TaskRecurrenceRule) -> Result<(), TasksError> {
     rule.validate().map_err(|error| {
         let code = match error {
             RecurrenceError::InvalidInterval => "invalid_interval",
@@ -128,6 +173,7 @@ fn segment_dates(segment: &Segment, from: NaiveDate, to: NaiveDate) -> Vec<Naive
     let window_end = utc_midnight(end.checked_add_days(Days::new(2)).unwrap_or(end));
     segment
         .rule
+        .to_rule()
         .occurrences_between(window_start, window_end)
         .into_iter()
         .map(|instant| instant.with_timezone(&tz).date_naive())
@@ -152,13 +198,13 @@ mod tests {
         texts.iter().map(|text| date(text)).collect()
     }
 
-    fn rule(frequency: Frequency, timezone: &str, starts_on: &str) -> RecurrenceRule {
-        RecurrenceRule {
+    fn rule(frequency: Frequency, timezone: &str, starts_on: &str) -> TaskRecurrenceRule {
+        TaskRecurrenceRule {
             frequency,
             interval: 1,
             weekdays: Vec::new(),
             month_day: None,
-            time: NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+            time: NaiveTime::from_hms_opt(8, 0, 0),
             timezone: timezone.to_owned(),
             starts_on: date(starts_on),
             ends_on: None,
@@ -167,7 +213,7 @@ mod tests {
 
     #[test]
     fn monthly_on_31_falls_on_last_day_of_short_months() {
-        let monthly = RecurrenceRule {
+        let monthly = TaskRecurrenceRule {
             month_day: Some(31),
             ..rule(Frequency::Monthly, "America/Sao_Paulo", "2027-01-31")
         };
@@ -200,7 +246,7 @@ mod tests {
     fn rule_change_keeps_past_occurrences_of_old_rule() {
         let daily = rule(Frequency::Daily, "America/Sao_Paulo", "2026-11-01");
         let mut schedule = Schedule::start(daily, date("2026-11-01")).unwrap();
-        let weekly = RecurrenceRule {
+        let weekly = TaskRecurrenceRule {
             weekdays: vec![Weekday::Mon],
             ..rule(Frequency::Weekly, "America/Sao_Paulo", "2026-11-01")
         };
@@ -223,7 +269,7 @@ mod tests {
     fn rule_change_applies_new_rule_from_effective_date() {
         let daily = rule(Frequency::Daily, "America/Sao_Paulo", "2026-11-01");
         let mut schedule = Schedule::start(daily, date("2026-11-01")).unwrap();
-        let weekly = RecurrenceRule {
+        let weekly = TaskRecurrenceRule {
             weekdays: vec![Weekday::Mon],
             ..rule(Frequency::Weekly, "America/Sao_Paulo", "2026-11-01")
         };
@@ -275,9 +321,9 @@ mod tests {
     #[test]
     fn weekly_rule_across_dst_change_keeps_local_date() {
         // O horário de verão de Nova York termina em 01/11/2026; 01:30 acontece duas vezes.
-        let weekly = RecurrenceRule {
+        let weekly = TaskRecurrenceRule {
             weekdays: vec![Weekday::Sun],
-            time: NaiveTime::from_hms_opt(1, 30, 0).unwrap(),
+            time: NaiveTime::from_hms_opt(1, 30, 0),
             ..rule(Frequency::Weekly, "America/New_York", "2026-10-25")
         };
         let schedule = Schedule::start(weekly, date("2026-10-25")).unwrap();
@@ -290,7 +336,7 @@ mod tests {
 
     #[test]
     fn ends_on_stops_occurrences() {
-        let daily = RecurrenceRule {
+        let daily = TaskRecurrenceRule {
             ends_on: Some(date("2026-11-03")),
             ..rule(Frequency::Daily, "America/Sao_Paulo", "2026-11-01")
         };
@@ -305,7 +351,7 @@ mod tests {
 
     #[test]
     fn invalid_rule_is_refused() {
-        let broken = RecurrenceRule {
+        let broken = TaskRecurrenceRule {
             interval: 0,
             ..rule(Frequency::Daily, "UTC", "2026-11-01")
         };
@@ -314,5 +360,76 @@ mod tests {
             Schedule::start(broken, date("2026-11-01")),
             Err(TasksError::Validation(issues)) if issues[0].code == "invalid_interval"
         ));
+    }
+
+    fn rule_without_time(
+        frequency: Frequency,
+        timezone: &str,
+        starts_on: &str,
+    ) -> TaskRecurrenceRule {
+        TaskRecurrenceRule {
+            time: None,
+            ..rule(frequency, timezone, starts_on)
+        }
+    }
+
+    #[test]
+    fn rule_without_time_generates_every_local_date() {
+        for timezone in ["America/Sao_Paulo", "Asia/Tokyo"] {
+            let daily = rule_without_time(Frequency::Daily, timezone, "2026-11-01");
+            let schedule = Schedule::start(daily, date("2026-11-01")).unwrap();
+
+            assert_eq!(
+                schedule.dates_between(date("2026-11-01"), date("2026-11-03")),
+                dates(&["2026-11-01", "2026-11-02", "2026-11-03"]),
+                "{timezone}"
+            );
+        }
+    }
+
+    #[test]
+    fn next_open_date_skips_completed_dates() {
+        let daily = rule_without_time(Frequency::Daily, "America/Sao_Paulo", "2026-11-01");
+        let schedule = Schedule::start(daily, date("2026-11-01")).unwrap();
+
+        let next = schedule.next_open_date(date("2026-11-01"), |d| d == date("2026-11-01"));
+
+        assert_eq!(next, Some(date("2026-11-02")));
+    }
+
+    #[test]
+    fn next_open_date_finds_weekly_beyond_seven_days() {
+        let weekly = TaskRecurrenceRule {
+            weekdays: vec![Weekday::Wed],
+            ..rule_without_time(Frequency::Weekly, "America/Sao_Paulo", "2026-11-11")
+        };
+        let schedule = Schedule::start(weekly, date("2026-11-01")).unwrap();
+
+        assert_eq!(
+            schedule.next_open_date(date("2026-11-01"), |_| false),
+            Some(date("2026-11-11"))
+        );
+    }
+
+    #[test]
+    fn next_open_date_finds_yearly_after_a_year() {
+        let yearly = rule_without_time(Frequency::Yearly, "America/Sao_Paulo", "2026-10-15");
+        let schedule = Schedule::start(yearly, date("2026-10-15")).unwrap();
+
+        assert_eq!(
+            schedule.next_open_date(date("2026-11-01"), |_| false),
+            Some(date("2027-10-15"))
+        );
+    }
+
+    #[test]
+    fn next_open_date_is_none_after_end() {
+        let daily = TaskRecurrenceRule {
+            ends_on: Some(date("2026-10-31")),
+            ..rule_without_time(Frequency::Daily, "America/Sao_Paulo", "2026-10-20")
+        };
+        let schedule = Schedule::start(daily, date("2026-10-20")).unwrap();
+
+        assert_eq!(schedule.next_open_date(date("2026-11-01"), |_| false), None);
     }
 }

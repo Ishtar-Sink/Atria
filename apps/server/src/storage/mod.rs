@@ -34,6 +34,14 @@ pub type StorageFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, StorageErr
 pub trait FileStorage: Send + Sync {
     fn put<'a>(&'a self, key: &'a StorageKey, bytes: Bytes) -> StorageFuture<'a, StoredFile>;
     fn get<'a>(&'a self, key: &'a StorageKey) -> StorageFuture<'a, Bytes>;
+    /// Lê só `len` bytes a partir de `start`, ou menos no fim do arquivo; o PDF grande
+    /// não é carregado inteiro (RF-27).
+    fn get_range<'a>(
+        &'a self,
+        key: &'a StorageKey,
+        start: u64,
+        len: u64,
+    ) -> StorageFuture<'a, Bytes>;
     fn delete<'a>(&'a self, key: &'a StorageKey) -> StorageFuture<'a, ()>;
     fn exists<'a>(&'a self, key: &'a StorageKey) -> StorageFuture<'a, bool>;
 }
@@ -135,6 +143,46 @@ mod tests {
             leftovers.is_empty(),
             "sobrou arquivo temporário: {leftovers:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn get_range_reads_only_the_requested_slice() {
+        let (_dir, storage) = storage();
+        let key = key("library/range/file");
+        storage
+            .put(&key, Bytes::from_static(b"0123456789"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            storage.get_range(&key, 2, 3).await.unwrap(),
+            Bytes::from_static(b"234")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_range_stops_at_end_of_file() {
+        let (_dir, storage) = storage();
+        let key = key("library/range/end");
+        storage
+            .put(&key, Bytes::from_static(b"0123456789"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            storage.get_range(&key, 8, 10).await.unwrap(),
+            Bytes::from_static(b"89")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_range_of_missing_file_returns_not_found() {
+        let (_dir, storage) = storage();
+
+        assert!(matches!(
+            storage.get_range(&key("nada"), 0, 4).await,
+            Err(StorageError::NotFound)
+        ));
     }
 
     #[tokio::test]
