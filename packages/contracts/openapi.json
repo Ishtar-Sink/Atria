@@ -136,12 +136,23 @@
         "tags": [
           "finance"
         ],
+        "summary": "Exclui a conta; com movimentações, move tudo para `move_to` (RF-05, RF-06). 409 para a\nconta padrão ou sem destino; 422 para destino inválido ou de outra moeda.",
         "operationId": "delete_account",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "move_to",
+            "in": "query",
+            "description": "Outra conta ativa da mesma pessoa e da mesma moeda que recebe as movimentações, as\ntransferências, as recorrências e o saldo; obrigatória quando a conta tem\nmovimentações (RF-05, RF-06, RN-04).",
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -160,6 +171,15 @@
             }
           },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3382,123 +3402,6 @@
         }
       }
     },
-    "/api/v1/credit-cards/{id}/statements": {
-      "get": {
-        "tags": [
-          "finance"
-        ],
-        "operationId": "list_statements",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatementList"
-                }
-              }
-            }
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/credit-cards/{id}/statements/{period}/payment": {
-      "post": {
-        "tags": [
-          "finance"
-        ],
-        "operationId": "pay_statement",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "period",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "example": "2026-11"
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PayStatementRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatementPaymentResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/emotions": {
       "get": {
         "tags": [
@@ -6551,6 +6454,36 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Exclui a recorrente e a ocorrência aberta; as cópias liquidadas ficam como pontuais (RF-01, RN-01).",
+        "operationId": "delete_recurring_transaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "finance"
@@ -9215,7 +9148,6 @@
         "required": [
           "id",
           "name",
-          "kind",
           "balance_amount"
         ],
         "properties": {
@@ -9227,20 +9159,10 @@
             "type": "string",
             "format": "uuid"
           },
-          "kind": {
-            "$ref": "#/components/schemas/AccountKindDto"
-          },
           "name": {
             "type": "string"
           }
         }
-      },
-      "AccountKindDto": {
-        "type": "string",
-        "enum": [
-          "standard",
-          "credit_card"
-        ]
       },
       "AccountPage": {
         "type": "object",
@@ -9271,7 +9193,6 @@
           "created_at",
           "updated_at",
           "name",
-          "kind",
           "is_default",
           "balance_amount",
           "currency"
@@ -9281,36 +9202,13 @@
             "type": "integer",
             "format": "int64"
           },
-          "closing_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "credit_limit_amount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
           "currency": {
             "type": "string",
             "example": "BRL"
-          },
-          "due_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
           },
           "id": {
             "type": "string",
@@ -9318,9 +9216,6 @@
           },
           "is_default": {
             "type": "boolean"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/AccountKindDto"
           },
           "name": {
             "type": "string"
@@ -9452,7 +9347,7 @@
       },
       "BalanceDto": {
         "type": "object",
-        "description": "Saldo de agora, fora do período: o atual soma todas as contas, a lista traz só as\ncomuns, e o previsto no fim do período é nulo quando ele já terminou.",
+        "description": "Saldo de agora, fora do período: o atual soma todas as contas, a lista traz todas,\ne o previsto no fim do período é nulo quando ele já terminou.",
         "required": [
           "current",
           "accounts"
@@ -9737,17 +9632,6 @@
           }
         }
       },
-      "CategoryColorDto": {
-        "type": "string",
-        "enum": [
-          "primary",
-          "accent",
-          "success",
-          "warning",
-          "danger",
-          "info"
-        ]
-      },
       "CategoryPage": {
         "type": "object",
         "required": [
@@ -9782,7 +9666,9 @@
         ],
         "properties": {
           "color": {
-            "$ref": "#/components/schemas/CategoryColorDto"
+            "type": "string",
+            "description": "HEX `#rrggbb`.",
+            "example": "#6d28d9"
           },
           "created_at": {
             "type": "string",
@@ -9917,32 +9803,6 @@
           "name"
         ],
         "properties": {
-          "closing_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "credit_limit_amount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "due_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "kind": {
-            "$ref": "#/components/schemas/AccountKindDto"
-          },
           "name": {
             "type": "string"
           },
@@ -10155,7 +10015,9 @@
         ],
         "properties": {
           "color": {
-            "$ref": "#/components/schemas/CategoryColorDto"
+            "type": "string",
+            "description": "HEX `#rrggbb`; guardado em minúsculas (RN-09).",
+            "example": "#6d28d9"
           },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
@@ -10278,7 +10140,9 @@
         ],
         "properties": {
           "color": {
-            "$ref": "#/components/schemas/HighlightColor"
+            "type": "string",
+            "description": "HEX `#rrggbb`; guardado em minúsculas (RN-09).",
+            "example": "#0e7490"
           },
           "file_id": {
             "type": "string",
@@ -10770,15 +10634,6 @@
             "type": "string",
             "format": "date"
           },
-          "installments": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "description": "Número de parcelas de uma compra no cartão (RF-28).",
-            "minimum": 0
-          },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
           },
@@ -10907,48 +10762,6 @@
             "items": {
               "$ref": "#/components/schemas/TransactionResponse"
             }
-          }
-        }
-      },
-      "CreditCardSummaryDto": {
-        "type": "object",
-        "description": "Fatura aberta e limite usado de um cartão, fora do período.",
-        "required": [
-          "account_id",
-          "name",
-          "statement_period",
-          "open_statement_amount",
-          "due_date",
-          "credit_limit_amount",
-          "used_limit_amount"
-        ],
-        "properties": {
-          "account_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "credit_limit_amount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "due_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "name": {
-            "type": "string"
-          },
-          "open_statement_amount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "statement_period": {
-            "type": "string",
-            "example": "2026-11"
-          },
-          "used_limit_amount": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -11155,19 +10968,13 @@
           "expected_vs_settled",
           "savings_and_losses",
           "balance",
-          "credit_cards",
           "upcoming_bills",
+          "monthly",
           "currency"
         ],
         "properties": {
           "balance": {
             "$ref": "#/components/schemas/BalanceDto"
-          },
-          "credit_cards": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CreditCardSummaryDto"
-            }
           },
           "currency": {
             "type": "string",
@@ -11175,6 +10982,13 @@
           },
           "expected_vs_settled": {
             "$ref": "#/components/schemas/ExpectedVsSettledDto"
+          },
+          "monthly": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthlyTotalsDto"
+            },
+            "description": "6 meses realizados e 6 projetados, em ordem (RF-17)."
           },
           "period": {
             "$ref": "#/components/schemas/PeriodDto"
@@ -11353,16 +11167,6 @@
           "abandoned"
         ]
       },
-      "HighlightColor": {
-        "type": "string",
-        "enum": [
-          "accent",
-          "primary",
-          "success",
-          "warning",
-          "info"
-        ]
-      },
       "HighlightList": {
         "type": "object",
         "required": [
@@ -11420,7 +11224,8 @@
         ],
         "properties": {
           "color": {
-            "$ref": "#/components/schemas/HighlightColor"
+            "type": "string",
+            "description": "HEX `#rrggbb`."
           },
           "created_at": {
             "type": "string",
@@ -11500,25 +11305,6 @@
           },
           "title": {
             "type": "string"
-          }
-        }
-      },
-      "InstallmentDto": {
-        "type": "object",
-        "required": [
-          "number",
-          "total"
-        ],
-        "properties": {
-          "number": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "total": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
           }
         }
       },
@@ -12085,6 +11871,38 @@
           }
         }
       },
+      "MonthlyTotalsDto": {
+        "type": "object",
+        "description": "Um mês do \"Mês a mês\": entradas, saídas e saldo ao fim do mês, em centavos; `projected`\nnos meses calculados pelas recorrentes e pendentes, sem linhas gravadas (RF-17, RN-08).",
+        "required": [
+          "month",
+          "income",
+          "expense",
+          "balance",
+          "projected"
+        ],
+        "properties": {
+          "balance": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expense": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "income": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "month": {
+            "type": "string",
+            "example": "2026-11"
+          },
+          "projected": {
+            "type": "boolean"
+          }
+        }
+      },
       "MoveCardRequest": {
         "type": "object",
         "required": [
@@ -12310,24 +12128,6 @@
                 "type": "null"
               }
             ]
-          }
-        },
-        "additionalProperties": false
-      },
-      "PayStatementRequest": {
-        "type": "object",
-        "required": [
-          "from_account_id",
-          "paid_on"
-        ],
-        "properties": {
-          "from_account_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "paid_on": {
-            "type": "string",
-            "format": "date"
           }
         },
         "additionalProperties": false
@@ -13231,80 +13031,6 @@
           "created_at"
         ]
       },
-      "StatementList": {
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StatementResponse"
-            }
-          }
-        }
-      },
-      "StatementPaymentResponse": {
-        "type": "object",
-        "required": [
-          "transfer",
-          "settled_transaction_ids"
-        ],
-        "properties": {
-          "settled_transaction_ids": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "transfer": {
-            "$ref": "#/components/schemas/TransferResponse"
-          }
-        }
-      },
-      "StatementResponse": {
-        "type": "object",
-        "required": [
-          "period",
-          "closing_date",
-          "due_date",
-          "total_amount",
-          "outstanding_amount",
-          "transaction_count",
-          "paid"
-        ],
-        "properties": {
-          "closing_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "due_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "outstanding_amount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "paid": {
-            "type": "boolean"
-          },
-          "period": {
-            "type": "string",
-            "example": "2026-11"
-          },
-          "total_amount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "transaction_count": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
       "SubscriptionKeysBody": {
         "type": "object",
         "required": [
@@ -13657,16 +13383,6 @@
             ],
             "format": "uuid"
           },
-          "installment": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/InstallmentDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
           },
@@ -13701,13 +13417,6 @@
               "null"
             ],
             "format": "date"
-          },
-          "statement_period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "2026-11"
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatusDto"
@@ -13836,16 +13545,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "installment": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/InstallmentDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
           },
@@ -13881,13 +13580,6 @@
               "null"
             ],
             "format": "date"
-          },
-          "statement_period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "2026-11"
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatusDto"
@@ -13965,13 +13657,6 @@
           "owner_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "statement_period": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Período da fatura que a transferência pagou, quando paga uma fatura."
           },
           "to_account_id": {
             "type": "string",
@@ -14059,29 +13744,6 @@
       "UpdateAccountRequest": {
         "type": "object",
         "properties": {
-          "closing_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "credit_limit_amount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "due_day": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
           "name": {
             "type": [
               "string",
@@ -14278,14 +13940,12 @@
         "description": "O tipo da categoria não muda depois da criação.",
         "properties": {
           "color": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/CategoryColorDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HEX `#rrggbb`; guardado em minúsculas (RN-09).",
+            "example": "#6d28d9"
           },
           "name": {
             "type": [
@@ -14394,7 +14054,9 @@
         ],
         "properties": {
           "color": {
-            "$ref": "#/components/schemas/HighlightColor"
+            "type": "string",
+            "description": "HEX `#rrggbb`; guardado em minúsculas (RN-09).",
+            "example": "#0e7490"
           }
         },
         "additionalProperties": false
@@ -14821,7 +14483,7 @@
       },
       "UpdateTransactionRequest": {
         "type": "object",
-        "description": "Edição (DEC-005): a liquidada só aceita `description`, `category_id` e\n`visibility`; a parcela não muda `account_id` nem `expected_date`.",
+        "description": "Edição (DEC-005): a liquidada só aceita `description`, `category_id` e\n`visibility`.",
         "properties": {
           "account_id": {
             "type": [
@@ -15135,14 +14797,11 @@
             "format": "uuid"
           },
           "color": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/CategoryColorDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HEX `#rrggbb`."
           },
           "group": {
             "$ref": "#/components/schemas/WhereGroupDto"
@@ -15164,7 +14823,7 @@
     },
     {
       "name": "finance",
-      "description": "Financeiro: contas, movimentações, cartões, recorrências e painel"
+      "description": "Financeiro: contas, movimentações, recorrências e painel"
     },
     {
       "name": "goals",

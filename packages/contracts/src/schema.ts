@@ -30,6 +30,10 @@ export interface paths {
         get: operations["get_account"];
         put?: never;
         post?: never;
+        /**
+         * Exclui a conta; com movimentações, move tudo para `move_to` (RF-05, RF-06). 409 para a
+         *     conta padrão ou sem destino; 422 para destino inválido ou de outra moeda.
+         */
         delete: operations["delete_account"];
         options?: never;
         head?: never;
@@ -612,38 +616,6 @@ export interface paths {
         patch: operations["update_category"];
         trace?: never;
     };
-    "/api/v1/credit-cards/{id}/statements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["list_statements"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/credit-cards/{id}/statements/{period}/payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["pay_statement"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/emotions": {
         parameters: {
             query?: never;
@@ -1118,7 +1090,8 @@ export interface paths {
         get: operations["get_recurring_transaction"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Exclui a recorrente e a ocorrência aberta; as cópias liquidadas ficam como pontuais (RF-01, RN-01). */
+        delete: operations["delete_recurring_transaction"];
         options?: never;
         head?: never;
         patch: operations["update_recurring_transaction"];
@@ -1540,11 +1513,8 @@ export interface components {
             balance_amount: number;
             /** Format: uuid */
             id: string;
-            kind: components["schemas"]["AccountKindDto"];
             name: string;
         };
-        /** @enum {string} */
-        AccountKindDto: "standard" | "credit_card";
         AccountPage: {
             items: components["schemas"]["AccountResponse"][];
             next_cursor?: string | null;
@@ -1552,20 +1522,13 @@ export interface components {
         AccountResponse: {
             /** Format: int64 */
             balance_amount: number;
-            /** Format: int32 */
-            closing_day?: number | null;
             /** Format: date-time */
             created_at: string;
-            /** Format: int64 */
-            credit_limit_amount?: number | null;
             /** @example BRL */
             currency: string;
-            /** Format: int32 */
-            due_day?: number | null;
             /** Format: uuid */
             id: string;
             is_default: boolean;
-            kind: components["schemas"]["AccountKindDto"];
             name: string;
             /** Format: uuid */
             owner_id: string;
@@ -1607,8 +1570,8 @@ export interface components {
             visibility: components["schemas"]["Visibility"];
         };
         /**
-         * @description Saldo de agora, fora do período: o atual soma todas as contas, a lista traz só as
-         *     comuns, e o previsto no fim do período é nulo quando ele já terminou.
+         * @description Saldo de agora, fora do período: o atual soma todas as contas, a lista traz todas,
+         *     e o previsto no fim do período é nulo quando ele já terminou.
          */
         BalanceDto: {
             accounts: components["schemas"]["AccountBalanceDto"][];
@@ -1698,14 +1661,16 @@ export interface components {
             module: string;
             title: string;
         };
-        /** @enum {string} */
-        CategoryColorDto: "primary" | "accent" | "success" | "warning" | "danger" | "info";
         CategoryPage: {
             items: components["schemas"]["CategoryResponse"][];
             next_cursor?: string | null;
         };
         CategoryResponse: {
-            color: components["schemas"]["CategoryColorDto"];
+            /**
+             * @description HEX `#rrggbb`.
+             * @example #6d28d9
+             */
+            color: string;
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
@@ -1752,13 +1717,6 @@ export interface components {
             task_id: string;
         };
         CreateAccountRequest: {
-            /** Format: int32 */
-            closing_day?: number | null;
-            /** Format: int64 */
-            credit_limit_amount?: number | null;
-            /** Format: int32 */
-            due_day?: number | null;
-            kind?: components["schemas"]["AccountKindDto"];
             name: string;
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -1805,7 +1763,11 @@ export interface components {
             title: string;
         };
         CreateCategoryRequest: {
-            color: components["schemas"]["CategoryColorDto"];
+            /**
+             * @description HEX `#rrggbb`; guardado em minúsculas (RN-09).
+             * @example #6d28d9
+             */
+            color: string;
             kind: components["schemas"]["TransactionKindDto"];
             name: string;
             visibility?: components["schemas"]["Visibility"] | null;
@@ -1827,7 +1789,11 @@ export interface components {
             visibility?: components["schemas"]["Visibility"] | null;
         };
         CreateHighlightRequest: {
-            color: components["schemas"]["HighlightColor"];
+            /**
+             * @description HEX `#rrggbb`; guardado em minúsculas (RN-09).
+             * @example #0e7490
+             */
+            color: string;
             /**
              * Format: uuid
              * @description Tem de ser o PDF atual do item.
@@ -1980,11 +1946,6 @@ export interface components {
             expected_amount: number;
             /** Format: date */
             expected_date: string;
-            /**
-             * Format: int32
-             * @description Número de parcelas de uma compra no cartão (RF-28).
-             */
-            installments?: number | null;
             kind: components["schemas"]["TransactionKindDto"];
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -2013,22 +1974,6 @@ export interface components {
         /** @description Movimentações criadas por um pedido: uma, ou uma por parcela. */
         CreatedTransactions: {
             items: components["schemas"]["TransactionResponse"][];
-        };
-        /** @description Fatura aberta e limite usado de um cartão, fora do período. */
-        CreditCardSummaryDto: {
-            /** Format: uuid */
-            account_id: string;
-            /** Format: int64 */
-            credit_limit_amount: number;
-            /** Format: date */
-            due_date: string;
-            name: string;
-            /** Format: int64 */
-            open_statement_amount: number;
-            /** @example 2026-11 */
-            statement_period: string;
-            /** Format: int64 */
-            used_limit_amount: number;
         };
         /** @enum {string} */
         DifferenceKindDto: "saving" | "gain" | "loss";
@@ -2088,10 +2033,11 @@ export interface components {
         };
         FinancialSummaryResponse: {
             balance: components["schemas"]["BalanceDto"];
-            credit_cards: components["schemas"]["CreditCardSummaryDto"][];
             /** @example BRL */
             currency: string;
             expected_vs_settled: components["schemas"]["ExpectedVsSettledDto"];
+            /** @description 6 meses realizados e 6 projetados, em ordem (RF-17). */
+            monthly: components["schemas"]["MonthlyTotalsDto"][];
             period: components["schemas"]["PeriodDto"];
             previous_period?: components["schemas"]["PeriodDto"] | null;
             previous_totals?: components["schemas"]["PeriodTotalsDto"] | null;
@@ -2141,8 +2087,6 @@ export interface components {
         };
         /** @enum {string} */
         GoalStatus: "planned" | "in_progress" | "completed" | "abandoned";
-        /** @enum {string} */
-        HighlightColor: "accent" | "primary" | "success" | "warning" | "info";
         HighlightList: {
             items: components["schemas"]["HighlightResponse"][];
         };
@@ -2158,7 +2102,8 @@ export interface components {
             y: number;
         };
         HighlightResponse: {
-            color: components["schemas"]["HighlightColor"];
+            /** @description HEX `#rrggbb`. */
+            color: string;
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
@@ -2187,12 +2132,6 @@ export interface components {
             lane_id: string;
             priority?: string | null;
             title: string;
-        };
-        InstallmentDto: {
-            /** Format: int32 */
-            number: number;
-            /** Format: int32 */
-            total: number;
         };
         /**
          * @description Configurações da instância. A senha do SMTP não existe aqui: vem só de
@@ -2372,6 +2311,21 @@ export interface components {
             updated_at: string;
             visibility: components["schemas"]["Visibility"];
         };
+        /**
+         * @description Um mês do "Mês a mês": entradas, saídas e saldo ao fim do mês, em centavos; `projected`
+         *     nos meses calculados pelas recorrentes e pendentes, sem linhas gravadas (RF-17, RN-08).
+         */
+        MonthlyTotalsDto: {
+            /** Format: int64 */
+            balance: number;
+            /** Format: int64 */
+            expense: number;
+            /** Format: int64 */
+            income: number;
+            /** @example 2026-11 */
+            month: string;
+            projected: boolean;
+        };
         MoveCardRequest: {
             /** Format: uuid */
             lane_id: string;
@@ -2436,12 +2390,6 @@ export interface components {
             timezone?: string | null;
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
-        };
-        PayStatementRequest: {
-            /** Format: uuid */
-            from_account_id: string;
-            /** Format: date */
-            paid_on: string;
         };
         PeriodDto: {
             /** Format: date */
@@ -2715,27 +2663,6 @@ export interface components {
         };
         /** @enum {string} */
         SortParam: "deadline" | "created_at";
-        StatementList: {
-            items: components["schemas"]["StatementResponse"][];
-        };
-        StatementPaymentResponse: {
-            settled_transaction_ids: string[];
-            transfer: components["schemas"]["TransferResponse"];
-        };
-        StatementResponse: {
-            /** Format: date */
-            closing_date: string;
-            /** Format: date */
-            due_date: string;
-            /** Format: int64 */
-            outstanding_amount: number;
-            paid: boolean;
-            /** @example 2026-11 */
-            period: string;
-            /** Format: int64 */
-            total_amount: number;
-            transaction_count: number;
-        };
         SubscriptionKeysBody: {
             auth: string;
             p256dh: string;
@@ -2851,7 +2778,6 @@ export interface components {
             generated_from?: string | null;
             /** Format: uuid */
             id?: string | null;
-            installment?: components["schemas"]["InstallmentDto"] | null;
             kind: components["schemas"]["TransactionKindDto"];
             /** Format: date */
             occurrence_date?: string | null;
@@ -2863,8 +2789,6 @@ export interface components {
             settled_amount?: number | null;
             /** Format: date */
             settled_at?: string | null;
-            /** @example 2026-11 */
-            statement_period?: string | null;
             status: components["schemas"]["ItemStatusDto"];
             /** Format: date-time */
             updated_at?: string | null;
@@ -2906,7 +2830,6 @@ export interface components {
             generated_from?: string | null;
             /** Format: uuid */
             id: string;
-            installment?: components["schemas"]["InstallmentDto"] | null;
             kind: components["schemas"]["TransactionKindDto"];
             /** Format: date */
             occurrence_date?: string | null;
@@ -2921,8 +2844,6 @@ export interface components {
             settled_amount?: number | null;
             /** Format: date */
             settled_at?: string | null;
-            /** @example 2026-11 */
-            statement_period?: string | null;
             status: components["schemas"]["ItemStatusDto"];
             /** Format: date-time */
             updated_at: string;
@@ -2946,8 +2867,6 @@ export interface components {
             id: string;
             /** Format: uuid */
             owner_id: string;
-            /** @description Período da fatura que a transferência pagou, quando paga uma fatura. */
-            statement_period?: string | null;
             /** Format: uuid */
             to_account_id: string;
             /** Format: date */
@@ -2978,12 +2897,6 @@ export interface components {
             items: components["schemas"]["UpcomingFireResponse"][];
         };
         UpdateAccountRequest: {
-            /** Format: int32 */
-            closing_day?: number | null;
-            /** Format: int64 */
-            credit_limit_amount?: number | null;
-            /** Format: int32 */
-            due_day?: number | null;
             name?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -3023,7 +2936,11 @@ export interface components {
         };
         /** @description O tipo da categoria não muda depois da criação. */
         UpdateCategoryRequest: {
-            color?: components["schemas"]["CategoryColorDto"] | null;
+            /**
+             * @description HEX `#rrggbb`; guardado em minúsculas (RN-09).
+             * @example #6d28d9
+             */
+            color?: string | null;
             name?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -3048,7 +2965,11 @@ export interface components {
         };
         /** @description Só a cor muda; texto, página e retângulos ficam. */
         UpdateHighlightRequest: {
-            color: components["schemas"]["HighlightColor"];
+            /**
+             * @description HEX `#rrggbb`; guardado em minúsculas (RN-09).
+             * @example #0e7490
+             */
+            color: string;
         };
         /**
          * @description Mudança parcial; texto vazio limpa o campo de SMTP. Campos desconhecidos (como uma
@@ -3152,7 +3073,7 @@ export interface components {
         };
         /**
          * @description Edição (DEC-005): a liquidada só aceita `description`, `category_id` e
-         *     `visibility`; a parcela não muda `account_id` nem `expected_date`.
+         *     `visibility`.
          */
         UpdateTransactionRequest: {
             /** Format: uuid */
@@ -3234,7 +3155,8 @@ export interface components {
             amount: number;
             /** Format: uuid */
             category_id?: string | null;
-            color?: components["schemas"]["CategoryColorDto"] | null;
+            /** @description HEX `#rrggbb`. */
+            color?: string | null;
             group: components["schemas"]["WhereGroupDto"];
             name?: string | null;
         };
@@ -3339,7 +3261,14 @@ export interface operations {
     };
     delete_account: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Outra conta ativa da mesma pessoa e da mesma moeda que recebe as movimentações, as
+                 *     transferências, as recorrências e o saldo; obrigatória quando a conta tem
+                 *     movimentações (RF-05, RF-06, RN-04).
+                 */
+                move_to?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -3363,6 +3292,14 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5773,80 +5710,6 @@ export interface operations {
             };
         };
     };
-    list_statements: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StatementList"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    pay_statement: {
-        parameters: {
-            query?: never;
-            header?: {
-                "Idempotency-Key"?: string | null;
-            };
-            path: {
-                id: string;
-                /** @example 2026-11 */
-                period: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PayStatementRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StatementPaymentResponse"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
     list_emotions: {
         parameters: {
             query?: never;
@@ -8101,6 +7964,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RecurringTransactionResponse"];
                 };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_recurring_transaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: {
                 headers: {
