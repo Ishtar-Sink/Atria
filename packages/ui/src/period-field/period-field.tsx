@@ -21,6 +21,8 @@ export interface PeriodFieldLabels {
 
 export interface PeriodFieldProps {
   label?: string;
+  /** false: rótulo só para leitor de tela, como no cabeçalho de página (RF-04). */
+  label_visible?: boolean;
   value?: PeriodValue;
   onChange: (value: PeriodValue) => void;
   presets?: readonly PeriodPreset[];
@@ -66,6 +68,7 @@ function CalendarIcon() {
 
 export function PeriodField({
   label,
+  label_visible = true,
   value = DEFAULT_VALUE,
   onChange,
   presets = DEFAULT_PRESETS,
@@ -192,7 +195,7 @@ export function PeriodField({
   return (
     <div className={[styles.root, className].filter(Boolean).join(' ')} ref={root}>
       {label ? (
-        <span id={`${generated}-label`} className={styles.label}>
+        <span id={`${generated}-label`} className={label_visible ? styles.label : styles.srOnly}>
           {label}
         </span>
       ) : null}

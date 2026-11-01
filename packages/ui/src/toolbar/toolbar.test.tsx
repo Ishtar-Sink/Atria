@@ -2,11 +2,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { Toolbar } from './toolbar';
+import { GridIcon, ListIcon } from '../icons';
 import { ViewSwitcher } from '../view-switcher/view-switcher';
 
 const views = [
-  { value: 'list', label: 'Lista' },
-  { value: 'grid', label: 'Grade' },
+  { value: 'list', label: 'Lista', icon: <ListIcon /> },
+  { value: 'grid', label: 'Grade', icon: <GridIcon /> },
 ];
 
 function setup(onSearchChange: (value: string) => void = () => undefined) {

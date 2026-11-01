@@ -1,4 +1,7 @@
 .root {
+  /* O seletor ocupa só a largura das opções, mesmo numa barra flexível. */
+  flex: none;
+  width: fit-content;
   display: inline-flex;
   overflow: hidden;
   border: 1px solid var(--border-strong);
@@ -20,6 +23,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: background var(--motion-fast) var(--motion-ease-standard);
+}
+
+.option svg {
+  /* Sem a linha de base do texto em linha, o ícone fica no centro do botão. */
+  display: block;
 }
 
 .option:hover {

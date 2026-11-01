@@ -1,7 +1,7 @@
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--space);
+  gap: var(--s1);
   min-width: 0;
 }
 
@@ -36,11 +36,13 @@
   border-color: var(--danger);
 }
 
+/* Como o protótipo: etiquetas 12 px abaixo do campo (4 do gap mais 8 da margem), 4 px entre elas
+   e a ajuda 4 px abaixo (Bug 19). */
 .pills {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(var(--space) * 2);
-  margin: 0;
+  gap: var(--s1);
+  margin: var(--s2) 0 0;
   padding: 0;
   list-style: none;
 }

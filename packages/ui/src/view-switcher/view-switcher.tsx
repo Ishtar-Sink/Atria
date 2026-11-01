@@ -3,9 +3,10 @@ import styles from './view-switcher.module.css';
 
 export interface ViewOption {
   value: string;
-  /** Nome acessível; também é o texto do botão quando não há ícone. */
+  /** Nome acessível e dica do botão. */
   label: string;
-  icon?: ReactNode;
+  /** Obrigatório: o botão mostra só o ícone (RF-05). */
+  icon: ReactNode;
 }
 
 export interface ViewSwitcherProps {
@@ -23,13 +24,14 @@ export function ViewSwitcher({ label, options, value, onChange }: ViewSwitcherPr
           key={option.value}
           type="button"
           aria-pressed={option.value === value}
-          aria-label={option.icon ? option.label : undefined}
+          aria-label={option.label}
+          title={option.label}
           className={styles.option}
           onClick={() => {
             onChange(option.value);
           }}
         >
-          {option.icon ? <span aria-hidden="true">{option.icon}</span> : option.label}
+          {option.icon}
         </button>
       ))}
     </div>

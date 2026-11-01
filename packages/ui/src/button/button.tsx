@@ -36,6 +36,9 @@ export function Button({
       aria-disabled={unavailable || undefined}
       aria-busy={loading || undefined}
     >
+      {loading ? (
+        <span className={styles.spinner} aria-hidden="true" data-button-spinner="" />
+      ) : null}
       {children}
     </button>
   );

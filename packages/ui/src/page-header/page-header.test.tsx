@@ -38,4 +38,11 @@ describe('PageHeader', () => {
     expect(root?.className).toMatch(/compact/);
     expect(screen.queryByText('Tudo')).not.toBeInTheDocument();
   });
+
+  it('marks the compact state with data-compact', () => {
+    const { container, rerender } = render(<PageHeader title="Contas" compact />);
+    expect(container.querySelector('header')).toHaveAttribute('data-compact');
+    rerender(<PageHeader title="Contas" />);
+    expect(container.querySelector('header')).not.toHaveAttribute('data-compact');
+  });
 });

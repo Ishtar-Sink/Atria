@@ -72,4 +72,17 @@ describe('ConfirmDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect(onConfirm).toHaveBeenCalledOnce();
   });
+
+  it('is built on Dialog, with the actions after the description', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog.querySelector('[data-dialog-body]')).toHaveTextContent(
+      'Isto não pode ser desfeito.',
+    );
+    const actions = dialog.querySelector('[data-dialog-actions]');
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Confirmar' }));
+  });
 });

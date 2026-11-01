@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { Button } from './button';
 
@@ -64,5 +65,44 @@ describe('Button success hover (DEC-013)', () => {
     expect(css).toMatch(
       /\.success\[aria-pressed='true'\]:hover:not\(:disabled\) \{\s*background: color-mix\(in srgb, var\(--success\) 85%, var\(--text\)\);/,
     );
+  });
+
+  it('shows a visible spinner while loading', () => {
+    const { rerender } = render(<Button loading>Salvar</Button>);
+    const button = screen.getByRole('button', { name: 'Salvar' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    const spinner = button.querySelector('[data-button-spinner]');
+    expect(spinner).toHaveAttribute('aria-hidden', 'true');
+    rerender(<Button>Salvar</Button>);
+    const idle = screen.getByRole('button', { name: 'Salvar' });
+    expect(idle).not.toHaveAttribute('aria-busy');
+    expect(idle.querySelector('[data-button-spinner]')).toBeNull();
+  });
+
+  it('ignores clicks while loading', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <Button loading onClick={onClick}>
+        Salvar
+      </Button>,
+    );
+    const button = screen.getByRole('button', { name: 'Salvar' });
+    await user.click(button);
+    await user.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('keeps the accessible name while loading', () => {
+    render(<Button loading>Salvar</Button>);
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
+  });
+
+  it('keeps the primary color while loading', () => {
+    const css = readFileSync(join(__dirname, 'button.module.css'), 'utf8');
+    const busy = /\.primary\[aria-busy='true'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(busy).toContain('background: var(--primary)');
+    const spinner = /\.spinner\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(spinner).toContain('var(--motion-slow)');
   });
 });

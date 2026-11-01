@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -59,5 +61,14 @@ describe('TagField', () => {
   it('has no axe violations', async () => {
     const { container } = render(<Harness initial={['a']} />);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('uses the prototype spacing between field, pills and help', () => {
+    const css = readFileSync(join(import.meta.dirname, 'tag-field.module.css'), 'utf8');
+    const block = (name: string) => new RegExp(`\\.${name}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    expect(block('pills')).toContain('gap: var(--s1)');
+    expect(block('pills')).toContain('margin: var(--s2) 0 0');
+    expect(block('root')).toContain('gap: var(--s1)');
+    expect(block('help')).toContain('margin: 0');
   });
 });

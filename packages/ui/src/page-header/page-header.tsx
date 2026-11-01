@@ -29,7 +29,11 @@ export function PageHeader({
     .filter(Boolean)
     .join(' ');
   return (
-    <header className={classes} {...(stuck ? { 'data-stuck': '' } : {})}>
+    <header
+      className={classes}
+      {...(stuck ? { 'data-stuck': '' } : {})}
+      {...(compact ? { 'data-compact': '' } : {})}
+    >
       <div className={styles.titleBlock}>
         {back ? <div className={styles.back}>{back}</div> : null}
         {eyebrow ? <p className={styles.eyebrow}>{eyebrow}</p> : null}

@@ -113,3 +113,31 @@
 .success[aria-pressed='true']:hover:not(:disabled) {
   background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
+
+/* Com "reduzir movimento", --motion-slow vale 0 e o anel fica parado, ainda visível. */
+.spinner {
+  flex: none;
+  width: calc(var(--space) * 4);
+  height: calc(var(--space) * 4);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: button-spin var(--motion-slow) var(--motion-ease-linear) infinite;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.root[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* Fica no fim para vencer `.root:disabled` e `.primary:disabled`. */
+.primary[aria-busy='true'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-on);
+}

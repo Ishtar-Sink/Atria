@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -192,5 +194,38 @@ describe('PeriodField', () => {
     expect(await axe(container)).toHaveNoViolations();
     await userEvent.click(trigger());
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('hides the label visually but keeps it as the accessible name', () => {
+    render(<Harness label_visible={false} />);
+    expect(trigger()).toHaveTextContent('Este mês');
+    expect(screen.getByText('Período').className).toMatch(/srOnly/);
+  });
+
+  it('shows the label by default', () => {
+    render(<Harness />);
+    expect(screen.getByText('Período').className).not.toMatch(/srOnly/);
+  });
+
+  it('has no axe violations with the hidden label', async () => {
+    const { container } = render(<Harness label_visible={false} />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('hides the label with the visually-hidden pattern and keeps the trigger 40 px tall', () => {
+    const css = readFileSync(join(import.meta.dirname, 'period-field.module.css'), 'utf8');
+    const block = (name: string) => new RegExp(`\\.${name}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    const sr = block('srOnly');
+    for (const rule of [
+      'position: absolute',
+      'width: 1px',
+      'height: 1px',
+      'overflow: hidden',
+      'clip-path: inset(50%)',
+    ])
+      expect(sr).toContain(rule);
+    const control = block('control');
+    expect(control).toContain('min-height: calc(var(--space) * 10)');
+    expect(control).toContain('box-sizing: border-box');
   });
 });
