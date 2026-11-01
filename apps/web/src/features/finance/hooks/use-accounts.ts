@@ -2,6 +2,7 @@ import type { Schemas } from '@atria/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../shared/api/client';
 import {
+  adjustBalance,
   cancel,
   financeKeys,
   problemCode,
@@ -115,32 +116,64 @@ export function useRenameAccount() {
   });
 }
 
-/** `has_transactions`: o servidor recusou porque a conta ainda tem movimentações. */
-export type DeleteAccountState = 'idle' | 'has_transactions';
+/**
+ * `has_transactions`: a conta tem movimentações e o servidor pede a conta de destino;
+ * `currency_mismatch`: a conta de destino é de outra moeda (CB-03).
+ */
+export type DeleteAccountState = 'idle' | 'has_transactions' | 'currency_mismatch';
+
+export interface DeleteAccountVariables {
+  id: string;
+  move_to?: string;
+}
+
+const DIALOG_ERRORS = new Set(['account_has_transactions', 'currency_mismatch']);
 
 export function useDeleteAccount() {
   const client = useQueryClient();
-  const mutation = useMutation<undefined, Error, string, { saved: Snapshot }>({
-    mutationFn: (id) => api.delete<undefined>(`/accounts/${id}`),
-    onMutate: async (id) => {
-      await cancel(client, [financeKeys.accounts]);
-      const saved = snapshot(client, [financeKeys.accounts]);
+  const mutation = useMutation<undefined, Error, DeleteAccountVariables, { saved: Snapshot }>({
+    mutationFn: ({ id, move_to }) =>
+      api.delete<undefined>(
+        `/accounts/${id}${move_to ? `?move_to=${encodeURIComponent(move_to)}` : ''}`,
+      ),
+    onMutate: async ({ id, move_to }) => {
+      const keys = [financeKeys.accounts, financeKeys.account(id)];
+      if (move_to) keys.push(financeKeys.account(move_to));
+      await cancel(client, keys);
+      const saved = snapshot(client, keys);
+      const removed =
+        client
+          .getQueryData<Account[]>(financeKeys.accounts)
+          ?.find((account) => account.id === id) ??
+        client.getQueryData<Account>(financeKeys.account(id));
       client.setQueryData<Account[]>(financeKeys.accounts, (list) =>
         list?.filter((account) => account.id !== id),
       );
+      if (move_to && removed) {
+        // A destino fica com o saldo da excluída: a transferência entre as duas sai (RN-05) e o
+        // resto passa para ela (RF-06).
+        adjustBalance(client, move_to, removed.balance_amount);
+      }
       return { saved };
     },
-    onError: (error, _id, context) => {
+    onError: (error, _variables, context) => {
       restore(client, context?.saved);
-      // A tela explica a conta com movimentações no próprio diálogo, sem aviso solto.
-      if (problemCode(error) !== 'account_has_transactions') warnRefusal(error);
+      // A conta com movimentações e a moeda diferente aparecem no próprio diálogo, sem aviso solto.
+      if (!DIALOG_ERRORS.has(problemCode(error) ?? '')) warnRefusal(error);
     },
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, { id, move_to }) => {
       client.removeQueries({ queryKey: financeKeys.account(id) });
+      // Movimentações, transferências, recorrências e saldos mudaram de conta.
+      if (move_to) void client.invalidateQueries({ queryKey: financeKeys.all });
     },
     onSettled: () => client.invalidateQueries({ queryKey: financeKeys.accounts }),
   });
+  const code = problemCode(mutation.error);
   const state: DeleteAccountState =
-    problemCode(mutation.error) === 'account_has_transactions' ? 'has_transactions' : 'idle';
+    code === 'account_has_transactions'
+      ? 'has_transactions'
+      : code === 'currency_mismatch'
+        ? 'currency_mismatch'
+        : 'idle';
   return { ...mutation, state };
 }

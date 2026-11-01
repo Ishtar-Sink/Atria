@@ -1,4 +1,4 @@
-import { Button, EmptyState, ErrorState, LoadingState, SelectField } from '@atria/ui';
+import { Autocomplete, Button, EmptyState, ErrorState, LoadingState, SelectField } from '@atria/ui';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { z } from 'zod';
@@ -183,16 +183,17 @@ export function TransactionsScreen({ kind }: TransactionsScreenProps) {
                 ...(accounts.data ?? []).map((item) => ({ value: item.id, label: item.name })),
               ]}
             />
-            <SelectField
+            <Autocomplete
               label={t('finance.transactions.category')}
               value={search.category_id}
               onChange={(category_id) => {
-                setSearch({ category_id });
+                setSearch({ category_id: category_id ?? '' });
               }}
               options={[
                 { value: '', label: t('finance.list.all') },
                 ...(categories.data ?? []).map((item) => ({ value: item.id, label: item.name })),
               ]}
+              empty_text={t('common.category_not_found')}
             />
           </>
         }

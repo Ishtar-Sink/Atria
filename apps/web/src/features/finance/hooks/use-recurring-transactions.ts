@@ -8,7 +8,18 @@ import {
 } from '@tanstack/react-query';
 import type { RecurrenceRule as FormRule } from '../../../shared/forms/recurrence-fields';
 import { api } from '../../../shared/api/client';
-import { financeKeys, problemCode, warnRefusal, type Transaction } from './finance-cache';
+import {
+  cancel,
+  financeKeys,
+  mapPages,
+  problemCode,
+  restore,
+  snapshot,
+  warnRefusal,
+  type Snapshot,
+  type Transaction,
+  type TransactionItem,
+} from './finance-cache';
 
 export type RecurringTransaction = Schemas['RecurringTransactionResponse'];
 export type ContractRule = Schemas['RecurrenceRule'];
@@ -90,6 +101,37 @@ export function useUpdateRecurringTransaction(id: string) {
     onSuccess: (updated) => {
       client.setQueryData(financeKeys.recurring(id), updated);
       refresh(client, id);
+    },
+  });
+}
+
+/** Tira a ocorrência aberta e a previsão das listas na hora; o saldo não muda (RN-01). */
+export function useDeleteRecurringTransaction(id: string) {
+  const client = useQueryClient();
+  // Sem variáveis: os tipos vêm da inferência (`void` explícito não passa no lint).
+  return useMutation({
+    mutationFn: () => api.delete<undefined>(`/recurring-transactions/${id}`),
+    onMutate: async (): Promise<{ saved: Snapshot }> => {
+      const prefixes = [financeKeys.transactions, financeKeys.recurring(id)];
+      await cancel(client, prefixes);
+      const saved = snapshot(client, prefixes);
+      // Somem a ocorrência aberta e a previsão; as cópias liquidadas têm id e ficam no histórico (RF-03).
+      mapPages<TransactionItem>(client, financeKeys.transactions, (items) =>
+        items.filter((item) => item.id != null || item.recurrence_id !== id),
+      );
+      return { saved };
+    },
+    onError: (error: Error, _variables, context) => {
+      restore(client, context?.saved);
+      warnRefusal(error);
+    },
+    onSuccess: () => {
+      // A tela sai da página logo depois; reler a recorrência daria 404.
+      void client.invalidateQueries({ queryKey: financeKeys.recurring(id), refetchType: 'none' });
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: financeKeys.transactions });
+      void client.invalidateQueries({ queryKey: financeKeys.summary });
     },
   });
 }

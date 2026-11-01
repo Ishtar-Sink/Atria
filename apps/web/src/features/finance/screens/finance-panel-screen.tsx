@@ -103,7 +103,7 @@ function WhereItWent({ summary, search }: BlockProps) {
         id: entry.category_id,
         label: entry.name ?? t('finance.panel.uncategorized'),
         value: entry.amount,
-        tone: entry.color ?? 'info',
+        ...(entry.color ? { color: entry.color } : {}),
         href: '/finance/expenses',
         search: { ...period, category_id: entry.category_id },
       };
@@ -112,7 +112,6 @@ function WhereItWent({ summary, search }: BlockProps) {
       id: `${entry.group}-${String(index)}`,
       label: t(entry.group === 'others' ? 'finance.panel.others' : 'finance.panel.uncategorized'),
       value: entry.amount,
-      tone: 'info',
     };
   });
   return (

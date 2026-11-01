@@ -30,6 +30,43 @@ function seed(): FinanceWorld {
 }
 
 const heading = pageHeading;
+const plain = (text: string | null | undefined) => (text ?? '').replace(/[\u00a0\u202f]/g, ' ');
+
+/** A conta `a2` tem movimentações: sem `move_to` o servidor recusa; com `move_to=a1`, move e exclui. */
+function withTransactions(): FinanceWorld {
+  const state = seed();
+  state.override = (call) => {
+    if (call.method !== 'DELETE' || call.path !== '/accounts/a2') return undefined;
+    const move_to = call.url.searchParams.get('move_to');
+    if (move_to === null) return problem(409, 'account_has_transactions');
+    if (move_to !== 'a1') return undefined;
+    state.accounts = state.accounts.filter((entry) => entry.id !== 'a2');
+    const main = state.accounts.find((entry) => entry.id === 'a1');
+    if (main) main.balance_amount += 5000;
+    const moved = state.transactions.find((entry) => entry.id === 't1');
+    if (moved) moved.account_id = 'a1';
+    return { status: 204 };
+  };
+  return state;
+}
+
+async function chooseOption(label: string, option: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByLabelText(label));
+  await user.click(await screen.findByRole('option', { name: option }));
+}
+
+/** "Mais ações", "Excluir" e confirmar: a conta com movimentações abre o diálogo da conta de destino. */
+async function openDestination(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Excluir' }));
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Excluir' }),
+  );
+  const dialog = await screen.findByRole('alertdialog', { name: 'Excluir esta conta?' });
+  await within(dialog).findByText('Conta de destino');
+  return dialog;
+}
 const noNativeControls = expectNoNativeControls;
 
 beforeEach(() => {
@@ -161,32 +198,84 @@ describe('accounts screens', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/finance/accounts');
     });
-    expect(calls.find((call) => call.method === 'DELETE')?.path).toBe('/accounts/a2');
+    const remove = calls.find((call) => call.method === 'DELETE');
+    expect(remove?.path).toBe('/accounts/a2');
+    expect(remove?.url.searchParams.has('move_to')).toBe(false);
   });
 
-  it('offers rename or the transactions when the account has transactions', async () => {
-    const state = seed();
-    state.override = (call) =>
-      call.method === 'DELETE' ? problem(409, 'account_has_transactions') : undefined;
-    financeServer(state);
+  it('rf05 asks for the destination account when the account has transactions', async () => {
+    const state = withTransactions();
+    const { calls } = financeServer(state);
+    const user = userEvent.setup();
+    const { router, container } = renderAt('/finance/accounts/a2');
+    await heading('Carteira');
+    const dialog = await openDestination(user);
+    expect(dialog).toHaveTextContent(
+      'Esta conta tem movimentações. Escolha a conta que vai recebê-las: as movimentações, as transferências e as recorrências passam para ela, e os saldos das duas são recalculados.',
+    );
+    await user.click(within(dialog).getByLabelText('Conta de destino'));
+    const options = (await screen.findAllByRole('option')).map((option) => option.textContent);
+    expect(options).toEqual(['Conta principal', 'Cartão Nu']);
+    await user.keyboard('{Escape}');
+    expect(await axe(container)).toHaveNoViolations();
+    await chooseOption('Conta de destino', 'Conta principal');
+    await user.click(
+      within(screen.getByRole('alertdialog', { name: 'Excluir esta conta?' })).getByRole('button', {
+        name: 'Mover e excluir',
+      }),
+    );
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/finance/accounts');
+    });
+    const moved = calls.filter(
+      (call) => call.method === 'DELETE' && call.url.searchParams.get('move_to') === 'a1',
+    );
+    expect(moved.map((call) => call.path)).toEqual(['/accounts/a2']);
+    expect(
+      await screen.findByText('Conta excluída. As movimentações passaram para Conta principal.'),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'Carteira' })).toBeNull();
+    });
+    const main = (await screen.findByRole('link', { name: 'Conta principal' })).closest('li');
+    expect(plain(main?.textContent)).toContain('R$ 3.550,00');
+  });
+
+  it('rf05 asks to choose the destination before deleting', async () => {
+    const { calls } = financeServer(withTransactions());
     const user = userEvent.setup();
     renderAt('/finance/accounts/a2');
     await heading('Carteira');
-    await user.click(screen.getByRole('button', { name: 'Mais ações' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Excluir' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Excluir' }),
+    const dialog = await openDestination(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Mover e excluir' }));
+    expect(await within(dialog).findByText('Escolha a conta de destino.')).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('ct05 shows a destination in another currency inside the dialog', async () => {
+    const state = withTransactions();
+    const base = state.override;
+    state.override = (call) =>
+      call.method === 'DELETE' && call.url.searchParams.has('move_to')
+        ? problem(422, 'currency_mismatch')
+        : base?.(call);
+    financeServer(state);
+    const user = userEvent.setup();
+    const { router } = renderAt('/finance/accounts/a2');
+    await heading('Carteira');
+    const dialog = await openDestination(user);
+    await chooseOption('Conta de destino', 'Conta principal');
+    await user.click(within(dialog).getByRole('button', { name: 'Mover e excluir' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'A conta de destino precisa ter a mesma moeda desta conta.',
     );
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'Esta conta tem movimentações',
+    expect(screen.getByRole('alertdialog', { name: 'Excluir esta conta?' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/finance/accounts/a2');
+    expect(screen.getByRole('heading', { level: 1, name: 'Carteira' })).toBeInTheDocument();
+    await chooseOption('Conta de destino', 'Cartão Nu');
+    await waitFor(() => {
+      expect(within(dialog).queryByRole('alert')).toBeNull();
     });
-    expect(within(dialog).getByRole('button', { name: 'Renomear' })).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Ver movimentações' }));
-    expect(await screen.findByRole('tab', { name: 'Movimentações' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    expect(await screen.findByRole('link', { name: 'Café' })).toBeInTheDocument();
   });
 
   it('disables delete for the default account with a hint', async () => {

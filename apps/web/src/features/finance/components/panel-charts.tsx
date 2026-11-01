@@ -2,13 +2,13 @@ import { Link } from '@tanstack/react-router';
 import { formatMoney } from '../../../shared/format/intl';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import styles from './finance.module.css';
-import { toneClass, type ThemeTone } from './tone';
 
 export interface BarItem {
   id: string;
   label: string;
   value: number;
-  tone: ThemeTone;
+  /** HEX da categoria; sem cor, a barra usa o tom neutro. */
+  color?: string;
   href?: string;
   search?: Record<string, string>;
 }
@@ -48,8 +48,15 @@ export function HorizontalBars({ label, items, currency }: HorizontalBarsProps) 
             <span className={styles.num}>{formatMoney(item.value, currency, locale)}</span>
             <span className={styles.barTrack}>
               <span
-                className={`${styles.barFill ?? ''} ${toneClass(item.tone)}`}
-                style={{ inlineSize: percent(item.value, max) }}
+                className={
+                  item.color
+                    ? styles.barFill
+                    : `${styles.barFill ?? ''} ${styles.barFillNeutral ?? ''}`
+                }
+                style={{
+                  inlineSize: percent(item.value, max),
+                  ...(item.color ? { backgroundColor: item.color } : {}),
+                }}
               />
             </span>
           </li>
@@ -113,11 +120,11 @@ export function ExpectedVsSettledColumns({
           <div key={group.id} className={styles.columnGroup}>
             <div className={styles.columnBars}>
               <span
-                className={`${styles.columnBar ?? ''} ${toneClass('info')}`}
+                className={`${styles.columnBar ?? ''} ${styles.fillExpected ?? ''}`}
                 style={{ blockSize: percent(group.expected, max) }}
               />
               <span
-                className={`${styles.columnBar ?? ''} ${toneClass('primary')}`}
+                className={`${styles.columnBar ?? ''} ${styles.fillSettled ?? ''}`}
                 style={{ blockSize: percent(group.settled, max) }}
               />
             </div>
@@ -127,11 +134,11 @@ export function ExpectedVsSettledColumns({
       </div>
       <ul className={styles.legend} aria-hidden="true">
         <li>
-          <span className={`${styles.dot ?? ''} ${toneClass('info')}`} />
+          <span className={`${styles.dot ?? ''} ${styles.fillExpected ?? ''}`} />
           {expected_label}
         </li>
         <li>
-          <span className={`${styles.dot ?? ''} ${toneClass('primary')}`} />
+          <span className={`${styles.dot ?? ''} ${styles.fillSettled ?? ''}`} />
           {settled_label}
         </li>
       </ul>

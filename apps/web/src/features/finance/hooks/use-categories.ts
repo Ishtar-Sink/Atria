@@ -1,4 +1,5 @@
 import type { Schemas } from '@atria/contracts';
+import { contrastRatio, light } from '@atria/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../shared/api/client';
 import {
@@ -10,7 +11,6 @@ import {
   snapshot,
   warnRefusal,
   type Category,
-  type CategoryColor,
   type Page,
   type Snapshot,
   type TransactionKind,
@@ -20,15 +20,20 @@ export type { Category } from './finance-cache';
 export type CreateCategoryInput = Schemas['CreateCategoryRequest'];
 export type UpdateCategoryInput = Schemas['UpdateCategoryRequest'];
 
-/** As seis cores do tema, na ordem do seletor (PD-49). */
-export const CATEGORY_COLORS: readonly CategoryColor[] = [
-  'primary',
-  'accent',
-  'success',
-  'warning',
-  'danger',
-  'info',
-];
+/** Cor de uma categoria nova: o roxo do tema claro (RF-18). */
+export const DEFAULT_CATEGORY_COLOR = '#6d28d9';
+
+/** A cor é sempre gravada como #rrggbb em minúsculas (RN-09). */
+export function normalizeHex(hex: string): string {
+  return hex.trim().toLowerCase();
+}
+
+/** Texto sobre a cor livre: o token escuro ou o claro, o que tiver mais contraste (CB-09). */
+export function categoryInk(hex: string): string {
+  return contrastRatio(light.text, hex) >= contrastRatio(light.surface, hex)
+    ? light.text
+    : light.surface;
+}
 
 function byName(list: Category[]): Category[] {
   return [...list].sort((left, right) => left.name.localeCompare(right.name));

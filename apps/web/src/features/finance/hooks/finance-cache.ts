@@ -14,7 +14,6 @@ export type Transaction = Schemas['TransactionResponse'];
 export type TransactionItem = Schemas['TransactionItemResponse'];
 export type TransactionKind = Schemas['TransactionKindDto'];
 export type Visibility = Schemas['Visibility'];
-export type CategoryColor = Schemas['CategoryColorDto'];
 export type ItemStatus = Schemas['ItemStatusDto'];
 
 /** Chaves das consultas do Financeiro: o prefixo comum permite invalidar por grupo. */

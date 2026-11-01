@@ -104,7 +104,7 @@ export function account(overrides: Partial<Account> & Pick<Account, 'id' | 'name
 export function category(overrides: Partial<Category> & Pick<Category, 'id' | 'name'>): Category {
   return {
     kind: 'expense',
-    color: 'primary',
+    color: '#6d28d9',
     owner_id: 'u1',
     visibility: 'personal',
     ...STAMP,
@@ -366,9 +366,10 @@ export function financeServer(state: FinanceWorld) {
       Object.assign(found, call.body);
       return { body: found };
     }),
-    // Sem resposta pronta, a liquidação e o pulo dependem do `override` de cada teste.
+    // Sem resposta pronta, a liquidação, o pulo e a exclusão dependem do `override` de cada teste.
     'POST /recurring-transactions/:id/settlement': intercept(() => problem(404, 'not_found')),
     'POST /recurring-transactions/:id/skip': intercept(() => problem(404, 'not_found')),
+    'DELETE /recurring-transactions/:id': intercept(() => problem(404, 'not_found')),
     'GET /recurring-transactions/:id/settled-transactions': intercept((_call, { id = '' }) =>
       page(state.copies[id] ?? []),
     ),

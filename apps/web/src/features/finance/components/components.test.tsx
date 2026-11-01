@@ -262,8 +262,8 @@ describe('finance components', () => {
           label="Saídas por categoria"
           currency="BRL"
           items={[
-            { id: 'c1', label: 'Casa', value: 120000, tone: 'primary', href: '/finance/expenses' },
-            { id: 'others', label: 'Outras', value: 30000, tone: 'info' },
+            { id: 'c1', label: 'Casa', value: 120000, color: '#6d28d9', href: '/finance/expenses' },
+            { id: 'others', label: 'Outras', value: 30000 },
           ]}
         />
         <ExpectedVsSettledColumns
@@ -294,6 +294,30 @@ describe('finance components', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('rf18 paints each bar in the hex color of its category', async () => {
+    quietApi();
+    const { container } = renderWithProviders(
+      <HorizontalBars
+        label="Saídas por categoria"
+        currency="BRL"
+        items={[
+          { id: 'c2', label: 'Casa', value: 120000, color: '#0369a1' },
+          { id: 'others', label: 'Outras', value: 30000 },
+        ]}
+      />,
+    );
+    await screen.findByRole('table', { name: 'Saídas por categoria' });
+    const fill = (label: string) => {
+      const row = [...container.querySelectorAll('li')].find((li) =>
+        li.textContent.startsWith(label),
+      );
+      return row?.querySelector<HTMLElement>('[class*="barFill"]');
+    };
+    expect(fill('Casa')?.style.backgroundColor).toBe('rgb(3, 105, 161)');
+    expect(fill('Outras')?.style.backgroundColor).toBe('');
+    expect(fill('Outras')?.className).toContain('barFillNeutral');
+  });
+
   it('keeps the chart table inside a visually hidden container', async () => {
     quietApi();
     renderWithProviders(
@@ -301,7 +325,7 @@ describe('finance components', () => {
         <HorizontalBars
           label="Saídas por categoria"
           currency="BRL"
-          items={[{ id: 'c1', label: 'Casa', value: 120000, tone: 'primary' }]}
+          items={[{ id: 'c1', label: 'Casa', value: 120000, color: '#6d28d9' }]}
         />
         <ExpectedVsSettledColumns
           label="Previsto e realizado no período"

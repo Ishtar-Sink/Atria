@@ -267,7 +267,12 @@ describe('ReportPage', () => {
       const { unmount } = renderAt(`/reports/${id}`);
       await screen.findByRole('heading', { name: 'Filtros' });
       for (const name of all) {
-        expect(screen.queryByRole('button', { name }) !== null, `${id} ${String(name)}`).toBe(
+        // A categoria é o autocomplete (combobox); os demais filtros seguem como botão.
+        const field =
+          name.source === '^Categoria '
+            ? screen.queryByRole('combobox', { name: 'Categoria' })
+            : screen.queryByRole('button', { name });
+        expect(field !== null, `${id} ${String(name)}`).toBe(
           shown.some((item) => item.source === name.source),
         );
       }
@@ -281,7 +286,7 @@ describe('ReportPage', () => {
   it('shows only expense categories in the category filter', async () => {
     const server = stubServer();
     renderAt('/reports/fin-cat');
-    await userEvent.click(await screen.findByRole('button', { name: /^Categoria / }));
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Categoria' }));
     const list = await screen.findByRole('listbox');
     await waitFor(() => {
       expect(within(list).getByRole('option', { name: 'Moradia' })).toBeInTheDocument();
@@ -330,12 +335,48 @@ describe('ReportPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Período/ })).toHaveTextContent('Qualquer período');
     await waitFor(() => {
-      expect(filterField(/^Categoria /)).toHaveTextContent('Moradia');
+      expect(screen.getByRole('combobox', { name: 'Categoria' })).toHaveValue('Moradia');
     });
     const params = reportCalls(server, 'fin-cat')[0]?.searchParams;
     expect(params?.get('category_id')).toBe(CATEGORY);
     expect(params?.has('from')).toBe(false);
     expect(params?.has('to')).toBe(false);
+  });
+
+  it('ct15 picks the report category by typing and the keyboard', async () => {
+    const server = stubServer();
+    renderAt('/reports/fin-cat');
+    const field = await screen.findByRole('combobox', { name: 'Categoria' });
+    await userEvent.click(field);
+    await userEvent.keyboard('mor');
+    await waitFor(() => {
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'Moradia',
+      ]);
+    });
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Gerar relatório' }));
+    await waitFor(() => {
+      expect(reportCalls(server, 'fin-cat')[0]?.searchParams.get('category_id')).toBe(CATEGORY);
+    });
+  });
+
+  it('cb10 keeps the report category when nothing matches', async () => {
+    const server = stubServer();
+    renderAt(`/reports/fin-cat?category_id=${CATEGORY}`);
+    const field = await screen.findByRole('combobox', { name: 'Categoria' });
+    await waitFor(() => {
+      expect(field).toHaveValue('Moradia');
+    });
+    await userEvent.click(field);
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}xyz');
+    expect(screen.getByRole('status')).toHaveTextContent('Nenhuma categoria encontrada');
+    await userEvent.keyboard('{Escape}');
+    expect(field).toHaveValue('Moradia');
+    await userEvent.click(screen.getByRole('button', { name: 'Gerar relatório' }));
+    await waitFor(() => {
+      expect(reportCalls(server, 'fin-cat')[0]?.searchParams.get('category_id')).toBe(CATEGORY);
+    });
   });
 
   it('generates on load when the url has run', async () => {

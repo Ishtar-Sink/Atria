@@ -210,6 +210,98 @@ test('recurring occurrence stays overdue until settled or skipped', async ({ pag
   await checkPage(page);
 });
 
+/** Recorrência diária de 9.000 centavos que começou há 3 dias, preparada pela API. */
+async function prepareRecurrence(page: Page, description: string) {
+  const accounts = await api<Schemas['AccountPage']>(page, 'GET', '/accounts');
+  const account = accounts.items[0];
+  if (!account) throw new Error('pessoa sem conta padrão');
+  const startsOn = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+  await api(page, 'POST', '/recurring-transactions', {
+    account_id: account.id,
+    kind: 'expense',
+    description,
+    expected_amount: 9_000,
+    rule: {
+      frequency: 'daily',
+      interval: 1,
+      starts_on: startsOn,
+      time: '08:00',
+      timezone: 'America/Sao_Paulo',
+    },
+  });
+}
+
+/** Abre a ocorrência atrasada da recorrência e a liquida. */
+async function settleOverdue(page: Page, description: string) {
+  await page.goto('/finance/expenses?period=all&repetition=recurring');
+  const overdue = page
+    .getByRole('listitem')
+    .filter({ hasText: description })
+    .filter({ hasText: 'Atrasada' });
+  await overdue.first().getByRole('link', { name: description }).click();
+  await page.getByRole('button', { name: 'Liquidar' }).click();
+  await expect(page.getByText(/^Liquidada\./)).toBeVisible();
+}
+
+test('ct01 deleting a recurrence keeps the settled copies', async ({ page }) => {
+  const description = `Assinatura ${SUFFIX()}`;
+  await prepareRecurrence(page, description);
+  await settleOverdue(page, description);
+  await page.getByRole('button', { name: 'Mais ações' }).click();
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir' }).click();
+  await expect(page).toHaveURL(/\/finance\/expenses/);
+  await page.goto('/finance/expenses?period=all');
+  const rows = page.getByRole('listitem').filter({ hasText: description });
+  await expect(rows.filter({ hasText: 'Liquidada' }).first()).toBeVisible();
+  await expect(rows.filter({ hasText: /Atrasada|Prevista|Previsão/ })).toHaveCount(0);
+  await checkPage(page);
+});
+
+test('ct03 undoing a settled copy reopens the occurrence', async ({ page }) => {
+  const description = `Academia ${SUFFIX()}`;
+  await prepareRecurrence(page, description);
+  await settleOverdue(page, description);
+  await page.getByRole('tab', { name: 'Liquidações' }).click();
+  await page.getByRole('tabpanel').getByRole('link', { name: description }).first().click();
+  await expect(page.getByRole('heading', { level: 1, name: description })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mais ações' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Desfazer liquidação' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('a ocorrência volta a ficar aberta');
+  await dialog.getByRole('button', { name: 'Desfazer liquidação' }).click();
+  await expect(page).toHaveURL(/\/finance\/recurring-transactions\//);
+  await expect(page.getByText('Atrasada')).toBeVisible();
+  await checkPage(page);
+});
+
+test('ct04 deleting an account with transactions moves them to the destination', async ({
+  page,
+}) => {
+  const name = `Conta excluir ${SUFFIX()}`;
+  const description = `Feira ${SUFFIX()}`;
+  await createAccount(page, name);
+  await createExpense(page, description, name, '100,00');
+  await settle(page, '80,00');
+  await page.goto('/finance/accounts');
+  await page.getByRole('link', { name }).click();
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  await page.getByRole('button', { name: 'Mais ações' }).click();
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Excluir esta conta?' });
+  await expect(dialog.getByText('Conta de destino')).toBeVisible();
+  await choose(page, 'Conta de destino', 'Conta principal');
+  await dialog.getByRole('button', { name: 'Mover e excluir' }).click();
+  await expect(page).toHaveURL(/\/finance\/accounts$/);
+  await expect(page.getByRole('link', { name })).toHaveCount(0);
+  await page.goto('/finance/expenses?period=all');
+  await page.getByRole('link', { name: description }).click();
+  await expect(page.getByRole('heading', { level: 1, name: description })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Conta principal' })).toBeVisible();
+  await checkPage(page);
+});
+
 test('global period follows the tabs and any period shows everything', async ({ page }) => {
   await page.goto('/finance/expenses');
   await page.getByRole('button', { name: /Período/ }).click();

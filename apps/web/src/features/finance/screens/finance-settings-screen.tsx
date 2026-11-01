@@ -2,7 +2,6 @@ import { Button, Card, ErrorState, LoadingState } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '../../../shared/i18n/i18n';
 import styles from '../components/finance.module.css';
-import { toneClass } from '../components/tone';
 import type { TransactionKind } from '../hooks/finance-cache';
 import { useCategories } from '../hooks/use-categories';
 
@@ -35,7 +34,8 @@ function CategoryGroup({ kind }: { kind: TransactionKind }) {
           <li key={category.id} className={styles.row}>
             <div className={styles.rowMain}>
               <span
-                className={`${styles.dot ?? ''} ${toneClass(category.color)}`}
+                className={styles.dot}
+                style={{ backgroundColor: category.color }}
                 aria-hidden="true"
               />
               <div className={styles.rowText}>
@@ -46,7 +46,7 @@ function CategoryGroup({ kind }: { kind: TransactionKind }) {
                 >
                   {category.name}
                 </Link>
-                <span className={styles.rowSub}>{t(`finance.colors.${category.color}`)}</span>
+                <span className={styles.rowSub}>{category.color}</span>
               </div>
             </div>
           </li>

@@ -5,7 +5,9 @@
 // em $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-17): finance-telas.png,
 // finance-formulario.webm e finance-painel.png (Chromium e Firefox).
 // TASK-10 acrescenta sem-cartao: finance-sem-cartao.png (Financeiro sem cartão, faturas e parcelas).
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao]
+// TASK-11 acrescenta recorrencia: finance-recorrencia.webm (desfazer a cópia e excluir a recorrência).
+// TASK-12 acrescenta excluir-conta: finance-excluir-conta.webm (excluir conta com conta de destino).
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -282,7 +284,8 @@ function seed() {
           description: 'Geladeira',
           expected_amount: 100000,
           expected_date: '2026-11-04',
-          effective_date: number === 1 ? '2026-11-04' : `2026-${String(10 + number)}-04`,
+          // Um mês a cada número: novembro, dezembro e janeiro (sem mês 13 na lista de "todo o período").
+          effective_date: ['2026-11-04', '2026-12-04', '2027-01-04'][number - 1],
         }),
       ),
       transaction({
@@ -406,6 +409,40 @@ function financeRoutes(state) {
       const found = find(state.accounts, id);
       return found ? { body: found } : problem(404, 'not_found');
     },
+    'DELETE /accounts/:id': (call, { id }) => {
+      const found = find(state.accounts, id);
+      if (!found) return problem(404, 'not_found');
+      if (found.is_default) return problem(409, 'default_account_not_deletable');
+      const move_to = call.url.searchParams.get('move_to');
+      if (move_to === null) {
+        const used = state.transactions.some((e) => e.account_id === id);
+        if (used) return problem(409, 'account_has_transactions');
+      } else {
+        const target = find(state.accounts, move_to);
+        if (!target) return problem(404, 'not_found');
+        if (target.currency !== found.currency) return problem(422, 'currency_mismatch');
+        // A destino fica com o saldo, as movimentações e as recorrências; a transferência entre
+        // as duas sai e as demais passam para a destino (RF-06, RN-05).
+        target.balance_amount += found.balance_amount;
+        for (const e of state.transactions) if (e.account_id === id) e.account_id = move_to;
+        for (const e of state.recurring) if (e.account_id === id) e.account_id = move_to;
+        state.transfers = state.transfers
+          .filter(
+            (e) =>
+              !(
+                (e.from_account_id === id && e.to_account_id === move_to) ||
+                (e.from_account_id === move_to && e.to_account_id === id)
+              ),
+          )
+          .map((e) => ({
+            ...e,
+            from_account_id: e.from_account_id === id ? move_to : e.from_account_id,
+            to_account_id: e.to_account_id === id ? move_to : e.to_account_id,
+          }));
+      }
+      state.accounts = state.accounts.filter((e) => e.id !== id);
+      return { status: 204 };
+    },
     'GET /categories': (call) => {
       const kind = call.url.searchParams.get('kind');
       return page(state.categories.filter((e) => kind === null || e.kind === kind));
@@ -460,6 +497,35 @@ function financeRoutes(state) {
       });
       return { body: found };
     },
+    'DELETE /transactions/:id/settlement': (_c, { id }) => {
+      const found = find(state.transactions, id);
+      if (!found) return problem(404, 'not_found');
+      if (found.generated_from) {
+        // Cópia de recorrente: some, a ocorrência reabre e o valor volta ao saldo (DEC-005).
+        state.transactions = state.transactions.filter((e) => e.id !== id);
+        const from = found.generated_from;
+        state.copies[from] = (state.copies[from] ?? []).filter((e) => e.id !== id);
+        const recurrence = find(state.recurring, from);
+        if (recurrence) {
+          recurrence.open_occurrence = {
+            occurrence_date: found.occurrence_date,
+            status: 'overdue',
+          };
+        }
+        const owner = find(state.accounts, found.account_id);
+        if (owner) owner.balance_amount += found.settled_amount ?? 0;
+        return { status: 204 };
+      }
+      Object.assign(found, {
+        status: 'open',
+        settled_amount: null,
+        settled_at: null,
+        difference_amount: null,
+        difference_kind: null,
+        effective_date: found.expected_date,
+      });
+      return { body: found };
+    },
     'GET /transfers': () => page(state.transfers),
     'GET /transfers/:id': (_c, { id }) => {
       const found = find(state.transfers, id);
@@ -468,6 +534,14 @@ function financeRoutes(state) {
     'GET /recurring-transactions/:id': (_c, { id }) => {
       const found = find(state.recurring, id);
       return found ? { body: found } : problem(404, 'not_found');
+    },
+    'DELETE /recurring-transactions/:id': (_c, { id }) => {
+      if (!find(state.recurring, id)) return problem(404, 'not_found');
+      state.recurring = state.recurring.filter((e) => e.id !== id);
+      state.transactions = state.transactions.filter(
+        (e) => !(e.id === null && e.recurrence_id === id),
+      );
+      return { status: 204 };
     },
     'GET /recurring-transactions/:id/settled-transactions': (_c, { id }) =>
       page(state.copies[id] ?? []),
@@ -1270,6 +1344,133 @@ const scenarios = [
     },
   },
   {
+    name: 'cópia liquidada só com Desfazer',
+    group: 'recorrencia',
+    path: '/finance/transactions/t9',
+    combos: PAIR,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Aluguel' }).waitFor();
+      await settle(page);
+      check(
+        `${tag}: "Desfazer liquidação" visível`,
+        await page.getByRole('button', { name: 'Desfazer liquidação' }).isVisible(),
+      );
+      check(
+        `${tag}: sem "Mais ações" na cópia`,
+        (await page.getByRole('button', { name: 'Mais ações' }).count()) === 0,
+      );
+    },
+  },
+  {
+    name: 'confirmação de desfazer na cópia',
+    group: 'recorrencia',
+    path: '/finance/transactions/t9',
+    combos: PAIR_ALT,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Aluguel' }).waitFor();
+      await page.getByRole('button', { name: 'Desfazer liquidação' }).click();
+      const dialog = page.getByRole('alertdialog', { name: 'Desfazer esta liquidação?' });
+      await dialog.waitFor();
+      await settle(page);
+      check(
+        `${tag}: diálogo explica que a ocorrência reabre`,
+        (await dialog.innerText()).includes('a ocorrência volta a ficar aberta'),
+      );
+    },
+  },
+  {
+    name: 'confirmação de excluir a recorrência',
+    group: 'recorrencia',
+    path: '/finance/recurring-transactions/r1',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Aluguel' }).waitFor();
+      await page.getByRole('button', { name: 'Mais ações' }).click();
+      const item = page.getByRole('menuitem', { name: 'Excluir' });
+      await item.waitFor();
+      const danger = await tokenColor(page, '--danger');
+      check(
+        `${tag}: "Excluir" em vermelho no menu`,
+        (await item.evaluate((el) => getComputedStyle(el).color)) === danger,
+      );
+      await item.click();
+      const dialog = page.getByRole('alertdialog', { name: 'Excluir esta recorrência?' });
+      await dialog.waitFor();
+      await settle(page);
+      check(
+        `${tag}: diálogo diz que as liquidações continuam`,
+        (await dialog.innerText()).includes('As liquidações já feitas continuam no histórico'),
+      );
+    },
+  },
+  {
+    name: 'diálogo da conta de destino',
+    group: 'excluir-conta',
+    path: '/finance/accounts/a3',
+    combos: ALL,
+    run: async (page, tag) => {
+      const dialog = await openAccountDestination(page);
+      await settle(page);
+      check(
+        `${tag}: campo "Conta de destino" no diálogo`,
+        (await dialog.getByText('Conta de destino').count()) > 0,
+      );
+      check(
+        `${tag}: botão "Mover e excluir"`,
+        await dialog.getByRole('button', { name: 'Mover e excluir' }).isVisible(),
+      );
+    },
+  },
+  {
+    name: 'conta de destino em outra moeda',
+    group: 'excluir-conta',
+    path: '/finance/accounts/a3',
+    combos: PAIR,
+    world: () => {
+      const state = seed();
+      state.accounts.push(account({ id: 'a4', name: 'Conta em dólar', currency: 'USD' }));
+      return state;
+    },
+    run: async (page, tag) => {
+      const dialog = await openAccountDestination(page);
+      await dialog.getByLabel('Conta de destino', { exact: true }).click();
+      await page.getByRole('option', { name: 'Conta em dólar' }).click();
+      await dialog.getByRole('button', { name: 'Mover e excluir' }).click();
+      const alert = dialog.getByRole('alert');
+      await alert.waitFor();
+      await settle(page);
+      check(
+        `${tag}: moeda diferente no próprio diálogo`,
+        (await alert.innerText()).includes('mesma moeda'),
+      );
+    },
+  },
+  {
+    name: 'conta sem movimentações',
+    group: 'excluir-conta',
+    path: '/finance/accounts/a2',
+    combos: PAIR_ALT,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Carteira' }).waitFor();
+      await page.getByRole('button', { name: 'Mais ações' }).click();
+      await page.getByRole('menuitem', { name: 'Excluir' }).click();
+      await page
+        .getByRole('alertdialog', { name: 'Excluir esta conta?' })
+        .getByRole('button', { name: 'Excluir' })
+        .click();
+      await page.getByRole('link', { name: 'Conta principal' }).waitFor();
+      await settle(page);
+      check(
+        `${tag}: volta para Contas sem "Carteira"`,
+        (await page.getByRole('link', { name: 'Carteira' }).count()) === 0,
+      );
+      check(
+        `${tag}: sem o diálogo da conta de destino`,
+        (await page.getByText('Conta de destino').count()) === 0,
+      );
+    },
+  },
+  {
     name: 'Nova conta sem tipo',
     group: 'sem-cartao',
     path: '/finance/accounts/new',
@@ -1555,6 +1756,17 @@ const scenarios = [
   },
 ];
 
+/** "Mais ações", "Excluir" e confirmar: a conta com movimentações abre o diálogo da conta de destino. */
+async function openAccountDestination(page) {
+  await page.locator('h1').first().waitFor();
+  await page.getByRole('button', { name: 'Mais ações' }).click();
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Excluir esta conta?' });
+  await dialog.getByRole('button', { name: 'Excluir' }).click();
+  await dialog.getByText('Conta de destino').first().waitFor();
+  return dialog;
+}
+
 async function runScenarios(
   browser,
   base,
@@ -1632,7 +1844,8 @@ const CURSOR_MARKER = () => {
   document.addEventListener('DOMContentLoaded', () => document.body.append(dot));
 };
 
-async function recordFormVideo(browser, base) {
+/** Grava um vídeo de 1280x800 no tema claro, com o cursor visível, e salva em `file`. */
+async function withVideo(browser, file, run) {
   mkdirSync(OUT, { recursive: true });
   const size = { width: 1280, height: 800 };
   const context = await browser.newContext({
@@ -1662,24 +1875,38 @@ async function recordFormVideo(browser, base) {
     await page.mouse.up();
     await pause(500);
   };
-  let posts = 0;
-  const override = (call) => {
-    if (call.method !== 'POST' || call.path !== '/recurring-transactions') return undefined;
-    posts += 1;
-    return {
-      status: 201,
-      body: {
-        id: 'r9',
-        currency: 'BRL',
-        owner_id: 'u1',
-        visibility: 'personal',
-        open_occurrence: null,
-        ...STAMP,
-        ...call.body,
-      },
-    };
-  };
   try {
+    await run({ page, context, pause, clickAt });
+  } catch (e) {
+    check('vídeo: cenário executou', false, String(e.message).split('\n').slice(0, 3).join(' / '));
+  } finally {
+    await context.close();
+  }
+  const path = join(OUT, file);
+  await video.saveAs(path);
+  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
+  console.log(`video: ${relative(ROOT, path)}`);
+}
+
+async function recordFormVideo(browser, base) {
+  await withVideo(browser, 'finance-formulario.webm', async ({ page, context, pause, clickAt }) => {
+    let posts = 0;
+    const override = (call) => {
+      if (call.method !== 'POST' || call.path !== '/recurring-transactions') return undefined;
+      posts += 1;
+      return {
+        status: 201,
+        body: {
+          id: 'r9',
+          currency: 'BRL',
+          owner_id: 'u1',
+          visibility: 'personal',
+          open_occurrence: null,
+          ...STAMP,
+          ...call.body,
+        },
+      };
+    };
     await mockApi(context, seed(), override);
     await gotoHarness(page, base, '/finance/transactions/new?kind=expense');
     await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
@@ -1729,15 +1956,119 @@ async function recordFormVideo(browser, base) {
     check('vídeo: aviso "Recorrência salva." visível', await notice.isVisible());
     check('vídeo: um único POST /recurring-transactions', posts === 1, String(posts));
     await pause(2500);
-  } catch (e) {
-    check('vídeo: cenário executou', false, String(e.message).split('\n').slice(0, 3).join(' / '));
-  } finally {
-    await context.close();
-  }
-  const path = join(OUT, 'finance-formulario.webm');
-  await video.saveAs(path);
-  rmSync(join(OUT, 'video-tmp'), { recursive: true, force: true });
-  console.log(`video: ${relative(ROOT, path)}`);
+  });
+}
+
+async function recordRecurrenceVideo(browser, base) {
+  await withVideo(
+    browser,
+    'finance-recorrencia.webm',
+    async ({ page, context, pause, clickAt }) => {
+      await mockApi(context, seed());
+      await gotoHarness(page, base, '/finance/transactions/t9');
+      await page.getByRole('heading', { level: 1, name: 'Aluguel' }).waitFor();
+      await page.mouse.move(640, 760);
+      await pause(1500);
+
+      // 1. A cópia liquidada só oferece "Desfazer liquidação", com a explicação da reabertura.
+      await clickAt(page.getByRole('button', { name: 'Desfazer liquidação' }));
+      const undo = page.getByRole('alertdialog', { name: 'Desfazer esta liquidação?' });
+      await undo.waitFor();
+      await pause(1500);
+      await clickAt(undo.getByRole('button', { name: 'Desfazer liquidação' }));
+      const reopened = page.getByText('Ocorrência de 30 de set. de 2026');
+      await reopened.waitFor();
+      await pause(1200);
+      check('vídeo: ocorrência de 30/09 reaberta', await reopened.isVisible());
+
+      // 2. Excluir a recorrência pelo "Mais ações", depois da confirmação.
+      await clickAt(page.getByRole('button', { name: 'Mais ações' }));
+      await pause(900);
+      await clickAt(page.getByRole('menuitem', { name: 'Excluir' }));
+      const remove = page.getByRole('alertdialog', { name: 'Excluir esta recorrência?' });
+      await remove.waitFor();
+      await pause(1500);
+      await clickAt(remove.getByRole('button', { name: 'Excluir' }));
+      const notice = page.getByText(/^Recorrência excluída\./);
+      await notice.waitFor();
+      await pause(1200);
+      check('vídeo: aviso de recorrência excluída', await notice.isVisible());
+
+      // 3. Em Saídas, a cópia de agosto continua no histórico, sem ocorrência aberta nem previsão.
+      await gotoHarness(page, base, '/finance/expenses?period=all');
+      const rows = page.locator('li').filter({ has: page.getByRole('link', { name: 'Aluguel' }) });
+      await rows.first().waitFor();
+      await pause(1000);
+      const texts = await rows.allInnerTexts();
+      check(
+        'vídeo: cópia de agosto no histórico',
+        texts.some((t) => t.includes('Liquidada')),
+        `${texts.length} linha(s)`,
+      );
+      check(
+        'vídeo: sem ocorrência aberta nem previsão do Aluguel',
+        texts.every((t) => !/Atrasada|Prevista|Previsão/.test(t)),
+      );
+      await pause(2500);
+    },
+  );
+}
+
+async function recordAccountDeleteVideo(browser, base) {
+  await withVideo(
+    browser,
+    'finance-excluir-conta.webm',
+    async ({ page, context, pause, clickAt }) => {
+      await mockApi(context, seed());
+      await gotoHarness(page, base, '/finance/accounts/a3');
+      await page.getByRole('heading', { level: 1, name: 'Cartão Nu' }).waitFor();
+      await page.mouse.move(640, 760);
+      await pause(1500);
+
+      // 1. "Mais ações", "Excluir" e confirmar: a conta tem movimentações e pede a de destino.
+      await clickAt(page.getByRole('button', { name: 'Mais ações' }));
+      await pause(900);
+      await clickAt(page.getByRole('menuitem', { name: 'Excluir' }));
+      const dialog = page.getByRole('alertdialog', { name: 'Excluir esta conta?' });
+      await dialog.waitFor();
+      await pause(1200);
+      await clickAt(dialog.getByRole('button', { name: 'Excluir' }));
+      await dialog.getByText('Conta de destino').first().waitFor();
+      await pause(1500);
+
+      // 2. Escolher a Conta principal e mover.
+      await clickAt(dialog.getByLabel('Conta de destino', { exact: true }));
+      await pause(900);
+      await clickAt(page.getByRole('option', { name: 'Conta principal' }));
+      await pause(1000);
+      await clickAt(dialog.getByRole('button', { name: 'Mover e excluir' }));
+      const main = page
+        .locator('li')
+        .filter({ has: page.getByRole('link', { name: 'Conta principal' }) });
+      await main.first().waitFor();
+      await pause(1500);
+      check(
+        'vídeo: Cartão Nu fora da lista de Contas',
+        (await page.getByRole('link', { name: 'Cartão Nu' }).count()) === 0,
+      );
+      const balance = plain(await main.first().innerText()).replace(/\s*\n\s*/g, ' · ');
+      check(
+        'vídeo: saldo da Conta principal em R$ 5.600,00',
+        balance.includes('R$ 5.600,00'),
+        balance,
+      );
+
+      // 3. A compra que era da conta excluída está na Conta principal.
+      await gotoHarness(page, base, '/finance/transactions/p1');
+      await page.getByRole('heading', { level: 1, name: 'Geladeira' }).waitFor();
+      await pause(1200);
+      check(
+        'vídeo: compra movida para a Conta principal',
+        (await page.getByRole('link', { name: 'Conta principal' }).count()) > 0,
+      );
+      await pause(2500);
+    },
+  );
 }
 
 // ---------- principal ----------
@@ -1794,6 +2125,24 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  recorrencia: async (browser, base) => {
+    // As checagens (dois temas, duas larguras, axe) não gravam vídeo; o vídeo é um contexto à parte.
+    await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'recorrencia'),
+    );
+    await recordRecurrenceVideo(browser, base);
+  },
+  'excluir-conta': async (browser, base) => {
+    // As checagens (dois temas, duas larguras, axe) não gravam vídeo; o vídeo é um contexto à parte.
+    await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'excluir-conta'),
+    );
+    await recordAccountDeleteVideo(browser, base);
+  },
   telas: async (browser, base) => {
     const shots = await runScenarios(browser, base);
     await sheet(browser, {
@@ -1811,7 +2160,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel ou sem-cartao.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia ou excluir-conta.`,
   );
   process.exit(2);
 }

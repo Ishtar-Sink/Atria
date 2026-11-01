@@ -17,8 +17,12 @@ import { FinanceDialog } from '../components/finance-dialog';
 import styles from '../components/finance.module.css';
 import { MoreIcon, PencilIcon } from '../components/icons';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
-import { toneClass } from '../components/tone';
-import { useCategories, useCategory, useDeleteCategory } from '../hooks/use-categories';
+import {
+  categoryInk,
+  useCategories,
+  useCategory,
+  useDeleteCategory,
+} from '../hooks/use-categories';
 
 /** Relatório de gastos já filtrado pela categoria (PD-61). */
 export function categoryReportHref(category_id: string): string {
@@ -134,12 +138,18 @@ export function CategoryDetailScreen({ category_id }: CategoryDetailScreenProps)
                 {
                   label: t('finance.category_detail.color'),
                   value: (
-                    <span className={styles.actions}>
-                      <span
-                        className={`${styles.dot ?? ''} ${toneClass(category.color)}`}
-                        aria-hidden="true"
-                      />
-                      {t(`finance.colors.${category.color}`)}
+                    <span
+                      className={styles.colorChip}
+                      data-color-sample=""
+                      style={{
+                        backgroundColor: category.color,
+                        color: categoryInk(category.color),
+                      }}
+                      aria-label={t('finance.category_detail.color_sample', {
+                        hex: category.color,
+                      })}
+                    >
+                      {category.color}
                     </span>
                   ),
                 },

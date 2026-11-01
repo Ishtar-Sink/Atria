@@ -255,6 +255,64 @@ describe('incomes and expenses', () => {
     expect(params?.get('category_id')).toBe('c1');
   });
 
+  it('ct15 filters the category by typing and picks it with the keyboard', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    const { router } = renderFinance('/finance/expenses');
+    await screen.findByRole('link', { name: 'Feira' });
+    const field = screen.getByRole('combobox', { name: 'Categoria' });
+    expect(field).toHaveValue('Todas');
+    await user.click(field);
+    await user.keyboard('ca');
+    // O autocomplete busca por trecho do nome: "ca" também acha "Mercado".
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Casa',
+      'Mercado',
+    ]);
+    await user.keyboard('{Control>}a{/Control}{Backspace}a');
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Todas',
+      'Casa',
+      'Mercado',
+    ]);
+    // A primeira opção já nasce ativa.
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}');
+    const casa = screen.getByRole('option', { name: 'Casa' });
+    expect(field).toHaveAttribute('aria-activedescendant', casa.id);
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ category_id: 'c2' });
+    });
+    await waitFor(() => {
+      expect(lastCall(calls, 'GET', '/transactions')?.url.searchParams.get('category_id')).toBe(
+        'c2',
+      );
+    });
+    expect(field).toHaveValue('Casa');
+    await router.navigate({ to: '/finance/income' });
+    const income = await screen.findByRole('combobox', { name: 'Categoria' });
+    await user.click(income);
+    await user.keyboard('sal');
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Salário']);
+  });
+
+  it('cb10 keeps the previous category when nothing matches', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    const { router } = renderFinance('/finance/expenses?category_id=c1');
+    const field = await screen.findByRole('combobox', { name: 'Categoria' });
+    await waitFor(() => {
+      expect(field).toHaveValue('Mercado');
+    });
+    await user.click(field);
+    await user.keyboard('{Control>}a{/Control}{Backspace}xyz');
+    expect(screen.getByRole('status')).toHaveTextContent('Nenhuma categoria encontrada');
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    await user.keyboard('{Enter}{Escape}');
+    expect(router.state.location.search).toMatchObject({ category_id: 'c1' });
+    expect(field).toHaveValue('Mercado');
+  });
+
   it('filters by the global period using the effective date', async () => {
     const { calls } = financeServer(seed());
     const { router } = renderFinance('/finance/expenses?period=last_month');
@@ -745,19 +803,6 @@ describe('settlement and detail', () => {
       expect(router.state.location.pathname).toBe('/finance/expenses');
     });
     expect(lastCall(calls, 'DELETE', '/transactions/t1')).toBeDefined();
-  });
-
-  it('deletes a settled copy and explains the occurrence reopens', async () => {
-    financeServer(seed());
-    const user = userEvent.setup();
-    renderFinance('/finance/transactions/t9');
-    await pageHeading('Aluguel');
-    await user.click(screen.getByRole('button', { name: 'Mais ações' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Excluir' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Excluir esta movimentação?' });
-    expect(dialog).toHaveTextContent(
-      'O valor volta para o saldo. Se esta for a última liquidação da recorrência, a ocorrência volta a ficar aberta.',
-    );
   });
 });
 

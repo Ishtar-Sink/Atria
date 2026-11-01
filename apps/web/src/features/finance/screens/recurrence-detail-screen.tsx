@@ -5,6 +5,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  MenuButton,
   Tabs,
 } from '@atria/ui';
 import { useNavigate } from '@tanstack/react-router';
@@ -18,7 +19,7 @@ import { usePreferences } from '../../../shared/preferences/preferences-context'
 import { pushToast } from '../../../shared/toast/toast-store';
 import { differenceKey } from '../components/difference-badge';
 import styles from '../components/finance.module.css';
-import { PencilIcon } from '../components/icons';
+import { MoreIcon, PencilIcon } from '../components/icons';
 import { LoadMore } from '../components/list-toolbar';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
 import { SettlementCard, type SettlementValues } from '../components/settlement-card';
@@ -28,6 +29,7 @@ import { useAccount } from '../hooks/use-accounts';
 import { useCategory } from '../hooks/use-categories';
 import {
   toFormRule,
+  useDeleteRecurringTransaction,
   useRecurringTransaction,
   useSettledCopies,
   useSettleOccurrence,
@@ -91,7 +93,8 @@ export interface RecurrenceDetailScreenProps {
 
 /**
  * Detalhe da recorrente (PD-51, DEC-003): só a ocorrência aberta, que fica atrasada até ser
- * liquidada ou pulada; a tela nunca avança sozinha.
+ * liquidada ou pulada; a tela nunca avança sozinha. Excluir a recorrência tira a ocorrência aberta
+ * e mantém as cópias liquidadas (RF-01, RF-03).
  */
 export function RecurrenceDetailScreen({
   recurrence_id,
@@ -106,8 +109,10 @@ export function RecurrenceDetailScreen({
   const category = useCategory(query.data?.category_id ?? undefined);
   const settle = useSettleOccurrence(recurrence_id);
   const skip = useSkipOccurrence(recurrence_id);
+  const remove = useDeleteRecurringTransaction(recurrence_id);
   const idempotency = useIdempotencyKey();
   const [skipping, setSkipping] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
 
   if (query.isError) {
@@ -124,6 +129,7 @@ export function RecurrenceDetailScreen({
   }
   if (!query.data) return <LoadingState label={t('common.loading')} />;
   const recurrence = query.data;
+  const fallback = recurrence.kind === 'income' ? '/finance/income' : '/finance/expenses';
   const open = recurrence.open_occurrence ?? null;
   const ended = open === null || notice?.kind === 'ended';
   const date = (iso: string) => formatDate(iso, locale, 'UTC');
@@ -165,6 +171,17 @@ export function RecurrenceDetailScreen({
         onError: onRefused,
       },
     );
+  }
+
+  async function deleteNow() {
+    setDeleting(false);
+    try {
+      await remove.mutateAsync();
+      pushToast({ tone: 'success', message_key: 'finance.recurrence_detail.deleted' });
+      await navigate({ to: fallback });
+    } catch {
+      // A recusa já restaurou as listas e avisou.
+    }
   }
 
   function settledText(copy: Transaction): string {
@@ -276,12 +293,7 @@ export function RecurrenceDetailScreen({
   return (
     <div className={styles.screen}>
       <StickyPageHeader
-        back={
-          <BackLink
-            module="finance"
-            fallback_to={recurrence.kind === 'income' ? '/finance/income' : '/finance/expenses'}
-          />
-        }
+        back={<BackLink module="finance" fallback_to={fallback} />}
         eyebrow={t('finance.recurrence_detail.eyebrow')}
         title={description}
         subtitle={summarizeRule(toFormRule(recurrence.rule), locale)}
@@ -309,6 +321,21 @@ export function RecurrenceDetailScreen({
                 {t('finance.recurrence_detail.skip')}
               </Button>
             )}
+            <MenuButton
+              label={t('common.more_actions')}
+              trigger={<MoreIcon />}
+              placement="bottom-end"
+              items={[
+                {
+                  id: 'delete',
+                  label: t('common.delete'),
+                  tone: 'danger',
+                  onSelect: () => {
+                    setDeleting(true);
+                  },
+                },
+              ]}
+            />
           </div>
         }
       />
@@ -338,6 +365,19 @@ export function RecurrenceDetailScreen({
         onConfirm={onSkip}
         onCancel={() => {
           setSkipping(false);
+        }}
+      />
+      <ConfirmDialog
+        open={deleting}
+        title={t('finance.recurrence_detail.delete_title')}
+        description={t('finance.recurrence_detail.delete_description')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => {
+          void deleteNow();
+        }}
+        onCancel={() => {
+          setDeleting(false);
         }}
       />
     </div>

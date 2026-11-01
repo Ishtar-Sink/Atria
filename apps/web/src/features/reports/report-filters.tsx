@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Button,
   Card,
   PeriodField,
@@ -95,6 +96,22 @@ function FilterSelect({
 }) {
   const t = useT();
   const all: FilterOption = { value: '', label: t(`reports.filters.${filter}_all`) };
+  // Só a categoria usa o autocomplete, porque é a lista que cresce (PD-13, decisão 13 da spec).
+  if (filter === 'category') {
+    return (
+      <div className={styles.field}>
+        <Autocomplete
+          label={t('reports.filters.category')}
+          options={[all, ...options]}
+          value={value}
+          onChange={(next) => {
+            onChange(next ?? '');
+          }}
+          empty_text={t('common.category_not_found')}
+        />
+      </div>
+    );
+  }
   return (
     <div className={styles.field}>
       <SelectField

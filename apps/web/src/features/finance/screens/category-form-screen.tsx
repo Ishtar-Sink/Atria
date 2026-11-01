@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { FormSegmented, FormSelect } from '../../../shared/forms/form-fields';
+import { FormColor, FormSegmented } from '../../../shared/forms/form-fields';
 import { useT } from '../../../shared/i18n/i18n';
 import { FormScreen } from '../../../shared/layout/form-screen';
 import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
@@ -13,7 +13,8 @@ import styles from '../components/finance.module.css';
 import { VisibilityField } from '../components/visibility-field';
 import { errorMessageKey, type TransactionKind } from '../hooks/finance-cache';
 import {
-  CATEGORY_COLORS,
+  DEFAULT_CATEGORY_COLOR,
+  normalizeHex,
   useCategory,
   useCreateCategory,
   useUpdateCategory,
@@ -23,7 +24,7 @@ import {
 const form_schema = z.object({
   name: z.string().trim().min(1, 'finance.form.name_required').max(100),
   kind: z.enum(['income', 'expense']),
-  color: z.enum(['primary', 'accent', 'success', 'warning', 'danger', 'info']),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'finance.category_form.color_invalid'),
   visibility: z.enum(['personal', 'shared']),
 });
 
@@ -41,7 +42,7 @@ function CategoryForm({ category, kind }: { category?: Category; kind: Transacti
     defaultValues: {
       name: category?.name ?? '',
       kind: category?.kind ?? kind,
-      color: category?.color ?? 'primary',
+      color: category?.color ?? DEFAULT_CATEGORY_COLOR,
       visibility: category?.visibility ?? 'personal',
     },
   });
@@ -52,12 +53,16 @@ function CategoryForm({ category, kind }: { category?: Category; kind: Transacti
       const saved = editing
         ? await update.mutateAsync({
             id: category.id,
-            patch: { name: values.name.trim(), color: values.color, visibility: values.visibility },
+            patch: {
+              name: values.name.trim(),
+              color: normalizeHex(values.color),
+              visibility: values.visibility,
+            },
           })
         : await create.mutateAsync({
             name: values.name.trim(),
             kind: values.kind,
-            color: values.color,
+            color: normalizeHex(values.color),
             visibility: values.visibility,
           });
       await navigate({ to: '/finance/categories/$categoryId', params: { categoryId: saved.id } });
@@ -108,15 +113,7 @@ function CategoryForm({ category, kind }: { category?: Category; kind: Transacti
               ]}
             />
           )}
-          <FormSelect
-            control={control}
-            name="color"
-            label={t('finance.category_form.color')}
-            options={CATEGORY_COLORS.map((color) => ({
-              value: color,
-              label: t(`finance.colors.${color}`),
-            }))}
-          />
+          <FormColor control={control} name="color" label={t('finance.category_form.color')} />
           <VisibilityField control={control} name="visibility" />
           {error ? (
             <p role="alert" data-span="full" className={styles.formError}>

@@ -5,6 +5,7 @@ import {
   ErrorState,
   LoadingState,
   MenuButton,
+  SelectField,
   Tabs,
   type MenuItem,
 } from '@atria/ui';
@@ -25,7 +26,14 @@ import { MoreIcon, PencilIcon } from '../components/icons';
 import { LoadMore } from '../components/list-toolbar';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
 import { TransactionRow } from '../components/transaction-row';
-import { canDelete, useAccount, useDeleteAccount, type Account } from '../hooks/use-accounts';
+import { problemCode } from '../hooks/finance-cache';
+import {
+  canDelete,
+  useAccount,
+  useAccounts,
+  useDeleteAccount,
+  type Account,
+} from '../hooks/use-accounts';
 import { useCategories } from '../hooks/use-categories';
 import { listItemKey, useTransactions } from '../hooks/use-transactions';
 
@@ -172,7 +180,10 @@ export interface AccountDetailScreenProps {
   extra_tabs?: readonly FinanceExtraTab<Account>[];
 }
 
-/** Detalhe da conta: "Editar" e "Mais ações" (PD-14, PD-59, PD-61). */
+/**
+ * Detalhe da conta: "Editar" e "Mais ações"; a exclusão de uma conta com movimentações pede a
+ * conta de destino (PD-14, PD-59, PD-61, RF-05).
+ */
 export function AccountDetailScreen({
   account_id,
   tab,
@@ -183,8 +194,10 @@ export function AccountDetailScreen({
   const navigate = useNavigate();
   const account = useAccount(account_id);
   const remove = useDeleteAccount();
-  const [confirming, setConfirming] = useState(false);
-  const [blocked, setBlocked] = useState(false);
+  const accounts = useAccounts();
+  const [step, setStep] = useState<'closed' | 'confirm' | 'destination'>('closed');
+  const [destination, setDestination] = useState('');
+  const [missing, setMissing] = useState(false);
 
   if (account.isError) {
     return (
@@ -200,16 +213,31 @@ export function AccountDetailScreen({
   }
   if (!account.data) return <LoadingState label={t('common.loading')} />;
   const data = account.data;
+  const others = (accounts.data ?? []).filter((item) => item.id !== data.id);
 
-  async function onDelete() {
-    setConfirming(false);
+  async function onDelete(move_to?: string) {
     try {
-      await remove.mutateAsync(data.id);
-      pushToast({ tone: 'success', message_key: 'finance.account_detail.deleted' });
+      await remove.mutateAsync({ id: data.id, ...(move_to ? { move_to } : {}) });
+      setStep('closed');
+      const target = others.find((item) => item.id === move_to);
+      pushToast(
+        target
+          ? {
+              tone: 'success',
+              message_key: 'finance.account_detail.moved',
+              params: { name: target.name },
+            }
+          : { tone: 'success', message_key: 'finance.account_detail.deleted' },
+      );
       await navigate({ to: '/finance/accounts' });
-    } catch {
-      // A recusa já desfez a exclusão; a conta com movimentações ganha a explicação.
-      setBlocked(true);
+    } catch (error) {
+      // Com movimentações, o mesmo diálogo pede a conta de destino; a moeda diferente aparece nele (CB-03).
+      const code = problemCode(error);
+      setStep(
+        code === 'account_has_transactions' || code === 'currency_mismatch'
+          ? 'destination'
+          : 'closed',
+      );
     }
   }
 
@@ -227,7 +255,7 @@ export function AccountDetailScreen({
             label: t('common.delete'),
             tone: 'danger' as const,
             onSelect: () => {
-              setConfirming(true);
+              setStep('confirm');
             },
           },
         ]
@@ -285,7 +313,7 @@ export function AccountDetailScreen({
         ]}
       />
       <ConfirmDialog
-        open={confirming}
+        open={step === 'confirm'}
         title={t('finance.account_detail.delete_title')}
         description={t('finance.account_detail.delete_description', { name: data.name })}
         confirmLabel={t('common.delete')}
@@ -294,42 +322,56 @@ export function AccountDetailScreen({
           void onDelete();
         }}
         onCancel={() => {
-          setConfirming(false);
+          setStep('closed');
         }}
       />
       <FinanceDialog
-        open={blocked && remove.state === 'has_transactions'}
-        title={t('finance.account_detail.has_transactions_title')}
+        open={step === 'destination'}
+        title={t('finance.account_detail.delete_title')}
         cancel_label={t('common.cancel')}
         onCancel={() => {
-          setBlocked(false);
+          setStep('closed');
+          setMissing(false);
+          remove.reset();
         }}
         actions={
-          <>
-            <Button
-              onClick={() => {
-                setBlocked(false);
-                void navigate({
-                  to: '/finance/accounts/$accountId/edit',
-                  params: { accountId: data.id },
-                });
-              }}
-            >
-              {t('finance.account_detail.rename')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setBlocked(false);
-                on_tab_change('transactions');
-              }}
-            >
-              {t('finance.account_detail.view_transactions')}
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            loading={remove.isPending}
+            disabled={others.length === 0}
+            onClick={() => {
+              if (destination === '') {
+                setMissing(true);
+                return;
+              }
+              void onDelete(destination);
+            }}
+          >
+            {t('finance.account_detail.move_and_delete')}
+          </Button>
         }
       >
         <p>{t('finance.account_detail.has_transactions')}</p>
+        {others.length === 0 ? (
+          <p>{t('finance.account_detail.no_destination')}</p>
+        ) : (
+          <SelectField
+            label={t('finance.account_detail.destination')}
+            value={destination}
+            onChange={(value) => {
+              setDestination(value);
+              setMissing(false);
+              remove.reset();
+            }}
+            options={others.map((item) => ({ value: item.id, label: item.name }))}
+            {...(missing ? { error: t('finance.account_detail.destination_required') } : {})}
+          />
+        )}
+        {remove.state === 'currency_mismatch' ? (
+          <p role="alert" className={styles.formError}>
+            {t('finance.errors.currency_mismatch')}
+          </p>
+        ) : null}
       </FinanceDialog>
     </div>
   );

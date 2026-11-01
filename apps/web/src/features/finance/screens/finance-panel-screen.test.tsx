@@ -21,6 +21,7 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
   return {
     period: { from: '2026-11-01', to: '2026-11-30' },
     previous_period: { from: '2026-10-02', to: '2026-10-31' },
+    monthly: [],
     totals: {
       income: { realized: 500000, forecast: 600000 },
       expense: { realized: 200000, forecast: 280000 },
@@ -32,8 +33,8 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
       surplus: { realized: 288000, forecast: 288000 },
     },
     where_it_went: [
-      { group: 'category', category_id: 'c2', name: 'Casa', color: 'info', amount: 150000 },
-      { group: 'category', category_id: 'c1', name: 'Mercado', color: 'warning', amount: 80000 },
+      { group: 'category', category_id: 'c2', name: 'Casa', color: '#0369a1', amount: 150000 },
+      { group: 'category', category_id: 'c1', name: 'Mercado', color: '#92400e', amount: 80000 },
       { group: 'uncategorized', amount: 20000 },
       { group: 'others', amount: 30000 },
     ],
@@ -145,6 +146,18 @@ describe('finance panel', () => {
     expect(plain(within(columns).getByRole('row', { name: /Saídas/ }).textContent)).toContain(
       'R$ 2.800,00',
     );
+  });
+
+  it('rf18 shows where it went in the category colors', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance?period=last_month');
+    const figure = await screen.findByRole('figure', { name: 'Saídas por categoria' });
+    const fill = (label: string) => {
+      const row = [...figure.querySelectorAll('li')].find((li) => li.textContent.startsWith(label));
+      return row?.querySelector<HTMLElement>('[class*="barFill"]');
+    };
+    expect(fill('Casa')?.style.backgroundColor).toBe('rgb(3, 105, 161)');
+    expect(fill('Mercado')?.style.backgroundColor).toBe('rgb(146, 64, 14)');
   });
 
   it('rf09 shows balance, upcoming bills and savings and losses without the cards block', async () => {

@@ -1,8 +1,15 @@
+import { light } from '@atria/theme';
 import { act, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearToasts } from '../../../shared/toast/toast-store';
 import { category, mockApi, problem, renderFinanceHook } from '../test-utils';
-import { useCategories, useCreateCategory, useDeleteCategory } from './use-categories';
+import {
+  categoryInk,
+  normalizeHex,
+  useCategories,
+  useCreateCategory,
+  useDeleteCategory,
+} from './use-categories';
 
 afterEach(() => {
   clearToasts();
@@ -38,12 +45,12 @@ describe('categories hooks', () => {
     });
     const { result } = renderFinanceHook(() => useCreateCategory());
     await act(() =>
-      result.current.mutateAsync({ name: 'Mercado', kind: 'expense', color: 'warning' }),
+      result.current.mutateAsync({ name: 'Mercado', kind: 'expense', color: '#92400e' }),
     );
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
       name: 'Mercado',
       kind: 'expense',
-      color: 'warning',
+      color: '#92400e',
     });
   });
 
@@ -65,5 +72,14 @@ describe('categories hooks', () => {
     expect(calls[0]?.path).toBe('/categories/c2');
     expect(calls[0]?.url.searchParams.get('replacement_id')).toBe('c3');
     expect(result.current.state).toBe('idle');
+  });
+  it('cb09 picks the text color with more contrast on the category color', () => {
+    expect(categoryInk('#fef08a')).toBe(light.text);
+    expect(categoryInk('#1e1b4b')).toBe(light.surface);
+    expect(categoryInk('#6d28d9')).toBe(light.surface);
+  });
+
+  it('rn09 normalizes the hex color to lowercase', () => {
+    expect(normalizeHex('#0EA5E9')).toBe('#0ea5e9');
   });
 });

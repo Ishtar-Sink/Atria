@@ -271,28 +271,27 @@
   border-radius: var(--radius-pill);
 }
 
-.tone_primary {
+/* A cor da categoria vem do dado, por `style`; sem cor, a barra usa o tom neutro (RF-18). */
+.barFillNeutral {
+  background: var(--info);
+}
+
+.fillExpected {
+  background: var(--info);
+}
+
+.fillSettled {
   background: var(--primary);
 }
 
-.tone_accent {
-  background: var(--accent);
-}
-
-.tone_success {
-  background: var(--success);
-}
-
-.tone_warning {
-  background: var(--warning);
-}
-
-.tone_danger {
-  background: var(--danger);
-}
-
-.tone_info {
-  background: var(--info);
+.colorChip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 /* ===== Detalhes em cartões (PD-59) ===== */

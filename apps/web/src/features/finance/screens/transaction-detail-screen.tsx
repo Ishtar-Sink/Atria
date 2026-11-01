@@ -31,7 +31,10 @@ export interface TransactionDetailScreenProps {
   extra_tabs?: readonly FinanceExtraTab<Transaction>[];
 }
 
-/** Detalhe da movimentação, com "Editar", "Desfazer liquidação" e a liquidação (PD-14, PD-59). */
+/**
+ * Detalhe da movimentação, com "Editar", "Desfazer liquidação" e a liquidação (PD-14, PD-59); a
+ * cópia de uma recorrência só oferece "Desfazer liquidação" (RF-04).
+ */
 export function TransactionDetailScreen({
   transaction_id,
   extra_tabs = [],
@@ -133,21 +136,23 @@ export function TransactionDetailScreen({
                 {t('finance.transaction_detail.undo_settlement')}
               </Button>
             ) : null}
-            <MenuButton
-              label={t('common.more_actions')}
-              trigger={<MoreIcon />}
-              placement="bottom-end"
-              items={[
-                {
-                  id: 'delete',
-                  label: t('common.delete'),
-                  tone: 'danger',
-                  onSelect: () => {
-                    setConfirm('delete');
+            {copy ? null : (
+              <MenuButton
+                label={t('common.more_actions')}
+                trigger={<MoreIcon />}
+                placement="bottom-end"
+                items={[
+                  {
+                    id: 'delete',
+                    label: t('common.delete'),
+                    tone: 'danger',
+                    onSelect: () => {
+                      setConfirm('delete');
+                    },
                   },
-                },
-              ]}
-            />
+                ]}
+              />
+            )}
           </div>
         }
       />
@@ -258,11 +263,7 @@ export function TransactionDetailScreen({
       <ConfirmDialog
         open={confirm === 'delete'}
         title={t('finance.transaction_detail.delete_title')}
-        description={t(
-          copy
-            ? 'finance.transaction_detail.delete_copy_description'
-            : 'finance.transaction_detail.delete_description',
-        )}
+        description={t('finance.transaction_detail.delete_description')}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
         onConfirm={() => {
