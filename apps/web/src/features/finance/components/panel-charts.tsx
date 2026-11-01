@@ -1,5 +1,19 @@
 import { Link } from '@tanstack/react-router';
+import {
+  Bar,
+  BarChart,
+  LabelList,
+  Rectangle,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type BarShapeProps,
+  type LabelProps,
+  type TooltipContentProps,
+} from 'recharts';
 import { formatMoney } from '../../../shared/format/intl';
+import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import styles from './finance.module.css';
 
@@ -94,7 +108,7 @@ export interface ColumnGroup {
   settled: number;
 }
 
-export interface ExpectedVsSettledColumnsProps {
+export interface ExpectedVsSettledBarsProps {
   label: string;
   groups: readonly ColumnGroup[];
   expected_label: string;
@@ -102,56 +116,170 @@ export interface ExpectedVsSettledColumnsProps {
   currency: string;
 }
 
-/** Colunas de previsto (`info`) e realizado (`primary`), com legenda e valores em texto. */
-export function ExpectedVsSettledColumns({
+interface ExpectedDatum extends ColumnGroup {
+  difference: number;
+  color: string;
+}
+
+/** Previsto mais claro que o realizado, na mesma cor do grupo (ajuste 1 da spec). */
+export const EXPECTED_OPACITY = 0.45;
+
+type Money = (value: number) => string;
+
+function useDifferenceText(money: Money) {
+  const t = useT();
+  return (difference: number) => {
+    if (difference === 0) return t('finance.panel.difference_none');
+    return t(difference < 0 ? 'finance.panel.difference_below' : 'finance.panel.difference_above', {
+      value: money(Math.abs(difference)),
+    });
+  };
+}
+
+/**
+ * Valor escrito acima da barra, sobre o fundo do card: dentro da barra sólida o texto não teria
+ * contraste AA nos dois temas (RNF-02).
+ */
+function barLabel(text: (value: number) => string) {
+  function BarValueLabel({ x, y, value }: LabelProps) {
+    return (
+      <text
+        x={Number(x)}
+        y={Number(y) - 4}
+        fill="var(--text)"
+        fontSize={12}
+        className="recharts-label-value"
+      >
+        {text(Number(value))}
+      </text>
+    );
+  }
+  return BarValueLabel;
+}
+
+/** Barra na cor do grupo; o previsto usa a mesma cor, mais clara. */
+function barShape(opacity: number) {
+  function ExpectedBarShape(props: BarShapeProps) {
+    const datum = props.payload as ExpectedDatum;
+    return <Rectangle {...props} fill={datum.color} fillOpacity={opacity} />;
+  }
+  return ExpectedBarShape;
+}
+
+function ExpectedTooltip({
+  active,
+  payload,
+  money,
+  expected_label,
+  settled_label,
+}: Pick<TooltipContentProps, 'active' | 'payload'> & {
+  money: Money;
+  expected_label: string;
+  settled_label: string;
+}) {
+  const t = useT();
+  const difference = useDifferenceText(money);
+  const datum = payload[0]?.payload as ExpectedDatum | undefined;
+  if (!active || !datum) return null;
+  return (
+    <div data-chart-tooltip="" className={styles.chartTooltip}>
+      <strong>{datum.label}</strong>
+      <span>
+        {expected_label} {money(datum.expected)}
+      </span>
+      <span>
+        {settled_label} {money(datum.settled)}
+      </span>
+      <span>
+        {t('finance.panel.difference')}: {difference(datum.difference)}
+      </span>
+    </div>
+  );
+}
+
+/** Previsto e realizado em barras horizontais, nas cores de entrada e saída (RF-13, RF-14). */
+export function ExpectedVsSettledBars({
   label,
   groups,
   expected_label,
   settled_label,
   currency,
-}: ExpectedVsSettledColumnsProps) {
+}: ExpectedVsSettledBarsProps) {
+  const t = useT();
   const { locale } = usePreferences();
-  const max = Math.max(0, ...groups.flatMap((group) => [group.expected, group.settled]));
   const money = (value: number) => formatMoney(value, currency, locale);
+  const difference = useDifferenceText(money);
+  const data: ExpectedDatum[] = groups.map((group) => ({
+    ...group,
+    difference: group.settled - group.expected,
+    color: group.id === 'income' ? 'var(--success)' : 'var(--accent)',
+  }));
+  const ExpectedLabel = barLabel((value) =>
+    t('finance.panel.expected_value', { value: money(value) }),
+  );
+  const SettledLabel = barLabel((value) =>
+    t('finance.panel.settled_value', { value: money(value) }),
+  );
   return (
     <figure aria-label={label} className={styles.figure}>
-      <div className={styles.columns} aria-hidden="true">
-        {groups.map((group) => (
-          <div key={group.id} className={styles.columnGroup}>
-            <div className={styles.columnBars}>
-              <span
-                className={`${styles.columnBar ?? ''} ${styles.fillExpected ?? ''}`}
-                style={{ blockSize: percent(group.expected, max) }}
-              />
-              <span
-                className={`${styles.columnBar ?? ''} ${styles.fillSettled ?? ''}`}
-                style={{ blockSize: percent(group.settled, max) }}
-              />
-            </div>
-            <span className={styles.columnLabel}>{group.label}</span>
-          </div>
-        ))}
+      <div className={styles.chartFrame}>
+        <ResponsiveContainer
+          width="100%"
+          height={232}
+          initialDimension={{ width: 560, height: 232 }}
+        >
+          <BarChart
+            layout="vertical"
+            data={data}
+            accessibilityLayer
+            margin={{ top: 16, right: 16, bottom: 4, left: 4 }}
+            barCategoryGap={18}
+            barGap={18}
+          >
+            <XAxis type="number" hide />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={72}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: 'var(--text)' }}
+            />
+            <Tooltip
+              cursor={{ fill: 'var(--surface-muted)' }}
+              content={({ active, payload }) => (
+                <ExpectedTooltip
+                  active={active}
+                  payload={payload}
+                  money={money}
+                  expected_label={expected_label}
+                  settled_label={settled_label}
+                />
+              )}
+            />
+            <Bar
+              dataKey="expected"
+              name={expected_label}
+              isAnimationActive={false}
+              radius={[0, 4, 4, 0]}
+              barSize={18}
+              shape={barShape(EXPECTED_OPACITY)}
+            >
+              <LabelList dataKey="expected" content={ExpectedLabel} />
+            </Bar>
+            <Bar
+              dataKey="settled"
+              name={settled_label}
+              isAnimationActive={false}
+              radius={[0, 4, 4, 0]}
+              barSize={18}
+              shape={barShape(1)}
+            >
+              <LabelList dataKey="settled" content={SettledLabel} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-      <ul className={styles.legend} aria-hidden="true">
-        <li>
-          <span className={`${styles.dot ?? ''} ${styles.fillExpected ?? ''}`} />
-          {expected_label}
-        </li>
-        <li>
-          <span className={`${styles.dot ?? ''} ${styles.fillSettled ?? ''}`} />
-          {settled_label}
-        </li>
-      </ul>
-      <dl className={styles.legendValues} aria-hidden="true">
-        {groups.map((group) => (
-          <div key={group.id} className={styles.factRow}>
-            <dt>{group.label}</dt>
-            <dd>
-              {expected_label} {money(group.expected)} · {settled_label} {money(group.settled)}
-            </dd>
-          </div>
-        ))}
-      </dl>
       <div className={styles.srOnly}>
         <table>
           <caption>{label}</caption>
@@ -160,14 +288,16 @@ export function ExpectedVsSettledColumns({
               <td />
               <th scope="col">{expected_label}</th>
               <th scope="col">{settled_label}</th>
+              <th scope="col">{t('finance.panel.difference')}</th>
             </tr>
           </thead>
           <tbody>
-            {groups.map((group) => (
-              <tr key={group.id}>
-                <th scope="row">{group.label}</th>
-                <td>{money(group.expected)}</td>
-                <td>{money(group.settled)}</td>
+            {data.map((datum) => (
+              <tr key={datum.id}>
+                <th scope="row">{datum.label}</th>
+                <td>{money(datum.expected)}</td>
+                <td>{money(datum.settled)}</td>
+                <td>{difference(datum.difference)}</td>
               </tr>
             ))}
           </tbody>

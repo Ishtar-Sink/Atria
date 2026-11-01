@@ -7,7 +7,8 @@
 // TASK-10 acrescenta sem-cartao: finance-sem-cartao.png (Financeiro sem cartão, faturas e parcelas).
 // TASK-11 acrescenta recorrencia: finance-recorrencia.webm (desfazer a cópia e excluir a recorrência).
 // TASK-12 acrescenta excluir-conta: finance-excluir-conta.webm (excluir conta com conta de destino).
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta]
+// TASK-15 acrescenta graficos (finance-graficos.png) e graficos-video (finance-graficos.webm).
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -159,6 +160,26 @@ function summary() {
   return {
     period: { from: '2026-11-01', to: '2026-11-30' },
     previous_period: { from: '2026-10-01', to: '2026-10-31' },
+    // Doze meses: 6 realizados (agosto sem movimentação) e 6 projetados, um deles com saldo negativo.
+    monthly: [
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+      '2026-10',
+      '2026-11',
+      '2026-12',
+      '2027-01',
+      '2027-02',
+      '2027-03',
+      '2027-04',
+      '2027-05',
+    ].map((month, index) => {
+      if (month === '2026-08')
+        return { month, income: 0, expense: 0, balance: 0, projected: false };
+      const expense = month === '2027-01' ? 820000 : 300000 + index * 15000;
+      return { month, income: 600000, expense, balance: 600000 - expense, projected: index >= 6 };
+    }),
     totals: {
       income: { realized: 500000, forecast: 600000 },
       expense: { realized: 218000, forecast: 512000 },
@@ -170,9 +191,9 @@ function summary() {
       surplus: { realized: 60000, forecast: 60000 },
     },
     where_it_went: [
-      { group: 'category', category_id: 'c2', name: 'Casa', color: 'info', amount: 420000 },
-      { group: 'category', category_id: 'c1', name: 'Mercado', color: 'warning', amount: 52000 },
-      { group: 'category', category_id: 'c4', name: 'Transporte', color: 'accent', amount: 24000 },
+      { group: 'category', category_id: 'c2', name: 'Casa', color: '#0369a1', amount: 420000 },
+      { group: 'category', category_id: 'c1', name: 'Mercado', color: '#92400e', amount: 52000 },
+      { group: 'category', category_id: 'c4', name: 'Transporte', color: '#0e7490', amount: 24000 },
       { group: 'uncategorized', amount: 6000 },
       { group: 'others', amount: 10000 },
     ],
@@ -850,6 +871,73 @@ async function checkChartCaptions(page, tag) {
 const MONEY = /^R\$\s\d{1,3}(\.\d{3})*,\d{2}$/;
 const plain = (s) => (s ?? '').replace(/[  ]/g, ' ').trim();
 
+// ---------- gráficos do painel (TASK-15) ----------
+
+const EXPECTED_CARD = 'Previsto x realizado';
+const MONTHLY_CARD = 'Mês a mês';
+
+/** Espera os dois gráficos (carregados sob demanda) desenharem as barras. */
+async function waitCharts(page) {
+  for (const name of [EXPECTED_CARD, MONTHLY_CARD]) {
+    await page
+      .getByRole('region', { name, exact: true })
+      .locator('.recharts-bar-rectangle')
+      .first()
+      .waitFor({ timeout: 20000 });
+  }
+  await settle(page, 300);
+}
+
+/** Caixa, opacidade e cor calculada de cada barra desenhada no card. */
+const barsOf = (page, name) =>
+  page
+    .getByRole('region', { name, exact: true })
+    .locator('.recharts-bar-rectangle path')
+    .evaluateAll((paths) =>
+      paths.map((path) => {
+        const box = path.getBoundingClientRect();
+        return {
+          width: box.width,
+          height: box.height,
+          opacity: Number(path.getAttribute('fill-opacity') ?? '1'),
+          fill: getComputedStyle(path).fill,
+        };
+      }),
+    );
+
+const tooltipText = (page) =>
+  page
+    .locator('[data-chart-tooltip]')
+    .first()
+    .innerText()
+    .then(plain)
+    .catch(() => '');
+
+/** Centraliza o card na tela: a captura mostra o gráfico, sem o cabeçalho fixo por cima. */
+const centerCard = (page, name) =>
+  page
+    .getByRole('region', { name, exact: true })
+    .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+
+/** Leva o foco pelo Tab até o gráfico do card; devolve se chegou. */
+async function tabToChart(page, name, limit = 120) {
+  for (let i = 0; i < limit; i += 1) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(
+      (card) =>
+        document.activeElement?.classList.contains('recharts-surface') &&
+        [...document.querySelectorAll('section, [role="region"]')].some(
+          (region) =>
+            region.contains(document.activeElement) &&
+            region.querySelector('h2')?.textContent === card,
+        ),
+      name,
+    );
+    if (inside) return true;
+  }
+  return false;
+}
+
 let recurringPosts = 0;
 
 const scenarios = [
@@ -964,6 +1052,158 @@ const scenarios = [
         `grupo ${info.width.toFixed(1)} px · botões ${info.sum.toFixed(1)} px`,
       );
       check(`${tag}: botões com title e ícone`, info.icons);
+    },
+  },
+  {
+    name: 'Previsto x realizado em barras horizontais',
+    group: 'graficos',
+    path: '/finance',
+    combos: ALL,
+    run: async (page, tag) => {
+      await waitCharts(page);
+      await centerCard(page, EXPECTED_CARD);
+      const bars = await barsOf(page, EXPECTED_CARD);
+      check(
+        `${tag}: Previsto x realizado em barras horizontais`,
+        bars.length === 4 && bars.every((bar) => bar.width > bar.height),
+        bars.map((bar) => `${bar.width.toFixed(0)}x${bar.height.toFixed(0)}`).join(' '),
+      );
+      const svg = plain(
+        await page
+          .getByRole('region', { name: EXPECTED_CARD, exact: true })
+          .locator('svg.recharts-surface')
+          .textContent(),
+      );
+      check(
+        `${tag}: valores "Previsto R$" e "Realizado R$" visíveis`,
+        /Previsto R\$/.test(svg) && /Realizado R\$/.test(svg),
+        svg.slice(0, 120),
+      );
+      const [expected, , settled] = bars;
+      check(
+        `${tag}: previsto mais claro que o realizado`,
+        expected.opacity < settled.opacity && expected.fill === settled.fill,
+        `${expected.opacity} x ${settled.opacity}`,
+      );
+    },
+  },
+  {
+    name: 'Mês a mês em colunas',
+    group: 'graficos',
+    path: '/finance',
+    combos: ALL,
+    run: async (page, tag) => {
+      await waitCharts(page);
+      await centerCard(page, MONTHLY_CARD);
+      const card = page.getByRole('region', { name: MONTHLY_CARD, exact: true });
+      const ticks = await card
+        .locator('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-label')
+        .count();
+      check(`${tag}: Mês a mês com 12 meses no eixo`, ticks === 12, `${ticks} rótulo(s)`);
+      const bars = await barsOf(page, MONTHLY_CARD);
+      check(
+        `${tag}: Mês a mês em colunas`,
+        bars.length > 0 && bars.every((bar) => bar.height > bar.width || bar.height === 0),
+        `${bars.length} coluna(s)`,
+      );
+      const light = bars.filter((bar) => bar.opacity < 1).length;
+      check(
+        `${tag}: meses projetados em tom mais claro`,
+        light === 12 && bars.length - light === 10,
+        `${light} clara(s) de ${bars.length}`,
+      );
+      const order = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-zone="main"]')].map(
+          (cell) => cell.querySelector('h2')?.textContent ?? '',
+        ),
+      );
+      check(
+        `${tag}: Mês a mês logo abaixo do Fechamento`,
+        /Fechamento/.test(order[0] ?? '') && order[1] === 'Mês a mês',
+        order.join(' · '),
+      );
+    },
+  },
+  {
+    name: 'dica pelo mouse',
+    group: 'graficos',
+    path: '/finance',
+    combos: ALL,
+    run: async (page, tag) => {
+      await waitCharts(page);
+      await centerCard(page, EXPECTED_CARD);
+      const bar = page
+        .getByRole('region', { name: EXPECTED_CARD, exact: true })
+        .locator('.recharts-bar-rectangle path')
+        .nth(3);
+      await bar.hover();
+      await settle(page, 300);
+      const text = await tooltipText(page);
+      check(
+        `${tag}: dica pelo mouse com valor e diferença`,
+        /Saídas/.test(text) && /Diferença/.test(text) && /Realizado R\$/.test(text),
+        text.replace(/\n/g, ' '),
+      );
+    },
+  },
+  {
+    name: 'dica pelo teclado',
+    group: 'graficos',
+    path: '/finance',
+    combos: ALL,
+    run: async (page, tag) => {
+      await waitCharts(page);
+      await centerCard(page, EXPECTED_CARD);
+      const reached = await tabToChart(page, EXPECTED_CARD);
+      check(`${tag}: Tab chega ao gráfico do Previsto x realizado`, reached);
+      await centerCard(page, EXPECTED_CARD);
+      await page.keyboard.press('ArrowRight');
+      await settle(page, 300);
+      const text = await tooltipText(page);
+      check(
+        `${tag}: dica pelo teclado com valor e diferença`,
+        /Previsto R\$/.test(text) && /Diferença/.test(text),
+        text.replace(/\n/g, ' '),
+      );
+      const outline = await page.evaluate(() => {
+        const style = getComputedStyle(document.activeElement);
+        return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+      });
+      check(
+        `${tag}: foco visível no gráfico`,
+        outline.style !== 'none' && outline.width >= 2,
+        `${outline.style} ${outline.width}px`,
+      );
+    },
+  },
+  {
+    name: 'Mês a mês em Saldo',
+    group: 'graficos',
+    path: '/finance',
+    combos: ALL,
+    run: async (page, tag) => {
+      await waitCharts(page);
+      await centerCard(page, MONTHLY_CARD);
+      const card = page.getByRole('region', { name: MONTHLY_CARD, exact: true });
+      const balance = card.locator('label').filter({ hasText: /^Saldo$/ });
+      await balance.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await balance.click();
+      await centerCard(page, MONTHLY_CARD);
+      await settle(page, 400);
+      const href = await page.evaluate(() => window.__evidence.href());
+      check(`${tag}: URL com monthly=balance`, /monthly=balance/.test(href), href);
+      const warning = await tokenColor(page, '--warning');
+      const danger = await tokenColor(page, '--danger');
+      const bars = await barsOf(page, MONTHLY_CARD);
+      check(
+        `${tag}: Mês a mês em Saldo com o mês negativo em âmbar`,
+        bars.length === 11 &&
+          bars.filter((bar) => bar.fill === warning).length === 1 &&
+          bars.every((bar) => bar.fill !== danger),
+        `${bars.length} coluna(s), âmbar ${warning}`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
     },
   },
   {
@@ -2073,6 +2313,67 @@ async function recordAccountDeleteVideo(browser, base) {
 
 // ---------- principal ----------
 
+async function recordChartsVideo(browser, base) {
+  await withVideo(browser, 'finance-graficos.webm', async ({ page, context, pause, clickAt }) => {
+    await mockApi(context, seed());
+    await gotoHarness(page, base, '/finance');
+    await waitCharts(page);
+    await pause(800);
+    const expected = page.getByRole('region', { name: EXPECTED_CARD, exact: true });
+    // O cabeçalho fixo cobre o topo do card: centraliza em vez de só trazer para a tela.
+    await expected.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(600);
+    const bars = expected.locator('.recharts-bar-rectangle path');
+    for (const index of [0, 2, 1, 3]) {
+      const box = await bars.nth(index).boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+      await pause(1000);
+    }
+    const mouse = await tooltipText(page);
+    check(
+      'vídeo: dica pelo mouse com a diferença',
+      /Diferença/.test(mouse),
+      mouse.replace(/\n/g, ' '),
+    );
+    await page.mouse.move(640, 40, { steps: 15 });
+    await page.evaluate(() => {
+      document.activeElement?.blur();
+      window.scrollTo(0, 0);
+    });
+    await pause(500);
+    const reached = await tabToChart(page, EXPECTED_CARD);
+    check('vídeo: Tab chega ao gráfico', reached);
+    await pause(800);
+    for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft']) {
+      await page.keyboard.press(key);
+      await pause(1000);
+    }
+    const keyboard = await tooltipText(page);
+    check('vídeo: dica pelo teclado', /Previsto R\$/.test(keyboard), keyboard.replace(/\n/g, ' '));
+    const monthly = page.getByRole('region', { name: MONTHLY_CARD, exact: true });
+    await monthly.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(700);
+    const box = await monthly.locator('.recharts-bar-rectangle path').nth(8).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 25 });
+    await pause(1300);
+    const month = await tooltipText(page);
+    check('vídeo: dica de um mês projetado', /Projetado/.test(month), month.replace(/\n/g, ' '));
+    await clickAt(monthly.locator('label').filter({ hasText: /^Saldo$/ }));
+    await pause(1200);
+    const href = await page.evaluate(() => window.__evidence.href());
+    check('vídeo: troca para Saldo', /monthly=balance/.test(href), href);
+    const nbox = await monthly.locator('.recharts-bar-rectangle path').nth(6).boundingBox();
+    await page.mouse.move(nbox.x + nbox.width / 2, nbox.y + nbox.height / 2, { steps: 20 });
+    await pause(1500);
+    const negative = await tooltipText(page);
+    check(
+      'vídeo: dica do mês com saldo negativo',
+      /Saldo/.test(negative),
+      negative.replace(/\n/g, ' '),
+    );
+  });
+}
+
 const EVIDENCES = {
   formulario: async (browser, base) => {
     // As checagens (dois temas, duas larguras, axe) não gravam vídeo; o vídeo é um contexto à parte.
@@ -2143,6 +2444,23 @@ const EVIDENCES = {
     );
     await recordAccountDeleteVideo(browser, base);
   },
+  graficos: async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'graficos'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-15 · gráficos do painel: Previsto x realizado e Mês a mês (RF-13 a RF-16, CT-09, CT-10, RNF-02, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-graficos.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'graficos-video': async (browser, base) => {
+    await recordChartsVideo(browser, base);
+  },
   telas: async (browser, base) => {
     const shots = await runScenarios(browser, base);
     await sheet(browser, {
@@ -2160,7 +2478,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia ou excluir-conta.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos ou graficos-video.`,
   );
   process.exit(2);
 }

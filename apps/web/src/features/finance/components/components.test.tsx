@@ -3,7 +3,7 @@ import { createRoute } from '@tanstack/react-router';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { z } from 'zod';
 import { rootRoute } from '../../../app/router';
@@ -12,9 +12,25 @@ import { item, mockApi } from '../test-utils';
 import { DifferenceBadge } from './difference-badge';
 import { FinanceShell, type FinanceTab } from './finance-shell';
 import { MoneyField } from './money-field';
-import { ExpectedVsSettledColumns, HorizontalBars } from './panel-charts';
+import { MonthlyChart } from './monthly-chart';
+import { ExpectedVsSettledBars, HorizontalBars } from './panel-charts';
 import { TransactionRow } from './transaction-row';
 import { VisibilityField } from './visibility-field';
+
+beforeEach(() => {
+  // O jsdom não mede nada: o observador informa uma largura para o gráfico se desenhar.
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private readonly callback: (entries: unknown[]) => void) {}
+      observe() {
+        this.callback([{ contentRect: { width: 640, height: 240 } }]);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -266,7 +282,7 @@ describe('finance components', () => {
             { id: 'others', label: 'Outras', value: 30000 },
           ]}
         />
-        <ExpectedVsSettledColumns
+        <ExpectedVsSettledBars
           label="Previsto e realizado no período"
           currency="BRL"
           expected_label="Previsto"
@@ -327,7 +343,7 @@ describe('finance components', () => {
           currency="BRL"
           items={[{ id: 'c1', label: 'Casa', value: 120000, color: '#6d28d9' }]}
         />
-        <ExpectedVsSettledColumns
+        <ExpectedVsSettledBars
           label="Previsto e realizado no período"
           currency="BRL"
           expected_label="Previsto"
@@ -345,4 +361,180 @@ describe('finance components', () => {
       expect(table.contains(caption)).toBe(true);
     }
   });
+  it('rf14 draws expected and settled as horizontal bars with labels', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<ExpectedChart />);
+    await screen.findByRole('table', { name: 'Previsto e realizado no período' });
+    const axis = container.querySelector('.recharts-yAxis-tick-labels');
+    expect(axis?.textContent).toContain('Entradas');
+    expect(axis?.textContent).toContain('Saídas');
+    const rects = rectangles(container);
+    expect(rects).toHaveLength(4);
+    const svg = plain(container.querySelector('svg.recharts-surface')?.textContent);
+    expect(svg).toContain('Previsto R$ 5.000,00');
+    expect(svg).toContain('Realizado R$ 4.000,00');
+    const [expected_income, expected_expense, settled_income, settled_expense] = rects;
+    expect(expected_income?.getAttribute('fill')).toBe('var(--success)');
+    expect(settled_income?.getAttribute('fill')).toBe('var(--success)');
+    expect(expected_expense?.getAttribute('fill')).toBe('var(--accent)');
+    expect(settled_expense?.getAttribute('fill')).toBe('var(--accent)');
+    expect(opacity(expected_income)).toBeLessThan(opacity(settled_income));
+    expect(opacity(expected_expense)).toBeLessThan(opacity(settled_expense));
+  });
+
+  it('rf13 shows the value and the difference in the tooltip on focus', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ExpectedChart />);
+    await screen.findByRole('table', { name: 'Previsto e realizado no período' });
+    const surface = container.querySelector<SVGElement>('svg.recharts-surface');
+    expect(surface?.getAttribute('tabindex')).toBe('0');
+    surface?.focus();
+    await user.keyboard('{ArrowRight}');
+    const tooltip = await waitFor(() => {
+      const found = container.querySelector('[data-chart-tooltip]');
+      expect(found).not.toBeNull();
+      return found;
+    });
+    const text = plain(tooltip?.textContent);
+    expect(text).toContain('Entradas');
+    expect(text).toContain('Previsto R$ 5.000,00');
+    expect(text).toContain('Realizado R$ 4.000,00');
+    expect(text).toContain('R$ 1.000,00 abaixo do previsto');
+  });
+
+  it('rnf03 keeps the accessible table with the difference', async () => {
+    quietApi();
+    renderWithProviders(<ExpectedChart />);
+    const table = await screen.findByRole('table', { name: 'Previsto e realizado no período' });
+    const headers = within(table)
+      .getAllByRole('columnheader')
+      .map((cell) => cell.textContent);
+    expect(headers).toEqual(['Previsto', 'Realizado', 'Diferença']);
+    expect(plain(within(table).getByRole('row', { name: /Entradas/ }).textContent)).toContain(
+      'R$ 1.000,00 abaixo do previsto',
+    );
+  });
+
+  it('rf15 draws one column per month with the projected months lighter', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<Monthly mode="flow" />);
+    const table = await screen.findByRole('table', {
+      name: 'Entradas, saídas e saldo mês a mês',
+    });
+    expect(
+      container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-label'),
+    ).toHaveLength(12);
+    // Um mês zerado não desenha barra: 11 meses com entradas e saídas, 6 deles projetados.
+    const rects = rectangles(container);
+    expect(rects).toHaveLength(22);
+    expect(rects.filter((rect) => opacity(rect) === 1)).toHaveLength(10);
+    expect(rects.filter((rect) => opacity(rect) < 1)).toHaveLength(12);
+    expect(screen.getByText('Meses projetados em tom mais claro')).toBeInTheDocument();
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(12);
+    expect(rows[0]?.textContent).toContain('Realizado');
+    expect(rows[11]?.textContent).toContain('Projetado');
+    const headers = within(table)
+      .getAllByRole('columnheader')
+      .map((cell) => cell.textContent);
+    expect(headers).toEqual(['Mês', 'Situação', 'Entradas', 'Saídas']);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('cb08 shows a month without transactions as zero', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<Monthly mode="flow" />);
+    const table = await screen.findByRole('table', {
+      name: 'Entradas, saídas e saldo mês a mês',
+    });
+    expect(plain(container.querySelector('.recharts-xAxis-tick-labels')?.textContent)).toContain(
+      'ago.',
+    );
+    const august = within(table).getByRole('row', { name: /ago\. de 26/ });
+    expect(plain(august.textContent)).toContain('R$ 0,00');
+  });
+
+  it('rn07 shows a negative balance in amber, never red', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<Monthly mode="balance" />);
+    await screen.findByRole('table', { name: 'Entradas, saídas e saldo mês a mês' });
+    const rects = rectangles(container);
+    expect(rects).toHaveLength(11);
+    const fills = rects.map((rect) => rect.getAttribute('fill'));
+    expect(fills).toContain('var(--warning)');
+    expect(fills).toContain('var(--success)');
+    expect(rects[0]?.getAttribute('fill')).toBe('var(--success)');
+    expect(container.innerHTML).not.toMatch(/danger/);
+  });
+
+  it('rnf05 moves the monthly tooltip with the keyboard', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<Monthly mode="flow" />);
+    await screen.findByRole('table', { name: 'Entradas, saídas e saldo mês a mês' });
+    container.querySelector<SVGElement>('svg.recharts-surface')?.focus();
+    const tooltip = () => plain(container.querySelector('[data-chart-tooltip]')?.textContent);
+    await waitFor(() => {
+      expect(tooltip()).toContain('jun. de 26');
+    });
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    await waitFor(() => {
+      expect(tooltip()).toContain('ago. de 26');
+    });
+  });
 });
+
+function ExpectedChart() {
+  return (
+    <ExpectedVsSettledBars
+      label="Previsto e realizado no período"
+      currency="BRL"
+      expected_label="Previsto"
+      settled_label="Realizado"
+      groups={[
+        { id: 'income', label: 'Entradas', expected: 500000, settled: 400000 },
+        { id: 'expense', label: 'Saídas', expected: 300000, settled: 250000 },
+      ]}
+    />
+  );
+}
+
+/** Doze meses de 2026-06 a 2027-05: os 6 últimos projetados, agosto zerado e um saldo negativo. */
+const MONTHS = [
+  '2026-06',
+  '2026-07',
+  '2026-08',
+  '2026-09',
+  '2026-10',
+  '2026-11',
+  '2026-12',
+  '2027-01',
+  '2027-02',
+  '2027-03',
+  '2027-04',
+  '2027-05',
+].map((month, index) => {
+  if (month === '2026-08') return { month, income: 0, expense: 0, balance: 0, projected: false };
+  const expense = month === '2027-01' ? 900000 : 300000;
+  return { month, income: 500000, expense, balance: 500000 - expense, projected: index >= 6 };
+});
+
+function Monthly({ mode }: { mode: 'flow' | 'balance' }) {
+  return (
+    <MonthlyChart
+      label="Entradas, saídas e saldo mês a mês"
+      currency="BRL"
+      months={MONTHS}
+      mode={mode}
+    />
+  );
+}
+
+function rectangles(container: HTMLElement): Element[] {
+  return [...container.querySelectorAll('.recharts-bar-rectangle path')];
+}
+
+function opacity(element: Element | undefined): number {
+  return Number(element?.getAttribute('fill-opacity') ?? '1');
+}

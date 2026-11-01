@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { Button, EmptyState, ErrorState, LoadingState } from '@atria/ui';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { Button, EmptyState, ErrorState, LoadingState, SegmentedField } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { useListSearch } from '../../../shared/url-state/use-list-search';
-import { ExpectedVsSettledColumns, HorizontalBars, type BarItem } from '../components/panel-charts';
+import type { BarItem } from '../components/panel-charts';
 import { DataCard } from '../components/record-card';
 import { useFinancialSummary, type FinancialSummary } from '../hooks/use-financial-summary';
 import { listItemHref, listItemKey } from '../hooks/use-transactions';
@@ -18,17 +18,34 @@ import {
 } from '../lib/finance-period';
 import styles from './finance-panel-screen.module.css';
 
+// A biblioteca de gráficos fica num chunk carregado só pelo painel (RNF-04).
+const HorizontalBars = lazy(() =>
+  import('../components/panel-charts').then((m) => ({ default: m.HorizontalBars })),
+);
+const ExpectedVsSettledBars = lazy(() =>
+  import('../components/panel-charts').then((m) => ({ default: m.ExpectedVsSettledBars })),
+);
+const MonthlyChart = lazy(() =>
+  import('../components/monthly-chart').then((m) => ({ default: m.MonthlyChart })),
+);
+
 const period_shape = financePeriodSearchSchema.shape;
 
 export const panelSearchSchema = z.object({
   period: period_shape.period.catch('this_month'),
   from: period_shape.from.catch(undefined),
   to: period_shape.to.catch(undefined),
+  monthly: z.enum(['flow', 'balance']).catch('flow'),
 });
 
 export const UPCOMING_LIMIT = 5;
 
 type Search = z.output<typeof panelSearchSchema>;
+
+function ChartFallback() {
+  const t = useT();
+  return <LoadingState label={t('common.loading')} rows={2} />;
+}
 
 function usePeriodLabel(search: Search): string {
   const t = useT();
@@ -119,12 +136,44 @@ function WhereItWent({ summary, search }: BlockProps) {
       {items.length === 0 ? (
         <p className={styles.sub}>{t('finance.panel.where_empty')}</p>
       ) : (
-        <HorizontalBars
-          label={t('finance.panel.where_label')}
-          items={items}
-          currency={summary.currency}
-        />
+        <Suspense fallback={<ChartFallback />}>
+          <HorizontalBars
+            label={t('finance.panel.where_label')}
+            items={items}
+            currency={summary.currency}
+          />
+        </Suspense>
       )}
+    </DataCard>
+  );
+}
+
+function Monthly({ summary, search }: BlockProps) {
+  const t = useT();
+  const { setSearch } = useListSearch(panelSearchSchema);
+  return (
+    <DataCard title={t('finance.panel.monthly')}>
+      <div className={styles.monthlyHead}>
+        <SegmentedField
+          label={t('finance.panel.monthly_mode')}
+          options={[
+            { value: 'flow', label: t('finance.panel.monthly_flow') },
+            { value: 'balance', label: t('finance.panel.monthly_balance') },
+          ]}
+          value={search.monthly}
+          onChange={(value) => {
+            setSearch({ monthly: value === 'balance' ? 'balance' : 'flow' });
+          }}
+        />
+      </div>
+      <Suspense fallback={<ChartFallback />}>
+        <MonthlyChart
+          label={t('finance.panel.monthly_label')}
+          months={summary.monthly}
+          currency={summary.currency}
+          mode={search.monthly}
+        />
+      </Suspense>
     </DataCard>
   );
 }
@@ -134,26 +183,28 @@ function ExpectedVsSettled({ summary }: { summary: FinancialSummary }) {
   const { income, expense } = summary.expected_vs_settled;
   return (
     <DataCard title={t('finance.panel.expected_vs_settled')}>
-      <ExpectedVsSettledColumns
-        label={t('finance.panel.expected_vs_settled_label')}
-        currency={summary.currency}
-        expected_label={t('finance.panel.expected')}
-        settled_label={t('finance.panel.settled')}
-        groups={[
-          {
-            id: 'income',
-            label: t('finance.panel.income'),
-            expected: income.expected_amount,
-            settled: income.settled_amount,
-          },
-          {
-            id: 'expense',
-            label: t('finance.panel.expense'),
-            expected: expense.expected_amount,
-            settled: expense.settled_amount,
-          },
-        ]}
-      />
+      <Suspense fallback={<ChartFallback />}>
+        <ExpectedVsSettledBars
+          label={t('finance.panel.expected_vs_settled_label')}
+          currency={summary.currency}
+          expected_label={t('finance.panel.expected')}
+          settled_label={t('finance.panel.settled')}
+          groups={[
+            {
+              id: 'income',
+              label: t('finance.panel.income'),
+              expected: income.expected_amount,
+              settled: income.settled_amount,
+            },
+            {
+              id: 'expense',
+              label: t('finance.panel.expense'),
+              expected: expense.expected_amount,
+              settled: expense.settled_amount,
+            },
+          ]}
+        />
+      </Suspense>
     </DataCard>
   );
 }
@@ -336,6 +387,7 @@ export function FinancePanelScreen() {
         cells={panelCells(
           [
             { id: 'closing', node: failed(t('finance.panel.closing_short')) },
+            { id: 'monthly', node: failed(t('finance.panel.monthly')) },
             { id: 'where', node: failed(t('finance.panel.where_it_went')) },
             { id: 'expected', node: failed(t('finance.panel.expected_vs_settled')) },
           ],
@@ -369,6 +421,7 @@ export function FinancePanelScreen() {
   }
   const main: Block[] = [
     { id: 'closing', node: <Closing summary={summary} search={search} /> },
+    { id: 'monthly', node: <Monthly summary={summary} search={search} /> },
     { id: 'where', node: <WhereItWent summary={summary} search={search} /> },
     { id: 'expected', node: <ExpectedVsSettled summary={summary} /> },
   ];

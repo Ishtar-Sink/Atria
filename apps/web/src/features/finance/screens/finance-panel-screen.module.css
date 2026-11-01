@@ -44,6 +44,15 @@
   grid-row: 4;
 }
 
+.monthlyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-block-end: var(--s3);
+}
+
 .figs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -276,14 +276,6 @@
   background: var(--info);
 }
 
-.fillExpected {
-  background: var(--info);
-}
-
-.fillSettled {
-  background: var(--primary);
-}
-
 .colorChip {
   display: inline-flex;
   align-items: center;
@@ -471,43 +463,6 @@ a.barLabel {
   border-radius: inherit;
 }
 
-.columns {
-  display: flex;
-  justify-content: space-around;
-  align-items: flex-end;
-  gap: var(--s5);
-  height: calc(var(--space) * 40);
-  padding-bottom: var(--s2);
-  border-bottom: 1px solid var(--border);
-}
-
-.columnGroup {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s2);
-  height: 100%;
-  min-width: 0;
-}
-
-.columnBars {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--s1);
-  flex: 1;
-}
-
-.columnBar {
-  width: calc(var(--space) * 6);
-  min-height: 2px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-}
-
-.columnLabel {
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
-}
-
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -525,21 +480,35 @@ a.barLabel {
   gap: var(--s1);
 }
 
-.legendValues {
+/* Mesmo tom mais claro das colunas projetadas do "Mês a mês" (RF-15). */
+.dotProjected {
+  background: var(--success);
+  opacity: 0.45;
+}
+
+.chartFrame {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.chartFrame :global(.recharts-surface):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.chartTooltip {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s2);
-  margin: var(--s3) 0 0;
+  gap: var(--s1);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--elevation-3);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
   font-size: var(--font-size-sm);
-}
-
-.legendValues dt {
-  color: var(--text-muted);
-}
-
-.legendValues dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
+  /* Em 360 px a dica quebra em linhas em vez de passar da largura da tela. */
+  max-inline-size: calc(var(--space) * 56);
+  white-space: normal;
 }
 
 @media (max-width: 960px) {

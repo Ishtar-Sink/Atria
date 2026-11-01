@@ -21,7 +21,25 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
   return {
     period: { from: '2026-11-01', to: '2026-11-30' },
     previous_period: { from: '2026-10-02', to: '2026-10-31' },
-    monthly: [],
+    monthly: [
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+      '2026-10',
+      '2026-11',
+      '2026-12',
+      '2027-01',
+      '2027-02',
+      '2027-03',
+      '2027-04',
+      '2027-05',
+    ].map((month, index) => {
+      if (month === '2026-08')
+        return { month, income: 0, expense: 0, balance: 0, projected: false };
+      const expense = month === '2027-01' ? 900000 : 300000;
+      return { month, income: 500000, expense, balance: 500000 - expense, projected: index >= 6 };
+    }),
     totals: {
       income: { realized: 500000, forecast: 600000 },
       expense: { realized: 200000, forecast: 280000 },
@@ -76,6 +94,18 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-05T12:00:00Z') });
+  // O jsdom não mede nada: o observador informa uma largura para o gráfico se desenhar.
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private readonly callback: (entries: unknown[]) => void) {}
+      observe() {
+        this.callback([{ contentRect: { width: 640, height: 240 } }]);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 
 afterEach(() => {
@@ -240,7 +270,7 @@ describe('finance panel', () => {
     mode = 'error';
     renderFinance('/finance');
     const failures = await screen.findAllByRole('alert');
-    expect(failures.length).toBe(6);
+    expect(failures.length).toBe(7);
     expect(screen.getByRole('region', { name: 'Saldo' })).toHaveTextContent('Tentar de novo');
     mode = 'ok';
     await userEvent.click(
@@ -319,16 +349,62 @@ describe('finance panel', () => {
     renderFinance('/finance');
     const zones = await screen.findByRole('region', { name: 'Painel' });
     const cells = cellsOf(zones);
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(7);
     const at = (zone: string, row: string) =>
       cells.find((cell) => cell.zone === zone && cell.row === row);
     expect(at('main', '1')?.text).toContain('Fechamento');
     expect(at('side', '1')?.text).toContain('Saldo');
-    expect(at('main', '2')?.text).toContain('Para onde foi');
+    expect(at('main', '2')?.text).toContain('Mês a mês');
     expect(at('side', '2')?.text).toContain('Próximas movimentações');
-    expect(at('main', '3')?.text).toContain('Previsto x realizado');
+    expect(at('main', '3')?.text).toContain('Para onde foi');
     expect(at('side', '3')?.text).toContain('Economias e perdas');
-    expect(cells.some((cell) => cell.alone)).toBe(false);
+    expect(at('main', '4')?.text).toContain('Previsto x realizado');
+    expect(cells.filter((cell) => cell.alone).map((cell) => cell.row)).toEqual(['4']);
+  });
+
+  it('rf15 shows the monthly card below the closing', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance');
+    const zones = await screen.findByRole('region', { name: 'Painel' });
+    const cell = zones.querySelector('[data-zone="main"][data-row="2"]');
+    expect(cell?.querySelector('h2')?.textContent).toBe('Mês a mês');
+    const table = await screen.findByRole('table', {
+      name: 'Entradas, saídas e saldo mês a mês',
+    });
+    expect(within(table).getAllByRole('row')).toHaveLength(13);
+  });
+
+  it('rf16 switches the monthly card between incomes and expenses and balance through the url', async () => {
+    financeServer(world({ summary: summary() }));
+    const user = userEvent.setup();
+    const { router, unmount } = renderFinance('/finance');
+    const group = await screen.findByRole('radiogroup', { name: 'Mostrar' });
+    expect(within(group).getByRole('radio', { name: 'Entradas e saídas' })).toBeChecked();
+    await user.click(within(group).getByRole('radio', { name: 'Saldo' }));
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ monthly: 'balance' });
+    });
+    const columns = async () => {
+      const table = await screen.findByRole('table', {
+        name: 'Entradas, saídas e saldo mês a mês',
+      });
+      return within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent);
+    };
+    await waitFor(async () => {
+      expect(await columns()).toEqual(['Mês', 'Situação', 'Saldo']);
+    });
+    unmount();
+
+    const second = renderFinance('/finance?monthly=balance');
+    expect(await screen.findByRole('radio', { name: 'Saldo' }, { timeout: 3000 })).toBeChecked();
+    expect(await columns()).toEqual(['Mês', 'Situação', 'Saldo']);
+    second.unmount();
+
+    renderFinance('/finance?monthly=bar');
+    expect(await screen.findByRole('radio', { name: 'Entradas e saídas' })).toBeChecked();
+    expect(await columns()).toEqual(['Mês', 'Situação', 'Entradas', 'Saídas']);
   });
 
   it('keeps one column below 960 px with the main zone first', async () => {
@@ -337,7 +413,7 @@ describe('finance panel', () => {
     const zones = await screen.findByRole('region', { name: 'Painel' });
     expect(zones.className).toContain('zones');
     const order = cellsOf(zones).map((cell) => cell.zone);
-    expect(order).toEqual(['main', 'main', 'main', 'side', 'side', 'side']);
+    expect(order).toEqual(['main', 'main', 'main', 'main', 'side', 'side', 'side']);
     const css = panel_css.replace(/\s+/g, ' ');
     expect(css).toContain(
       '.zones { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)',
