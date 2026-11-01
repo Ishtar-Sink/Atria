@@ -1,0 +1,35 @@
+$ pnpm --filter @atria/web exec playwright test --list src/features/finance/finance.e2e.ts 2>&1 | grep '›' | sed -E 's/:[0-9]+:[0-9]+ ›/ ›/' | grep -v -E 'installments fall in the right statements|ct07 ' | sort
+exit: 0
+  [desktop-session] › features/finance/finance.e2e.ts › default account cannot be deleted
+  [desktop-session] › features/finance/finance.e2e.ts › finance panel matches the transactions
+  [desktop-session] › features/finance/finance.e2e.ts › global period follows the tabs and any period shows everything
+  [desktop-session] › features/finance/finance.e2e.ts › monthly rent on day 31 falls on the last day
+  [desktop-session] › features/finance/finance.e2e.ts › recurring occurrence stays overdue until settled or skipped
+  [desktop-session] › features/finance/finance.e2e.ts › settlement updates balance with saving and loss
+  [desktop-session] › features/finance/finance.e2e.ts › transfer does not count in totals
+  [desktop-session] › features/finance/finance.e2e.ts › undoing a settlement restores the balance
+  [setup] › app/e2e-auth.setup.ts › abre a sessão de uma pessoa comum
+  [w360-session] › features/finance/finance.e2e.ts › default account cannot be deleted
+  [w360-session] › features/finance/finance.e2e.ts › finance panel matches the transactions
+  [w360-session] › features/finance/finance.e2e.ts › global period follows the tabs and any period shows everything
+  [w360-session] › features/finance/finance.e2e.ts › monthly rent on day 31 falls on the last day
+  [w360-session] › features/finance/finance.e2e.ts › recurring occurrence stays overdue until settled or skipped
+  [w360-session] › features/finance/finance.e2e.ts › settlement updates balance with saving and loss
+  [w360-session] › features/finance/finance.e2e.ts › transfer does not count in totals
+  [w360-session] › features/finance/finance.e2e.ts › undoing a settlement restores the balance
+  [w480-session] › features/finance/finance.e2e.ts › default account cannot be deleted
+  [w480-session] › features/finance/finance.e2e.ts › finance panel matches the transactions
+  [w480-session] › features/finance/finance.e2e.ts › global period follows the tabs and any period shows everything
+  [w480-session] › features/finance/finance.e2e.ts › monthly rent on day 31 falls on the last day
+  [w480-session] › features/finance/finance.e2e.ts › recurring occurrence stays overdue until settled or skipped
+  [w480-session] › features/finance/finance.e2e.ts › settlement updates balance with saving and loss
+  [w480-session] › features/finance/finance.e2e.ts › transfer does not count in totals
+  [w480-session] › features/finance/finance.e2e.ts › undoing a settlement restores the balance
+  [w720-session] › features/finance/finance.e2e.ts › default account cannot be deleted
+  [w720-session] › features/finance/finance.e2e.ts › finance panel matches the transactions
+  [w720-session] › features/finance/finance.e2e.ts › global period follows the tabs and any period shows everything
+  [w720-session] › features/finance/finance.e2e.ts › monthly rent on day 31 falls on the last day
+  [w720-session] › features/finance/finance.e2e.ts › recurring occurrence stays overdue until settled or skipped
+  [w720-session] › features/finance/finance.e2e.ts › settlement updates balance with saving and loss
+  [w720-session] › features/finance/finance.e2e.ts › transfer does not count in totals
+  [w720-session] › features/finance/finance.e2e.ts › undoing a settlement restores the balance

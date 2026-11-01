@@ -14,8 +14,10 @@
 pnpm --filter @atria/web exec vitest run src/features/reader/selection-toolbar.test.tsx src/features/reader/highlights-tab.test.tsx --reporter=verbose
 # O resto do leitor continua passando
 pnpm --filter @atria/web exec vitest run src/features/reader
-# Tipos, lint e formatação sem nenhum erro ou warning (scripts ficam fora do ESLint)
-pnpm --filter @atria/web typecheck
+# Tipos, lint e formatação sem nenhum erro ou warning (scripts ficam fora do ESLint).
+# Os tipos são conferidos só no leitor: as telas do Financeiro só batem com o contrato
+# novo depois das TASK-13 e TASK-15 (decisão do usuário na execução da onda 8).
+test "$(pnpm --filter @atria/web exec tsc --noEmit --pretty false 2>&1 | grep -E 'error TS' | grep -c '^src/features/reader/')" -eq 0
 pnpm --filter @atria/web exec eslint src/features/reader --max-warnings 0
 pnpm --filter @atria/web exec prettier --check src/features/reader scripts/evidence-reader.mjs scripts/evidence-library.mjs
 node --check apps/web/scripts/evidence-reader.mjs

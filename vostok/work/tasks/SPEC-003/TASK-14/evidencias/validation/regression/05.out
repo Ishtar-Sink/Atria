@@ -1,0 +1,58 @@
+$ pnpm --filter @atria/web exec playwright test --list src/features/reader/reader.e2e.ts 2>&1 | grep -E '› ' | sed -E 's/\.ts:[0-9]+:[0-9]+ /.ts /' | sort
+exit: 0
+  [desktop] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-27 shows the first page of a 21 MB pdf in up to 3 seconds with range requests
+  [desktop] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-28 uses the reading width at 100 percent
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-31 changes the color and deletes a highlight of a book and an article
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-36 offers the session with the pages read and keeps the resume page
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-37 creates passage notes with and without comment
+  [desktop] › features/reader/reader.e2e.ts › leitor em 360 › CT-38 highlights two colors, lists them and keeps download
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-31 changes the color and deletes a highlight of a book and an article
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-36 offers the session with the pages read and keeps the resume page
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-37 creates passage notes with and without comment
+  [desktop] › features/reader/reader.e2e.ts › leitor em desktop › CT-38 highlights two colors, lists them and keeps download
+  [w360] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-27 shows the first page of a 21 MB pdf in up to 3 seconds with range requests
+  [w360] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-28 uses the reading width at 100 percent
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-31 changes the color and deletes a highlight of a book and an article
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-36 offers the session with the pages read and keeps the resume page
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-37 creates passage notes with and without comment
+  [w360] › features/reader/reader.e2e.ts › leitor em 360 › CT-38 highlights two colors, lists them and keeps download
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-31 changes the color and deletes a highlight of a book and an article
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-36 offers the session with the pages read and keeps the resume page
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-37 creates passage notes with and without comment
+  [w360] › features/reader/reader.e2e.ts › leitor em desktop › CT-38 highlights two colors, lists them and keeps download
+  [w480] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-27 shows the first page of a 21 MB pdf in up to 3 seconds with range requests
+  [w480] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-28 uses the reading width at 100 percent
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-31 changes the color and deletes a highlight of a book and an article
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-36 offers the session with the pages read and keeps the resume page
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-37 creates passage notes with and without comment
+  [w480] › features/reader/reader.e2e.ts › leitor em 360 › CT-38 highlights two colors, lists them and keeps download
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-31 changes the color and deletes a highlight of a book and an article
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-36 offers the session with the pages read and keeps the resume page
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-37 creates passage notes with and without comment
+  [w480] › features/reader/reader.e2e.ts › leitor em desktop › CT-38 highlights two colors, lists them and keeps download
+  [w720] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-27 shows the first page of a 21 MB pdf in up to 3 seconds with range requests
+  [w720] › features/reader/reader.e2e.ts › leitor com PDF grande › CT-28 uses the reading width at 100 percent
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-31 changes the color and deletes a highlight of a book and an article
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-36 offers the session with the pages read and keeps the resume page
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-37 creates passage notes with and without comment
+  [w720] › features/reader/reader.e2e.ts › leitor em 360 › CT-38 highlights two colors, lists them and keeps download
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-13 highlights with a hex color from the picker and marks the pdf with it
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-31 changes the color and deletes a highlight of a book and an article
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-35 opens book and article, zooms, navigates, switches theme and resumes
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-36 offers the session with the pages read and keeps the resume page
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-37 creates passage notes with and without comment
+  [w720] › features/reader/reader.e2e.ts › leitor em desktop › CT-38 highlights two colors, lists them and keeps download

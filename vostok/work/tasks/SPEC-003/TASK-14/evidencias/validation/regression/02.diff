@@ -1,0 +1,28 @@
+2,26c2
+< exit: 1
+< 
+< /home/victor/projetos/ishtar-sink/atria/apps/web/src/features/reader/highlights-tab.tsx
+<   65:28  error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+<   68:35  error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+<   72:60  error  Invalid type "any" of template literal expression  @typescript-eslint/restrict-template-expressions
+<   75:90  error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+< 
+< /home/victor/projetos/ishtar-sink/atria/apps/web/src/features/reader/reader-page.tsx
+<   152:7  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+< 
+< /home/victor/projetos/ishtar-sink/atria/apps/web/src/features/reader/selection-toolbar.tsx
+<   33:20  error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+<   36:27  error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+<   38:52  error  Invalid type "any" of template literal expression  @typescript-eslint/restrict-template-expressions
+< 
+< /home/victor/projetos/ishtar-sink/atria/apps/web/src/features/reader/use-highlights.ts
+<   76:11  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+<   80:47  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+< 
+< ✖ 10 problems (10 errors, 0 warnings)
+< 
+< undefined
+< /home/victor/projetos/ishtar-sink/atria/apps/web:
+< [ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: eslint src/features/reader --max-warnings 0
+---
+> exit: 0

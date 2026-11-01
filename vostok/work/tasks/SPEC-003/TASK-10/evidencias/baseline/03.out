@@ -1,0 +1,76 @@
+$ pnpm --filter @atria/web exec eslint --max-warnings 0 src/features/finance/routes.tsx src/features/finance/components/finance-shell.tsx src/features/finance/components/transaction-row.tsx src/features/finance/screens/account-form-screen.tsx src/features/finance/screens/account-detail-screen.tsx src/features/finance/screens/accounts-screen.tsx src/features/finance/screens/transaction-form-screen.tsx src/features/finance/screens/transaction-detail-screen.tsx src/features/finance/screens/finance-panel-screen.tsx src/features/finance/hooks/use-accounts.ts src/features/finance/hooks/use-transactions.ts src/features/finance/hooks/finance-cache.ts src/features/finance/test-utils.tsx src/features/finance/hooks/use-accounts.test.tsx src/features/finance/hooks/use-transactions.test.tsx src/features/finance/hooks/use-financial-summary.test.tsx src/features/finance/screens/accounts-screens.test.tsx src/features/finance/screens/transactions-screens.test.tsx src/features/finance/screens/finance-panel-screen.test.tsx src/features/finance/components/components.test.tsx src/app/listing-standard.test.ts src/features/finance/finance.e2e.ts
+exit: 1
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/components/transaction-row.tsx
+  30:60  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+  30:93  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/hooks/use-accounts.ts
+   57:9   error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+   59:9   error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+   60:9   error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+   61:9   error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+  104:15  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+  105:54  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+  106:50  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/account-detail-screen.tsx
+  152:50  error  Invalid type "any" of template literal expression                             @typescript-eslint/restrict-template-expressions
+  158:34  error  Unsafe argument of type error typed assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  165:23  error  Unsafe assignment of an error typed value                                     @typescript-eslint/no-unsafe-assignment
+  166:23  error  Unsafe assignment of an error typed value                                     @typescript-eslint/no-unsafe-assignment
+  263:45  error  Invalid type "any" of template literal expression                             @typescript-eslint/restrict-template-expressions
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/account-form-screen.tsx
+   60:5   error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+   61:5   error  Unsafe assignment of an error typed value          @typescript-eslint/no-unsafe-assignment
+  144:76  error  Invalid type "any" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/accounts-screen.tsx
+  90:76  error  Invalid type "any" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/finance-panel-screen.tsx
+  198:8   error  Unsafe call of a type that could not be resolved                        @typescript-eslint/no-unsafe-call
+  198:29  error  Unsafe member access .map on a type that cannot be resolved             @typescript-eslint/no-unsafe-member-access
+  199:19  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  199:24  error  Unsafe member access .account_id on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  201:54  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  201:68  error  Unsafe member access .account_id on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  202:21  error  Unsafe member access .name on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  204:26  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  204:31  error  Unsafe member access .open_statement_amount on an `any` value           @typescript-eslint/no-unsafe-member-access
+  207:61  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  207:66  error  Unsafe member access .due_date on an `any` value                        @typescript-eslint/no-unsafe-member-access
+  209:17  error  Unsafe member access .credit_limit_amount on an `any` value             @typescript-eslint/no-unsafe-member-access
+  212:62  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  212:73  error  Unsafe member access .name on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  213:33  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  213:38  error  Unsafe member access .used_limit_amount on an `any` value               @typescript-eslint/no-unsafe-member-access
+  213:57  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  213:62  error  Unsafe member access .credit_limit_amount on an `any` value             @typescript-eslint/no-unsafe-member-access
+  214:22  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  214:27  error  Unsafe member access .credit_limit_amount on an `any` value             @typescript-eslint/no-unsafe-member-access
+  218:31  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  218:36  error  Unsafe member access .used_limit_amount on an `any` value               @typescript-eslint/no-unsafe-member-access
+  219:32  error  Unsafe argument of type `any` assigned to a parameter of type `number`  @typescript-eslint/no-unsafe-argument
+  219:37  error  Unsafe member access .credit_limit_amount on an `any` value             @typescript-eslint/no-unsafe-member-access
+  416:30  error  Unsafe member access .length on a type that cannot be resolved          @typescript-eslint/no-unsafe-member-access
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/transaction-detail-screen.tsx
+  205:31  error  Unsafe assignment of an error typed value                       @typescript-eslint/no-unsafe-assignment
+  205:56  error  Unsafe member access .number on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+  206:31  error  Unsafe assignment of an error typed value                       @typescript-eslint/no-unsafe-assignment
+  206:55  error  Unsafe member access .total on a type that cannot be resolved   @typescript-eslint/no-unsafe-member-access
+
+/home/victor/projetos/ishtar-sink/atria/apps/web/src/features/finance/screens/transaction-form-screen.tsx
+  189:15  error  Unsafe assignment of an error typed value                       @typescript-eslint/no-unsafe-assignment
+  189:41  error  Unsafe member access .number on a type that cannot be resolved  @typescript-eslint/no-unsafe-member-access
+  190:15  error  Unsafe assignment of an error typed value                       @typescript-eslint/no-unsafe-assignment
+  190:40  error  Unsafe member access .total on a type that cannot be resolved   @typescript-eslint/no-unsafe-member-access
+  191:15  error  Unsafe assignment of an error typed value                       @typescript-eslint/no-unsafe-assignment
+
+✖ 52 problems (52 errors, 0 warnings)
+
+undefined
+/home/victor/projetos/ishtar-sink/atria/apps/web:
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: eslint --max-warnings 0 src/features/finance/routes.tsx src/features/finance/components/finance-shell.tsx src/features/finance/components/transaction-row.tsx src/features/finance/screens/account-form-screen.tsx src/features/finance/screens/account-detail-screen.tsx src/features/finance/screens/accounts-screen.tsx src/features/finance/screens/transaction-form-screen.tsx src/features/finance/screens/transaction-detail-screen.tsx src/features/finance/screens/finance-panel-screen.tsx src/features/finance/hooks/use-accounts.ts src/features/finance/hooks/use-transactions.ts src/features/finance/hooks/finance-cache.ts src/features/finance/test-utils.tsx src/features/finance/hooks/use-accounts.test.tsx src/features/finance/hooks/use-transactions.test.tsx src/features/finance/hooks/use-financial-summary.test.tsx src/features/finance/screens/accounts-screens.test.tsx src/features/finance/screens/transactions-screens.test.tsx src/features/finance/screens/finance-panel-screen.test.tsx src/features/finance/components/components.test.tsx src/app/listing-standard.test.ts src/features/finance/finance.e2e.ts

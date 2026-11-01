@@ -1,0 +1,54 @@
+$ pnpm --filter @atria/web exec vitest run src/features/reader/selection-toolbar.test.tsx src/features/reader/highlights-tab.test.tsx --reporter=verbose
+# data: 2026-11-01T21:04:57Z
+# commit: 3d9f41f (com mudanças não commitadas)
+# código de saída: 0
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./src/app/e2e-sign-in-plugin" without a file extension (vite.config.ts:3:33). Add the file extension
+  - import "./e2e-totp" without a file extension (src/app/e2e-sign-in-plugin.ts:6:26). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.5 /home/victor/projetos/ishtar-sink/atria/apps/web
+
+stderr | src/features/reader/highlights-tab.test.tsx
+Warning: Please use the `legacy` build in Node.js environments.
+
+stderr | src/features/reader/selection-toolbar.test.tsx
+Warning: Please use the `legacy` build in Node.js environments.
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/selection-toolbar.test.tsx > selection toolbar > rf19 highlights with a preset hex color 126ms
+ ✓ src/features/reader/selection-toolbar.test.tsx > selection toolbar > rf19 opens the color panel from other color 31ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > lists highlights with their color and page 129ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > marks highlights from another file 28ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > shows the empty state 13ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > has no axe violations 249ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/selection-toolbar.test.tsx > selection toolbar > rf19 highlights with the hex chosen in the color panel 284ms
+ ✓ src/features/reader/selection-toolbar.test.tsx > selection toolbar > rf19 has no axe violations in the toolbar and the color panel 104ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > book actions > rf32 changes the color of a book highlight 86ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > book actions > rf32 deletes a book highlight after confirmation 68ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > article actions > rf32 changes the color of an article highlight 40ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > article actions > rf32 deletes an article highlight after confirmation 55ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf32 rolls back the color and warns when the server refuses 39ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf32 disables the actions of a highlight not saved yet 25ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf32 has no axe violations with the actions 75ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf19 changes the color of a highlight in the color picker 150ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf19 shows the preset name for a preset hex color 19ms
+ ✓ src/features/reader/highlights-tab.test.tsx > HighlightsTab > rf19 has no axe violations with the color picker open 104ms
+
+ Test Files  2 passed (2)
+      Tests  18 passed (18)
+   Start at  17:55:15
+   Duration  2.56s (tests 37%, environment 27%, import 23%, transform 7%, setup 6%)
+

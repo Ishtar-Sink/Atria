@@ -1,0 +1,3 @@
+$ pnpm --filter @atria/web exec vitest run src/features/finance --reporter=verbose 2>&1 | grep -E '^\s*(✓|×|↓)' | sed -E 's/ [0-9]+ms$//' | grep -E 'use-statements|statements-screens|statement is already paid|credit card|installment|with the cards block|balance, cards|card statement' | sort
+exit: 0
+ ✓ src/features/finance/screens/transactions-screens.test.tsx > transaction forms > rf07 creates an expense without installments on any account
