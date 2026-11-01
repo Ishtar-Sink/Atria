@@ -46,21 +46,10 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
       current: 750000,
       forecast_at_period_end: 820000,
       accounts: [
-        { id: 'a1', name: 'Conta', kind: 'standard', balance_amount: 700000 },
-        { id: 'a2', name: 'Carteira', kind: 'standard', balance_amount: 50000 },
+        { id: 'a1', name: 'Conta', balance_amount: 700000 },
+        { id: 'a2', name: 'Carteira', balance_amount: 50000 },
       ],
     },
-    credit_cards: [
-      {
-        account_id: 'a3',
-        name: 'Cartão Nu',
-        credit_limit_amount: 500000,
-        used_limit_amount: 186400,
-        open_statement_amount: 120000,
-        statement_period: '2026-11',
-        due_date: '2026-11-10',
-      },
-    ],
     upcoming_bills: [
       item({ id: 'b1', description: 'Internet', expected_date: '2026-10-28', status: 'overdue' }),
       item({
@@ -158,7 +147,7 @@ describe('finance panel', () => {
     );
   });
 
-  it('shows balance, cards, upcoming bills and savings and losses', async () => {
+  it('rf09 shows balance, upcoming bills and savings and losses without the cards block', async () => {
     financeServer(world({ summary: summary() }));
     renderFinance('/finance');
     const balance = await screen.findByRole('region', { name: 'Saldo' });
@@ -168,16 +157,7 @@ describe('finance panel', () => {
       'href',
       '/finance/accounts/a2',
     );
-    const cards = screen.getByRole('region', { name: 'Cartões' });
-    expect(within(cards).getByRole('link', { name: 'Cartão Nu' })).toHaveAttribute(
-      'href',
-      '/finance/statements?card_id=a3',
-    );
-    expect(plain(cards.textContent)).toContain('Fatura aberta · vence em 10 de nov. de 2026');
-    expect(
-      within(cards).getByRole('progressbar', { name: 'Limite usado de Cartão Nu' }),
-    ).toHaveAttribute('aria-valuenow', '186400');
-    expect(plain(cards.textContent)).toContain('R$ 1.864,00 de R$ 5.000,00 do limite');
+    expect(screen.queryByRole('region', { name: 'Cartões' })).toBeNull();
     const upcoming = screen.getByRole('region', { name: 'Próximas movimentações' });
     const links = within(upcoming).getAllByRole('link');
     expect(links).toHaveLength(7);
@@ -199,6 +179,19 @@ describe('finance panel', () => {
     expect(plain(savings.textContent)).toContain('Pagou a mais ou recebeu a menosR$ 15,00');
   });
 
+  it('ct07 shows the finance tabs without Faturas', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance');
+    await pageHeading('Financeiro');
+    const nav = screen.getByRole('navigation', { name: 'Seções do Financeiro' });
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Painel', 'Entradas', 'Saídas', 'Transferências', 'Contas', 'Configurações']);
+    expect(within(nav).queryByRole('link', { name: 'Faturas' })).toBeNull();
+  });
+
   it('shows the panel empty, loading and error states', async () => {
     const empty = financeServer(
       world({
@@ -211,7 +204,6 @@ describe('finance panel', () => {
           balance: { current: 0, forecast_at_period_end: null, accounts: [] },
           upcoming_bills: [],
           where_it_went: [],
-          credit_cards: [],
         }),
       }),
     );
@@ -310,7 +302,7 @@ describe('finance panel', () => {
   }
 
   it('pairs the panel cards in rows', async () => {
-    financeServer(world({ summary: summary({ credit_cards: [] }) }));
+    financeServer(world({ summary: summary() }));
     renderFinance('/finance');
     const zones = await screen.findByRole('region', { name: 'Painel' });
     const cells = cellsOf(zones);
@@ -326,30 +318,13 @@ describe('finance panel', () => {
     expect(cells.some((cell) => cell.alone)).toBe(false);
   });
 
-  it('pairs the panel cards in rows with the cards block', async () => {
-    financeServer(world({ summary: summary() }));
-    renderFinance('/finance');
-    const zones = await screen.findByRole('region', { name: 'Painel' });
-    const cells = cellsOf(zones);
-    expect(cells).toHaveLength(7);
-    const at = (zone: string, row: string) =>
-      cells.find((cell) => cell.zone === zone && cell.row === row);
-    expect(at('main', '2')?.text).toContain('Para onde foi');
-    expect(at('side', '2')?.text).toContain('Cartões');
-    expect(at('main', '3')?.text).toContain('Previsto x realizado');
-    expect(at('side', '3')?.text).toContain('Próximas movimentações');
-    expect(at('side', '4')?.text).toContain('Economias e perdas');
-    expect(at('side', '4')?.alone).toBe(true);
-    expect(cells.filter((cell) => cell.alone)).toHaveLength(1);
-  });
-
   it('keeps one column below 960 px with the main zone first', async () => {
     financeServer(world({ summary: summary() }));
     renderFinance('/finance');
     const zones = await screen.findByRole('region', { name: 'Painel' });
     expect(zones.className).toContain('zones');
     const order = cellsOf(zones).map((cell) => cell.zone);
-    expect(order).toEqual(['main', 'main', 'main', 'side', 'side', 'side', 'side']);
+    expect(order).toEqual(['main', 'main', 'main', 'side', 'side', 'side']);
     const css = panel_css.replace(/\s+/g, ' ');
     expect(css).toContain(
       '.zones { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)',

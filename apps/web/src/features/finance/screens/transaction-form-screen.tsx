@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  Card,
   Checkbox,
   DateField,
   ErrorState,
@@ -58,7 +57,6 @@ import {
 import { todayInTimeZone } from '../lib/finance-period';
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const INSTALLMENTS = /^(?:[1-9]|[1-3]\d|4[0-8])$/;
 
 const form_schema = z
   .object({
@@ -71,7 +69,6 @@ const form_schema = z
       .positive('finance.transaction_form.amount_invalid')
       .nullable(),
     expected_date: z.string(),
-    installments: z.string(),
     repeat: z.boolean(),
     rule: z.custom<RecurrenceRule>(),
     visibility: z.enum(['personal', 'shared']),
@@ -96,13 +93,6 @@ const form_schema = z
         code: 'custom',
         path: ['rule', 'starts_on'],
         message: 'finance.transaction_form.date_required',
-      });
-    }
-    if (values.installments.trim() !== '' && !INSTALLMENTS.test(values.installments.trim())) {
-      context.addIssue({
-        code: 'custom',
-        path: ['installments'],
-        message: 'finance.transaction_form.installments_invalid',
       });
     }
   });
@@ -136,7 +126,6 @@ function initialValues(mode: Mode, time_zone: string, today: string): FormValues
       category_id: item.category_id ?? '',
       expected_amount: item.expected_amount,
       expected_date: item.expected_date,
-      installments: '',
       repeat: false,
       rule: defaultRecurrenceRule(time_zone, item.expected_date),
       visibility: item.visibility,
@@ -150,7 +139,6 @@ function initialValues(mode: Mode, time_zone: string, today: string): FormValues
       category_id: item.category_id ?? '',
       expected_amount: item.expected_amount,
       expected_date: item.rule.starts_on,
-      installments: '',
       repeat: true,
       rule: toFormRule(item.rule),
       visibility: item.visibility,
@@ -162,51 +150,10 @@ function initialValues(mode: Mode, time_zone: string, today: string): FormValues
     category_id: '',
     expected_amount: null,
     expected_date: today,
-    installments: '',
     repeat: false,
     rule: { ...defaultRecurrenceRule(time_zone, today), frequency: 'monthly' },
     visibility: 'personal',
   };
-}
-
-interface CreatedParts {
-  items: Transaction[];
-}
-
-function InstallmentsResult({ created }: { created: CreatedParts }) {
-  const t = useT();
-  const { locale } = usePreferences();
-  const first = created.items[0];
-  return (
-    <Card as="section" aria-labelledby="installments-title" data-span="full">
-      <h2 id="installments-title" className={styles.cardTitle}>
-        {t('finance.transaction_form.created_installments', { count: created.items.length })}
-      </h2>
-      <ul className={styles.list}>
-        {created.items.map((part) => (
-          <li key={part.id} className={styles.rowSub}>
-            {t('finance.transaction_form.installment_line', {
-              number: part.installment?.number ?? 1,
-              total: part.installment?.total ?? created.items.length,
-              statement: part.statement_period ?? '–',
-              value: formatMoney(part.expected_amount, part.currency, locale),
-            })}
-          </li>
-        ))}
-      </ul>
-      {first ? (
-        <p>
-          <Link
-            to="/finance/transactions/$transactionId"
-            params={{ transactionId: first.id }}
-            className={styles.inlineLink}
-          >
-            {t('finance.transaction_form.view_transaction')}
-          </Link>
-        </p>
-      ) : null}
-    </Card>
-  );
 }
 
 interface TransactionFormProps {
@@ -231,7 +178,6 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     mode.type === 'recurrence' ? mode.recurrence.id : '',
   );
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<CreatedParts | null>(null);
   const {
     control,
     register,
@@ -242,22 +188,14 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     resolver: zodResolver(form_schema),
     defaultValues: initialValues(mode, time_zone, today),
   });
-  const account_id = useWatch({ control, name: 'account_id' });
   const repeat = useWatch({ control, name: 'repeat' });
-  const account = accounts.find((item) => item.id === account_id);
-  const is_card = account?.kind === 'credit_card';
   const editable: readonly EditableField[] =
     mode.type === 'edit' ? editableFields(mode.transaction) : [];
   const locked = (field: EditableField) => mode.type === 'edit' && !editable.includes(field);
   const lock_help =
-    mode.type === 'edit'
-      ? mode.transaction.status === 'settled'
-        ? t('finance.transaction_form.settled_locked')
-        : mode.transaction.installment
-          ? t('finance.transaction_form.installment_locked')
-          : undefined
+    mode.type === 'edit' && mode.transaction.status === 'settled'
+      ? t('finance.transaction_form.settled_locked')
       : undefined;
-  const message = (value: string | undefined) => (value ? t(value) : undefined);
   const account_options = accounts.map((item) => ({ value: item.id, label: item.name }));
   const category_options = categories.map((item) => ({ value: item.id, label: item.name }));
 
@@ -298,20 +236,11 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
       await navigate({ to: fallback });
       return;
     }
-    const installments = is_card ? Number(values.installments.trim() || '1') : 1;
     const items = await create.mutateAsync({
       idempotency_key: idempotency.key,
-      input: {
-        ...base,
-        expected_date: values.expected_date,
-        ...(installments > 1 ? { installments } : {}),
-      },
+      input: { ...base, expected_date: values.expected_date },
     });
     idempotency.renew();
-    if (items.length > 1) {
-      setCreated({ items });
-      return;
-    }
     const first = items[0];
     if (first) {
       await navigate({
@@ -482,20 +411,6 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
               label={t('finance.transaction_form.expected_date')}
             />
           )}
-          {mode.type === 'create' && is_card && !repeat ? (
-            <TextField
-              label={t('finance.transaction_form.installments')}
-              help={t('finance.transaction_form.installments_help')}
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={2}
-              placeholder="1"
-              {...register('installments')}
-              {...(formState.errors.installments
-                ? { error: message(formState.errors.installments.message) }
-                : {})}
-            />
-          ) : null}
           {mode.type === 'create' ? (
             <div data-span="full">
               <Checkbox label={t('finance.transaction_form.repeat')} {...register('repeat')} />
@@ -517,7 +432,6 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
               {t(error)}
             </p>
           ) : null}
-          {created ? <InstallmentsResult created={created} /> : null}
           <FormActions
             cancel_label={t('common.cancel')}
             submit_label={t('common.save')}

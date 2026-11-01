@@ -20,8 +20,6 @@ import { CategoryFormScreen } from './screens/category-form-screen';
 import { FinancePanelScreen, panelSearchSchema } from './screens/finance-panel-screen';
 import { FinanceSettingsScreen } from './screens/finance-settings-screen';
 import { RecurrenceDetailScreen } from './screens/recurrence-detail-screen';
-import { StatementPaymentScreen } from './screens/statement-payment-screen';
-import { statementsSearchSchema, StatementsScreen } from './screens/statements-screen';
 import { TransactionDetailScreen } from './screens/transaction-detail-screen';
 import { TransactionFormScreen } from './screens/transaction-form-screen';
 import { transactionsSearchSchema, TransactionsScreen } from './screens/transactions-screen';
@@ -57,7 +55,7 @@ function meta(title_key: string) {
   return { title_key, breadcrumb_key: title_key };
 }
 
-/** O layout das sete abas: a aba aberta vem do caminho. */
+/** O layout das seis abas: a aba aberta vem do caminho. */
 function FinanceTabsLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab: FinanceTab =
@@ -111,9 +109,6 @@ export function createFinanceRoutes(
     )),
     tab('/finance/transfers', 'finance.tabs.transfers', transfersSearchSchema, () => (
       <TransfersScreen />
-    )),
-    tab('/finance/statements', 'finance.tabs.statements', statementsSearchSchema, () => (
-      <StatementsScreen />
     )),
     tab('/finance/accounts', 'finance.tabs.accounts', accountsSearchSchema, () => (
       <AccountsScreen />
@@ -281,19 +276,6 @@ export function createFinanceRoutes(
     },
   });
 
-  const statement_pay = createRoute({
-    getParentRoute: () => parent,
-    path: '/finance/credit-cards/$accountId/statements/$period/pay',
-    staticData: meta('finance.statement_payment.title'),
-    component: function StatementPayRoute() {
-      const { accountId, period } = statement_pay.useParams() as unknown as {
-        accountId: string;
-        period: string;
-      };
-      return <StatementPaymentScreen card_id={accountId} period={period} />;
-    },
-  });
-
   return [
     tabs.addChildren(tab_routes),
     account_new,
@@ -309,6 +291,5 @@ export function createFinanceRoutes(
     category_new,
     category_detail,
     category_edit,
-    statement_pay,
   ];
 }

@@ -91,15 +91,11 @@ const STAMP = { created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-02T10:0
 
 export function account(overrides: Partial<Account> & Pick<Account, 'id' | 'name'>): Account {
   return {
-    kind: 'standard',
     balance_amount: 0,
     currency: 'BRL',
     is_default: false,
     owner_id: 'u1',
     visibility: 'personal',
-    credit_limit_amount: null,
-    closing_day: null,
-    due_day: null,
     ...STAMP,
     ...overrides,
   };
@@ -138,8 +134,6 @@ export function transaction(
     generated_from: null,
     recurrence_id: null,
     occurrence_date: null,
-    installment: null,
-    statement_period: null,
     ...STAMP,
     ...overrides,
   };
@@ -156,7 +150,6 @@ export interface FinanceWorld {
   transfers: Record<string, unknown>[];
   recurring: Record<string, unknown>[];
   copies: Record<string, TransactionItem[]>;
-  statements: Record<string, Record<string, unknown>[]>;
   summary?: unknown;
   /** Resposta pronta para uma chamada: força recusa, atraso ou erro. */
   override?: (call: ApiCall) => ApiReply | undefined;
@@ -170,7 +163,6 @@ export function world(partial: Partial<FinanceWorld> = {}): FinanceWorld {
     transfers: [],
     recurring: [],
     copies: {},
-    statements: {},
     ...partial,
   };
 }
@@ -265,23 +257,14 @@ export function financeServer(state: FinanceWorld) {
       return found ? { body: found } : problem(404, 'not_found');
     }),
     'POST /transactions': intercept((call) => {
-      const body = call.body as Record<string, unknown> & { installments?: number };
-      const total = body.installments ?? 1;
-      const items = Array.from({ length: total }, (_, index) =>
-        transaction({
-          id: `t-new-${String(state.transactions.length + index + 1)}`,
-          ...(body as Partial<Transaction>),
-          effective_date: String(body.expected_date),
-          ...(total > 1
-            ? {
-                installment: { number: index + 1, total },
-                statement_period: `2026-${String(11 + index).padStart(2, '0')}`,
-              }
-            : {}),
-        }),
-      );
-      state.transactions.push(...items);
-      return { status: 201, body: { items } };
+      const body = call.body as Record<string, unknown>;
+      const created = transaction({
+        id: `t-new-${String(state.transactions.length + 1)}`,
+        ...(body as Partial<Transaction>),
+        effective_date: String(body.expected_date),
+      });
+      state.transactions.push(created);
+      return { status: 201, body: { items: [created] } };
     }),
     'PATCH /transactions/:id': intercept((call, { id = '' }) => {
       const found = find(state.transactions, id);
@@ -389,14 +372,6 @@ export function financeServer(state: FinanceWorld) {
     'GET /recurring-transactions/:id/settled-transactions': intercept((_call, { id = '' }) =>
       page(state.copies[id] ?? []),
     ),
-    'GET /credit-cards/:id/statements': intercept((_call, { id = '' }) =>
-      page(state.statements[id] ?? []),
-    ),
-    'POST /credit-cards/:id/statements/:period/payment': intercept((_call, { id = '', period }) => {
-      const found = (state.statements[id] ?? []).find((entry) => entry.period === period);
-      if (found) Object.assign(found, { paid: true, outstanding_amount: 0 });
-      return { status: 201, body: { settled_transaction_ids: [], transfer: {} } };
-    }),
     'GET /financial-summaries': intercept(() =>
       state.summary === undefined ? problem(500, 'internal_error') : { body: state.summary },
     ),

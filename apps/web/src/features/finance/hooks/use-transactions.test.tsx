@@ -117,29 +117,6 @@ describe('transaction mutations', () => {
     expect(keys).toEqual(['key-1', 'key-1']);
   });
 
-  it('sends installments for a credit card purchase', async () => {
-    const parts = [1, 2, 3].map((number) =>
-      transaction({ id: `p${String(number)}`, installment: { number, total: 3 } }),
-    );
-    const { calls } = mockApi({ 'POST /transactions': { status: 201, body: { items: parts } } });
-    const { result } = renderFinanceHook(() => useCreateTransaction());
-    let created: unknown[] = [];
-    await act(async () => {
-      created = await result.current.mutateAsync({
-        idempotency_key: 'k',
-        input: {
-          kind: 'expense',
-          account_id: 'card',
-          expected_amount: 30000,
-          expected_date: '2026-11-10',
-          installments: 3,
-        },
-      });
-    });
-    expect((calls[0]?.body as { installments: number }).installments).toBe(3);
-    expect(created).toHaveLength(3);
-  });
-
   it('updates only the changed fields', async () => {
     const { calls } = mockApi({
       'GET /transactions/:id': { body: OPEN },
@@ -161,15 +138,16 @@ describe('transaction mutations', () => {
     });
   });
 
-  it('limits the editable fields of a settled transaction or an installment', () => {
+  it('rf07 limits the editable fields of a settled transaction', () => {
     expect(editableFields(SETTLED)).toEqual(['description', 'category_id', 'visibility']);
-    expect(editableFields({ status: 'open', installment: { number: 2, total: 3 } })).toEqual([
+    expect(editableFields(OPEN)).toEqual([
       'description',
       'expected_amount',
+      'expected_date',
+      'account_id',
       'category_id',
       'visibility',
     ]);
-    expect(editableFields(OPEN)).toContain('account_id');
   });
 
   it('rolls back the edit and shows the error when refused', async () => {
@@ -338,27 +316,6 @@ describe('transaction mutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['finance', 'recurring', 'r1'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['finance', 'recurring', 'r1', 'copies'] });
     expect(recurrence_reads).toBe(0);
-  });
-
-  it('keeps the settlement when the statement is already paid', async () => {
-    mockApi({
-      'GET /transactions/:id': { body: SETTLED },
-      'DELETE /transactions/:id/settlement': problem(409, 'statement_already_paid'),
-    });
-    const { result } = renderFinanceHook(() => ({
-      detail: useTransaction('t2'),
-      undo: useUndoSettlement('t2', { time_zone: 'UTC' }),
-    }));
-    await waitFor(() => {
-      expect(result.current.detail.data).toBeDefined();
-    });
-    await act(async () => {
-      await result.current.undo.mutateAsync(SETTLED).catch(() => undefined);
-    });
-    await waitFor(() => {
-      expect(result.current.undo.state).toBe('statement_paid');
-    });
-    expect(result.current.detail.data?.status).toBe('settled');
   });
 
   it('deletes a settled transaction and reverts the cached balance', async () => {

@@ -140,33 +140,13 @@ function Overview({ account }: { account: Account }) {
   const money = (value: number) => (
     <span className={styles.num}>{formatMoney(value, account.currency, locale)}</span>
   );
-  const card = account.kind === 'credit_card';
   return (
     <DetailGrid
       main={
         <DataCard title={t('finance.account_detail.data')}>
           <Facts
             items={[
-              {
-                label: t('finance.account_detail.kind'),
-                value: t(`finance.account_kind.${account.kind}`),
-              },
               { label: t('finance.account_detail.balance'), value: money(account.balance_amount) },
-              card && account.credit_limit_amount != null
-                ? {
-                    label: t('finance.account_detail.credit_limit'),
-                    value: money(account.credit_limit_amount),
-                  }
-                : null,
-              card
-                ? {
-                    label: t('finance.account_detail.closing_due'),
-                    value: t('finance.account_detail.closing_due_value', {
-                      closing: account.closing_day ?? '–',
-                      due: account.due_day ?? '–',
-                    }),
-                  }
-                : null,
             ]}
           />
           {canDelete(account) ? null : (
@@ -192,7 +172,7 @@ export interface AccountDetailScreenProps {
   extra_tabs?: readonly FinanceExtraTab<Account>[];
 }
 
-/** Detalhe da conta: "Editar", "Ver fatura" no cartão e "Mais ações" (PD-14, PD-59, PD-61). */
+/** Detalhe da conta: "Editar" e "Mais ações" (PD-14, PD-59, PD-61). */
 export function AccountDetailScreen({
   account_id,
   tab,
@@ -260,7 +240,6 @@ export function AccountDetailScreen({
         back={<BackLink module="finance" fallback_to="/finance/accounts" />}
         eyebrow={t('finance.account_detail.eyebrow')}
         title={data.name}
-        subtitle={t(`finance.account_kind.${data.kind}`)}
         actions={
           <div className={styles.actions}>
             <Button
@@ -274,15 +253,6 @@ export function AccountDetailScreen({
               <PencilIcon />
               {t('common.edit')}
             </Button>
-            {data.kind === 'credit_card' ? (
-              <Button
-                onClick={() => {
-                  void navigate({ to: '/finance/statements', search: { card_id: data.id } });
-                }}
-              >
-                {t('finance.account_detail.view_statement')}
-              </Button>
-            ) : null}
             <MenuButton
               label={t('common.more_actions')}
               trigger={<MoreIcon />}

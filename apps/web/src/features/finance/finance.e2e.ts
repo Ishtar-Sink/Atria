@@ -41,15 +41,9 @@ async function choose(page: Page, label: string, option: string) {
   await expect(page.getByLabel(label, { exact: true })).toContainText(option);
 }
 
-async function createAccount(page: Page, name: string, card = false) {
+async function createAccount(page: Page, name: string) {
   await page.goto('/finance/accounts/new');
   await page.getByRole('textbox', { name: 'Nome' }).fill(name);
-  if (card) {
-    await page.getByRole('radio', { name: 'Cartão de crédito' }).check();
-    await page.getByRole('textbox', { name: /^Limite/ }).fill('5.000,00');
-    await page.getByRole('textbox', { name: 'Dia de fechamento' }).fill('3');
-    await page.getByRole('textbox', { name: 'Dia de vencimento' }).fill('10');
-  }
   await page.getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 }
@@ -116,27 +110,21 @@ test('settlement updates balance with saving and loss', async ({ page }) => {
   await checkPage(page);
 });
 
-test('installments fall in the right statements and payment settles them', async ({ page }) => {
-  const card = `Cartão ${SUFFIX()}`;
-  await createAccount(page, card, true);
-  await page.goto('/finance/transactions/new?kind=expense');
-  await page.getByRole('textbox', { name: 'Descrição' }).fill('Geladeira');
-  await choose(page, 'Conta', card);
-  await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('300,00');
-  await page.getByRole('textbox', { name: 'Parcelas' }).fill('3');
-  await page.getByRole('button', { name: 'Salvar' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Compra registrada em 3 parcelas' }),
-  ).toBeVisible();
+test('ct07 finance has no card, statements or installments', async ({ page }) => {
+  await page.goto('/finance');
+  const tabs = page.getByRole('navigation', { name: 'Seções do Financeiro' });
+  await expect(tabs.getByRole('link', { name: 'Painel' })).toBeVisible();
+  await expect(tabs.getByRole('link', { name: 'Faturas' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Cartões' })).toHaveCount(0);
 
-  // O formulário fica com o resumo das parcelas; a aba Faturas está nas telas de lista.
-  await page.goto('/finance/statements');
-  await choose(page, 'Cartão', card);
-  await expect(page.getByText('parcela 1 de 3')).toBeVisible();
-  await page.getByRole('button', { name: 'Pagar fatura' }).click();
-  await page.getByRole('button', { name: 'Pagar' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Pagar' }).click();
-  await expect(page.getByText('Paga').first()).toBeVisible();
+  await page.goto('/finance/accounts/new');
+  await expect(page.getByRole('textbox', { name: 'Nome' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Cartão de crédito' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Dia de fechamento' })).toHaveCount(0);
+
+  await page.goto('/finance/transactions/new?kind=expense');
+  await choose(page, 'Conta', 'Conta principal');
+  await expect(page.getByRole('textbox', { name: 'Parcelas' })).toHaveCount(0);
   await checkPage(page);
 });
 

@@ -156,8 +156,8 @@ export interface CreateTransactionVariables {
 }
 
 /**
- * Não é otimista na lista: as parcelas são geradas pelo servidor (RN-07). A mesma chave vai em
- * todas as tentativas do mesmo envio (CB-09).
+ * Não é otimista na lista: a movimentação criada vem do servidor. A mesma chave vai em todas as
+ * tentativas do mesmo envio (CB-09).
  */
 export function useCreateTransaction() {
   const client = useQueryClient();
@@ -174,7 +174,6 @@ export function useCreateTransaction() {
       });
       void client.invalidateQueries({ queryKey: financeKeys.transactions });
       void client.invalidateQueries({ queryKey: financeKeys.summary });
-      void client.invalidateQueries({ queryKey: financeKeys.statements });
     },
   });
 }
@@ -224,7 +223,6 @@ export function useDeleteTransaction() {
 
 const FORM_ERRORS = new Set([
   'transaction_already_settled',
-  'installment_not_editable',
   'category_kind_mismatch',
   'validation_failed',
 ]);
@@ -233,13 +231,11 @@ export type EditableField = keyof UpdateTransactionInput;
 
 /**
  * Campos que o contrato aceita mudar (DEC-005): a liquidada só muda descrição, categoria e
- * visibilidade; a parcela nunca muda a conta nem a data.
+ * visibilidade.
  */
-export function editableFields(
-  transaction: Pick<Transaction, 'status' | 'installment'>,
-): EditableField[] {
+export function editableFields(transaction: Pick<Transaction, 'status'>): EditableField[] {
   if (transaction.status === 'settled') return ['description', 'category_id', 'visibility'];
-  const all: EditableField[] = [
+  return [
     'description',
     'expected_amount',
     'expected_date',
@@ -247,8 +243,6 @@ export function editableFields(
     'category_id',
     'visibility',
   ];
-  if (!transaction.installment) return all;
-  return all.filter((field) => field !== 'account_id' && field !== 'expected_date');
 }
 
 /** Só os campos alterados e permitidos vão no PATCH. */
@@ -280,7 +274,7 @@ export function useUpdateTransaction(id: string) {
     onError: (error, _patch, context) => {
       restore(client, context?.saved);
       const code = problemCode(error);
-      if (code === 'transaction_already_settled' || code === 'installment_not_editable') {
+      if (code === 'transaction_already_settled') {
         void client.invalidateQueries({ queryKey: financeKeys.transaction(id) });
       }
       // Estes aparecem no próprio formulário; os demais, no aviso de recusa.
@@ -288,10 +282,6 @@ export function useUpdateTransaction(id: string) {
     },
     onSuccess: (updated) => {
       patchEverywhere(client, id, () => updated);
-      // O período da fatura é recalculado pelo servidor.
-      if (updated.statement_period) {
-        void client.invalidateQueries({ queryKey: financeKeys.statements });
-      }
     },
     onSettled: () => {
       void client.invalidateQueries({ queryKey: financeKeys.transactions });
@@ -300,9 +290,6 @@ export function useUpdateTransaction(id: string) {
   });
 }
 
-/** `statement_paid`: a fatura da movimentação já foi paga e a liquidação fica. */
-export type UndoSettlementState = 'idle' | 'statement_paid';
-
 export interface UndoSettlementOptions {
   time_zone: string;
 }
@@ -310,7 +297,7 @@ export interface UndoSettlementOptions {
 /** Desfazer liquidação (DEC-005): otimista na comum; na cópia de recorrente, espera o servidor. */
 export function useUndoSettlement(id: string, options: UndoSettlementOptions) {
   const client = useQueryClient();
-  const mutation = useMutation<Transaction | undefined, Error, Transaction, { saved: Snapshot }>({
+  return useMutation<Transaction | undefined, Error, Transaction, { saved: Snapshot }>({
     mutationFn: () => api.delete<Transaction | undefined>(`/transactions/${id}/settlement`),
     onMutate: async (current) => {
       const keys = [...TRANSACTION_CACHES, financeKeys.transaction(id)];
@@ -339,7 +326,6 @@ export function useUndoSettlement(id: string, options: UndoSettlementOptions) {
     onError: (error, _current, context) => {
       restore(client, context?.saved);
       const code = problemCode(error);
-      if (code === 'statement_already_paid') return;
       if (code === 'transaction_not_settled') {
         void client.invalidateQueries({ queryKey: financeKeys.transaction(id) });
         return;
@@ -363,9 +349,6 @@ export function useUndoSettlement(id: string, options: UndoSettlementOptions) {
       void client.invalidateQueries({ queryKey: financeKeys.summary });
     },
   });
-  const state: UndoSettlementState =
-    problemCode(mutation.error) === 'statement_already_paid' ? 'statement_paid' : 'idle';
-  return { ...mutation, state };
 }
 
 /** Diferença calculada na hora, igual à do servidor (RN-02, RN-03). */

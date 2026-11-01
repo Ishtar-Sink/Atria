@@ -24,12 +24,8 @@ export interface TransactionRowProps {
 
 export function useTransactionTitle() {
   const t = useT();
-  return (item: Pick<TransactionItem, 'description' | 'kind' | 'installment'>) => {
-    const base = item.description?.trim() || t(`finance.transactions.no_description_${item.kind}`);
-    return item.installment
-      ? `${base} ${t('finance.transactions.installment', { number: item.installment.number, total: item.installment.total })}`
-      : base;
-  };
+  return (item: Pick<TransactionItem, 'description' | 'kind'>) =>
+    item.description?.trim() || t(`finance.transactions.no_description_${item.kind}`);
 }
 
 /** Linha de movimentação: o valor em cima e os selos embaixo dele (PD-53, PD-54). */

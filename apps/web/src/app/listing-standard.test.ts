@@ -74,7 +74,7 @@ const LISTINGS: Listing[] = [
   {
     path: '/finance/accounts',
     schema: accountsSearchSchema,
-    search: { q: 'nubank', view: 'grid', kind: 'credit_card' },
+    search: { q: 'nubank', view: 'grid', visibility: 'shared' },
   },
   {
     path: '/finance/transfers',

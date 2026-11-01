@@ -4,7 +4,8 @@
 // fixtures em memória, confere o estado no DOM (e o axe) antes de cada captura e monta a prancha
 // em $VOSTOK_EVIDENCE (padrão vostok/work/tasks/SPEC-002/evidence/TASK-17): finance-telas.png,
 // finance-formulario.webm e finance-painel.png (Chromium e Firefox).
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel]
+// TASK-10 acrescenta sem-cartao: finance-sem-cartao.png (Financeiro sem cartão, faturas e parcelas).
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -58,15 +59,11 @@ const STAMP = { created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-02T10:0
 
 function account(o) {
   return {
-    kind: 'standard',
     balance_amount: 0,
     currency: 'BRL',
     is_default: false,
     owner_id: 'u1',
     visibility: 'personal',
-    credit_limit_amount: null,
-    closing_day: null,
-    due_day: null,
     ...STAMP,
     ...o,
   };
@@ -103,8 +100,6 @@ function transaction(o) {
     generated_from: null,
     recurrence_id: null,
     occurrence_date: null,
-    installment: null,
-    statement_period: null,
     ...STAMP,
     ...o,
   };
@@ -132,20 +127,6 @@ function recurring(o) {
     rule: RULE,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
-    ...o,
-  };
-}
-
-function statement(period, o = {}) {
-  const [year, month] = period.split('-');
-  return {
-    period,
-    closing_date: `${year}-${month}-03`,
-    due_date: `${year}-${month}-10`,
-    total_amount: 120000,
-    outstanding_amount: 120000,
-    paid: false,
-    transaction_count: 2,
     ...o,
   };
 }
@@ -202,21 +183,10 @@ function summary() {
       current: 750000,
       forecast_at_period_end: 662000,
       accounts: [
-        { id: 'a1', name: 'Conta principal', kind: 'standard', balance_amount: 700000 },
-        { id: 'a2', name: 'Carteira', kind: 'standard', balance_amount: 50000 },
+        { id: 'a1', name: 'Conta principal', balance_amount: 700000 },
+        { id: 'a2', name: 'Carteira', balance_amount: 50000 },
       ],
     },
-    credit_cards: [
-      {
-        account_id: 'a3',
-        name: 'Cartão Nu',
-        credit_limit_amount: 500000,
-        used_limit_amount: 186400,
-        open_statement_amount: 120000,
-        statement_period: '2026-11',
-        due_date: '2026-11-10',
-      },
-    ],
     upcoming_bills: [
       transaction({
         id: null,
@@ -260,14 +230,7 @@ function seed() {
     accounts: [
       account({ id: 'a1', name: 'Conta principal', is_default: true, balance_amount: 700000 }),
       account({ id: 'a2', name: 'Carteira', balance_amount: 50000 }),
-      account({
-        id: 'a3',
-        name: 'Cartão Nu',
-        kind: 'credit_card',
-        credit_limit_amount: 500000,
-        closing_day: 3,
-        due_day: 10,
-      }),
+      account({ id: 'a3', name: 'Cartão Nu', balance_amount: -140000 }),
     ],
     categories: [
       category({ id: 'c1', name: 'Mercado', kind: 'expense', color: 'warning' }),
@@ -320,8 +283,6 @@ function seed() {
           expected_amount: 100000,
           expected_date: '2026-11-04',
           effective_date: number === 1 ? '2026-11-04' : `2026-${String(10 + number)}-04`,
-          installment: { number, total: 3 },
-          statement_period: `2026-${String(10 + number)}`,
         }),
       ),
       transaction({
@@ -332,7 +293,6 @@ function seed() {
         expected_amount: 20000,
         expected_date: '2026-11-01',
         effective_date: '2026-11-01',
-        statement_period: '2026-11',
       }),
       transaction({
         id: null,
@@ -386,21 +346,6 @@ function seed() {
       }),
     ],
     copies: { r1: [COPY, COPY_AUG] },
-    statements: {
-      a3: [
-        statement('2026-11'),
-        statement('2026-12', {
-          total_amount: 100000,
-          outstanding_amount: 100000,
-          transaction_count: 1,
-        }),
-        statement('2026-13', {
-          total_amount: 100000,
-          outstanding_amount: 100000,
-          transaction_count: 1,
-        }),
-      ],
-    },
     transfers: [
       {
         id: 'tr1',
@@ -427,7 +372,6 @@ function empty() {
     transactions: [],
     recurring: [],
     copies: {},
-    statements: {},
     transfers: [],
     summary: summary(),
   };
@@ -527,7 +471,6 @@ function financeRoutes(state) {
     },
     'GET /recurring-transactions/:id/settled-transactions': (_c, { id }) =>
       page(state.copies[id] ?? []),
-    'GET /credit-cards/:id/statements': (_c, { id }) => page(state.statements[id] ?? []),
     'GET /financial-summaries': () =>
       state.summary ? { body: state.summary } : problem(500, 'internal_error'),
   };
@@ -856,18 +799,10 @@ const scenarios = [
     },
   },
   {
-    name: 'Painel com Cartões',
-    group: 'painel',
-    path: '/finance',
-    combos: ALL,
-    run: (page, tag, ctx) => checkPanelRows(page, tag, ctx),
-  },
-  {
     name: 'Painel sem Cartões',
     group: 'painel',
     path: '/finance',
     combos: ALL,
-    world: () => ({ ...seed(), summary: { ...summary(), credit_cards: [] } }),
     run: (page, tag, ctx) => checkPanelRows(page, tag, ctx),
   },
   {
@@ -1151,21 +1086,6 @@ const scenarios = [
     },
   },
   {
-    name: 'Nova saída com parcelas no cartão',
-    path: '/finance/transactions/new?kind=expense',
-    combos: PAIR,
-    run: async (page, tag) => {
-      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
-      await page.getByLabel('Conta', { exact: true }).click();
-      await page.getByRole('option', { name: 'Cartão Nu' }).click();
-      const installments = page.getByRole('textbox', { name: /Parcelas/ });
-      await installments.waitFor();
-      await installments.fill('3');
-      await settle(page);
-      check(`${tag}: campo "Parcelas" no cartão`, await installments.isVisible());
-    },
-  },
-  {
     name: 'Nova saída com recorrência',
     path: '/finance/transactions/new?kind=expense',
     combos: PAIR_ALT,
@@ -1329,36 +1249,98 @@ const scenarios = [
     },
   },
   {
-    name: 'aba Faturas',
-    path: '/finance/statements?card_id=a3',
-    combos: PAIR_ALT,
+    name: 'Painel sem cartão',
+    group: 'sem-cartao',
+    path: '/finance',
+    combos: ALL,
     run: async (page, tag) => {
-      await page
-        .getByText(/parcela 1 de 3/)
-        .first()
-        .waitFor();
+      const nav = page.getByRole('navigation', { name: 'Seções do Financeiro' });
+      await nav.waitFor();
+      await page.getByRole('region', { name: 'Saldo' }).waitFor();
       await settle(page);
+      check(`${tag}: seis abas`, (await nav.getByRole('link').count()) === 6);
       check(
-        `${tag}: aba Faturas com as parcelas`,
-        (await page
-          .getByText(/parcela 1 de 3/)
-          .first()
-          .isVisible()) &&
-          (await page.getByRole('button', { name: 'Pagar fatura' }).first().isVisible()),
+        `${tag}: sem a aba Faturas`,
+        (await nav.getByRole('link', { name: 'Faturas' }).count()) === 0,
+      );
+      check(
+        `${tag}: sem a região Cartões`,
+        (await page.getByRole('region', { name: 'Cartões' }).count()) === 0,
       );
     },
   },
   {
-    name: 'pagamento da fatura',
-    path: '/finance/credit-cards/a3/statements/2026-11/pay',
-    combos: PAIR,
+    name: 'Nova conta sem tipo',
+    group: 'sem-cartao',
+    path: '/finance/accounts/new',
+    combos: ALL,
     run: async (page, tag) => {
-      await page.getByRole('heading', { level: 1, name: 'Pagar fatura' }).waitFor();
-      await settle(page, 400);
+      await page.getByRole('heading', { level: 1, name: 'Nova conta' }).waitFor();
+      await settle(page);
       check(
-        `${tag}: pagamento da fatura`,
-        (await page.getByLabel('Conta de origem').isVisible()) &&
-          (await page.getByRole('button', { name: 'Pagar', exact: true }).isVisible()),
+        `${tag}: sem o tipo "Cartão de crédito"`,
+        (await page.getByRole('radio', { name: 'Cartão de crédito' }).count()) === 0,
+      );
+      for (const name of [/^Limite/, 'Dia de fechamento', 'Dia de vencimento']) {
+        check(
+          `${tag}: sem o campo ${String(name)}`,
+          (await page.getByRole('textbox', { name }).count()) === 0,
+        );
+      }
+    },
+  },
+  {
+    name: 'Nova saída sem parcelas',
+    group: 'sem-cartao',
+    path: '/finance/transactions/new?kind=expense',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova saída' }).waitFor();
+      await page.getByLabel('Conta', { exact: true }).click();
+      await page.getByRole('option', { name: 'Cartão Nu' }).click();
+      await settle(page);
+      check(
+        `${tag}: sem o campo "Parcelas"`,
+        (await page.getByRole('textbox', { name: /Parcelas/ }).count()) === 0,
+      );
+    },
+  },
+  {
+    name: 'Contas com filtro de visibilidade',
+    group: 'sem-cartao',
+    path: '/finance/accounts',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Carteira' }).waitFor();
+      await settle(page);
+      const filters = page.getByRole('group', { name: 'Filtros' });
+      for (const name of ['Todas', 'Pessoais', 'Compartilhadas']) {
+        check(
+          `${tag}: chip "${name}"`,
+          await filters.getByRole('button', { name, exact: true }).isVisible(),
+        );
+      }
+      check(
+        `${tag}: sem o chip "Cartões"`,
+        (await filters.getByRole('button', { name: 'Cartões' }).count()) === 0,
+      );
+    },
+  },
+  {
+    name: 'Detalhe da conta sem fatura',
+    group: 'sem-cartao',
+    path: '/finance/accounts/a3',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Cartão Nu' }).waitFor();
+      await settle(page);
+      check(
+        `${tag}: sem o botão "Ver fatura"`,
+        (await page.getByRole('button', { name: 'Ver fatura' }).count()) === 0,
+      );
+      check(
+        `${tag}: sem "Fechamento / vencimento"`,
+        (await page.getByText('Fechamento / vencimento').count()) === 0,
       );
     },
   },
@@ -1777,7 +1759,7 @@ const EVIDENCES = {
     const gecko = await firefox.launch();
     try {
       const only = list.filter((sc) =>
-        ['Painel com Cartões', 'tabela dos gráficos sem texto solto'].includes(sc.name),
+        ['Painel sem Cartões', 'tabela dos gráficos sem texto solto'].includes(sc.name),
       );
       const extra = await runScenarios(gecko, base, only, {
         combos: [
@@ -1798,6 +1780,20 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  'sem-cartao': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'sem-cartao'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-10 · Financeiro sem cartão (RF-07, RF-08, RF-09, CT-07) · API simulada, relógio em 05/11/2026',
+      file: 'finance-sem-cartao.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   telas: async (browser, base) => {
     const shots = await runScenarios(browser, base);
     await sheet(browser, {
@@ -1814,7 +1810,9 @@ const wanted = process.argv.slice(2);
 const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
-  console.error(`Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario ou painel.`);
+  console.error(
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel ou sem-cartao.`,
+  );
   process.exit(2);
 }
 

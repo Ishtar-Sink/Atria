@@ -24,8 +24,7 @@ import styles from './finance.module.css';
 
 registerMessages('finance', messages);
 
-export type FinanceTab =
-  'panel' | 'income' | 'expenses' | 'transfers' | 'statements' | 'accounts' | 'settings';
+export type FinanceTab = 'panel' | 'income' | 'expenses' | 'transfers' | 'accounts' | 'settings';
 
 interface TabDef {
   id: FinanceTab;
@@ -64,13 +63,6 @@ export const FINANCE_TABS: readonly TabDef[] = [
     label_key: 'finance.tabs.transfers',
     with_period: true,
     create_type: 'transfer',
-  },
-  {
-    id: 'statements',
-    path: '/finance/statements',
-    label_key: 'finance.tabs.statements',
-    with_period: false,
-    create_type: 'expense',
   },
   {
     id: 'accounts',

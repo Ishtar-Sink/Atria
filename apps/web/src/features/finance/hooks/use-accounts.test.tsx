@@ -25,34 +25,28 @@ function useBoth<T>(hook: () => T) {
 }
 
 describe('accounts hooks', () => {
-  it('creates a credit card with limit and days', async () => {
+  it('rf07 creates an account without card fields', async () => {
     const { calls } = mockApi({
       'GET /accounts': { body: { items: [MAIN] } },
-      'POST /accounts': (call) => ({
-        status: 201,
-        body: account({ id: 'a3', name: 'Cartão', ...(call.body as object) }),
-      }),
+      'POST /accounts': { hang: true },
     });
     const { result } = renderFinanceHook(useBoth(useCreateAccount));
     await waitFor(() => {
       expect(result.current.list.data).toHaveLength(1);
     });
-    await act(() =>
-      result.current.action.mutateAsync({
-        name: 'Cartão',
-        kind: 'credit_card',
-        credit_limit_amount: 500000,
-        closing_day: 3,
-        due_day: 10,
-        visibility: 'personal',
-      }),
-    );
+    act(() => {
+      result.current.action.mutate({ name: 'Reserva', visibility: 'personal' });
+    });
+    await waitFor(() => {
+      expect(result.current.list.data).toHaveLength(2);
+    });
+    const optimistic = result.current.list.data?.[1];
+    expect(optimistic?.name).toBe('Reserva');
+    for (const key of ['kind', 'credit_limit_amount', 'closing_day', 'due_day']) {
+      expect(optimistic).not.toHaveProperty(key);
+    }
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      name: 'Cartão',
-      kind: 'credit_card',
-      credit_limit_amount: 500000,
-      closing_day: 3,
-      due_day: 10,
+      name: 'Reserva',
       visibility: 'personal',
     });
   });

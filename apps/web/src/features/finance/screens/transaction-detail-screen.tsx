@@ -151,11 +151,6 @@ export function TransactionDetailScreen({
           </div>
         }
       />
-      {undo.state === 'statement_paid' ? (
-        <p role="status" className={styles.notice}>
-          {t('finance.transaction_detail.statement_paid')}
-        </p>
-      ) : null}
       <DetailTabs
         label={t('finance.transaction_detail.tabs_label')}
         overview_label={t('finance.account_detail.overview')}
@@ -198,15 +193,6 @@ export function TransactionDetailScreen({
                         label: t('finance.transaction_detail.expected_date'),
                         value: formatDate(item.expected_date, locale, 'UTC'),
                       },
-                      item.installment
-                        ? {
-                            label: t('finance.transaction_detail.installment'),
-                            value: t('finance.transaction_detail.installment_value', {
-                              number: item.installment.number,
-                              total: item.installment.total,
-                            }),
-                          }
-                        : null,
                     ]}
                   />
                 </DataCard>

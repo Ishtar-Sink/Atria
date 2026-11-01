@@ -72,14 +72,13 @@ describe('finance components', () => {
             difference_amount: -2000,
             difference_kind: 'saving',
             recurrence_id: 'r1',
-            installment: { number: 2, total: 3 },
           })}
           category_name="Casa"
           account_name="Conta"
         />
       </ul>,
     );
-    const link = await screen.findByRole('link', { name: 'Luz (2/3)' });
+    const link = await screen.findByRole('link', { name: 'Luz' });
     expect(link).toHaveAttribute('href', '/finance/transactions/t1');
     const row = link.closest('li');
     if (!row) throw new Error('sem linha');

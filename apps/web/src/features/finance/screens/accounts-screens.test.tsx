@@ -23,14 +23,7 @@ function seed(): FinanceWorld {
     accounts: [
       account({ id: 'a1', name: 'Conta principal', is_default: true, balance_amount: 350000 }),
       account({ id: 'a2', name: 'Carteira', balance_amount: 5000 }),
-      account({
-        id: 'a3',
-        name: 'Cartão Nu',
-        kind: 'credit_card',
-        credit_limit_amount: 500000,
-        closing_day: 3,
-        due_day: 10,
-      }),
+      account({ id: 'a3', name: 'Cartão Nu', visibility: 'shared' }),
     ],
     transactions: [transaction({ id: 't1', account_id: 'a2', description: 'Café' })],
   });
@@ -53,7 +46,7 @@ describe('accounts screens', () => {
   it('lists accounts with filters in the url', async () => {
     financeServer(seed());
     const user = userEvent.setup();
-    const { container, router } = renderAt('/finance/accounts?kind=credit_card');
+    const { container, router } = renderAt('/finance/accounts?visibility=shared');
     await heading('Financeiro');
     expect(
       screen.getByText('Contas, entradas e saídas, do previsto ao realizado.'),
@@ -61,7 +54,7 @@ describe('accounts screens', () => {
     expect(await screen.findByRole('link', { name: 'Cartão Nu' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Carteira' })).toBeNull();
     const filters = screen.getByRole('group', { name: 'Filtros' });
-    expect(within(filters).getByRole('button', { name: 'Cartões' })).toHaveAttribute(
+    expect(within(filters).getByRole('button', { name: 'Compartilhadas' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -70,7 +63,7 @@ describe('accounts screens', () => {
     expect(screen.getByRole('link', { name: 'Contas' })).toHaveAttribute('aria-current', 'page');
     await user.click(within(filters).getByRole('button', { name: 'Todas' }));
     await waitFor(() => {
-      expect(router.state.location.search).toMatchObject({ kind: 'all' });
+      expect(router.state.location.search).toMatchObject({ visibility: 'all' });
     });
     expect(await screen.findByRole('link', { name: 'Carteira' })).toBeInTheDocument();
     expect(screen.getByText('Padrão')).toBeInTheDocument();
@@ -107,25 +100,23 @@ describe('accounts screens', () => {
     mode = 'ok';
     await userEvent.click(within(alert).getByRole('button', { name: 'Tentar de novo' }));
     expect(await screen.findByText('Nenhuma conta ainda.')).toBeInTheDocument();
-    expect(
-      screen.getByText('Crie uma conta ou um cartão para registrar as movimentações.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Crie uma conta para registrar as movimentações.')).toBeInTheDocument();
     second.unmount();
   });
 
-  it('creates a credit card account', async () => {
+  it('rf07 creates an account without the card type', async () => {
     const { calls } = financeServer(seed());
     const user = userEvent.setup();
     const { container, router } = renderAt('/finance/accounts/new');
     await heading('Nova conta');
     noNativeControls(container);
+    expect(screen.queryByRole('radio', { name: 'Cartão de crédito' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Limite (R$)' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Dia de fechamento' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Dia de vencimento' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
     expect(await screen.findByText('Informe o nome.')).toHaveAttribute('role', 'alert');
-    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Cartão Inter');
-    await user.click(screen.getByRole('radio', { name: 'Cartão de crédito' }));
-    await user.type(await screen.findByRole('textbox', { name: 'Limite (R$)' }), '5.000,00');
-    await user.type(screen.getByRole('textbox', { name: 'Dia de fechamento' }), '3');
-    await user.type(screen.getByRole('textbox', { name: 'Dia de vencimento' }), '10');
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva');
     expect(screen.getByRole('radio', { name: 'Pessoal' })).toBeChecked();
     expect(await axe(container)).toHaveNoViolations();
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -133,12 +124,8 @@ describe('accounts screens', () => {
       expect(calls.some((call) => call.method === 'POST' && call.path === '/accounts')).toBe(true);
     });
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      name: 'Cartão Inter',
-      kind: 'credit_card',
+      name: 'Reserva',
       visibility: 'personal',
-      credit_limit_amount: 500000,
-      closing_day: 3,
-      due_day: 10,
     });
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/finance/accounts/a4');
@@ -215,21 +202,18 @@ describe('accounts screens', () => {
     expect(within(menu).queryByRole('menuitem', { name: 'Excluir' })).toBeNull();
   });
 
-  it('shows edit, card statement and more actions on the account detail', async () => {
+  it('rf07 shows edit and more actions on the account detail without the statement', async () => {
     financeServer(seed());
-    const user = userEvent.setup();
-    const { container, router } = renderAt('/finance/accounts/a3');
+    const { container } = renderAt('/finance/accounts/a3');
     await heading('Cartão Nu');
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mais ações' })).toBeInTheDocument();
-    expect(screen.getByText('dia 3 / dia 10')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver fatura' })).toBeNull();
+    for (const text of ['Tipo', 'Limite', 'Fechamento / vencimento']) {
+      expect(screen.queryByText(text)).toBeNull();
+    }
     expect(screen.getByRole('heading', { name: 'Registro' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
-    await user.click(screen.getByRole('button', { name: 'Ver fatura' }));
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/finance/statements');
-    });
-    expect(router.state.location.search).toMatchObject({ card_id: 'a3' });
   });
 
   it('issues the finance reports filtered by the account', async () => {

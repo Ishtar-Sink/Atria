@@ -54,11 +54,7 @@ export function useCreateAccount() {
       const draft: Account = {
         id: `${OPTIMISTIC_PREFIX}${crypto.randomUUID()}`,
         name: input.name,
-        kind: input.kind ?? 'standard',
         balance_amount: 0,
-        credit_limit_amount: input.credit_limit_amount ?? null,
-        closing_day: input.closing_day ?? null,
-        due_day: input.due_day ?? null,
         currency: '',
         is_default: false,
         owner_id: '',
@@ -99,11 +95,6 @@ export function useRenameAccount() {
         ...account,
         ...(patch.name ? { name: patch.name } : {}),
         ...(patch.visibility ? { visibility: patch.visibility } : {}),
-        ...(patch.credit_limit_amount === undefined
-          ? {}
-          : { credit_limit_amount: patch.credit_limit_amount }),
-        ...(patch.closing_day === undefined ? {} : { closing_day: patch.closing_day }),
-        ...(patch.due_day === undefined ? {} : { due_day: patch.due_day }),
       });
       client.setQueryData<Account[]>(financeKeys.accounts, (list) =>
         list?.map((account) => (account.id === id ? apply(account) : account)),

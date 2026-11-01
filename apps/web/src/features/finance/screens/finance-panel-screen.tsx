@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, EmptyState, ErrorState, LoadingState, ProgressBar } from '@atria/ui';
+import { Button, EmptyState, ErrorState, LoadingState } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { formatDate, formatMoney } from '../../../shared/format/intl';
@@ -185,44 +185,6 @@ function Balance({ summary }: { summary: FinancialSummary }) {
           </li>
         ))}
       </ul>
-    </DataCard>
-  );
-}
-
-function Cards({ summary }: { summary: FinancialSummary }) {
-  const t = useT();
-  const { locale } = usePreferences();
-  const money = (value: number) => formatMoney(value, summary.currency, locale);
-  return (
-    <DataCard title={t('finance.panel.cards')}>
-      {summary.credit_cards.map((card) => (
-        <div key={card.account_id} className={styles.card}>
-          <div className={styles.cardHead}>
-            <Link to="/finance/statements" search={{ card_id: card.account_id }}>
-              {card.name}
-            </Link>
-            <span>{money(card.open_statement_amount)}</span>
-          </div>
-          <span className={styles.sub}>
-            {t('finance.panel.card_due', { date: formatDate(card.due_date, locale, 'UTC') })}
-          </span>
-          {card.credit_limit_amount > 0 ? (
-            <>
-              <ProgressBar
-                label={t('finance.panel.card_limit_label', { name: card.name })}
-                value={Math.min(card.used_limit_amount, card.credit_limit_amount)}
-                max={card.credit_limit_amount}
-              />
-              <span className={styles.sub}>
-                {t('finance.panel.card_limit', {
-                  used: money(card.used_limit_amount),
-                  limit: money(card.credit_limit_amount),
-                })}
-              </span>
-            </>
-          ) : null}
-        </div>
-      ))}
     </DataCard>
   );
 }
@@ -413,9 +375,6 @@ export function FinancePanelScreen() {
   ];
   const side: Block[] = [
     { id: 'balance', node: <Balance summary={summary} /> },
-    ...(summary.credit_cards.length > 0
-      ? [{ id: 'cards', node: <Cards summary={summary} /> }]
-      : []),
     { id: 'upcoming', node: <Upcoming summary={summary} /> },
     { id: 'savings', node: <Savings summary={summary} /> },
   ];

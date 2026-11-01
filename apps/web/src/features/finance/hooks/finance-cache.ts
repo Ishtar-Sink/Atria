@@ -31,7 +31,6 @@ export const financeKeys = {
   summary: ['finance', 'summary'] as const,
   transfers: ['finance', 'transfers'] as const,
   transfer: (id: string) => ['finance', 'transfer', id] as const,
-  statements: ['finance', 'statements'] as const,
 };
 
 export function problemCode(error: unknown): string | undefined {

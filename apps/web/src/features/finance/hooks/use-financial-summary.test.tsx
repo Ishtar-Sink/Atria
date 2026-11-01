@@ -19,7 +19,6 @@ const SUMMARY = {
   },
   savings_and_losses: { savings_amount: 0, gains_amount: 0, losses_amount: 0 },
   balance: { current: 100000, forecast_at_period_end: null, accounts: [] },
-  credit_cards: [],
   upcoming_bills: [],
   currency: 'BRL',
 };

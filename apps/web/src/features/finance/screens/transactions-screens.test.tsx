@@ -96,7 +96,7 @@ function seed(): FinanceWorld {
     accounts: [
       account({ id: 'a1', name: 'Conta', is_default: true, balance_amount: 500000 }),
       account({ id: 'a2', name: 'Carteira', balance_amount: 10000 }),
-      account({ id: 'a3', name: 'Cartão Nu', kind: 'credit_card', credit_limit_amount: 500000 }),
+      account({ id: 'a3', name: 'Cartão Nu' }),
     ],
     categories: [
       category({ id: 'c1', name: 'Mercado', kind: 'expense', color: 'warning' }),
@@ -471,25 +471,20 @@ describe('transaction forms', () => {
     });
   });
 
-  it('creates a purchase in three installments on a credit card', async () => {
+  it('rf07 creates an expense without installments on any account', async () => {
     const { calls } = financeServer(seed());
     const user = userEvent.setup();
-    renderFinance('/finance/transactions/new?kind=expense');
+    const { router } = renderFinance('/finance/transactions/new?kind=expense');
     await pageHeading('Nova saída');
-    expect(screen.queryByRole('textbox', { name: 'Parcelas' })).toBeNull();
     await chooseOption('Conta', 'Cartão Nu');
     await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '300');
-    await user.type(await screen.findByRole('textbox', { name: 'Parcelas' }), '3');
+    expect(screen.queryByRole('textbox', { name: 'Parcelas' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
-    const result = await screen.findByRole('heading', { name: 'Compra registrada em 3 parcelas' });
-    const card = result.closest('section') as HTMLElement;
-    expect(within(card).getAllByRole('listitem')).toHaveLength(3);
-    expect(plain(within(card).getAllByRole('listitem')[2]?.textContent)).toContain(
-      'Parcela 3 de 3 · fatura 2026-13',
-    );
-    expect(
-      (lastCall(calls, 'POST', '/transactions')?.body as { installments: number }).installments,
-    ).toBe(3);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toMatch(/^\/finance\/transactions\/t-new-/);
+    });
+    expect(lastCall(calls, 'POST', '/transactions')?.body).not.toHaveProperty('installments');
+    expect(screen.queryByRole('textbox', { name: 'Parcelas' })).toBeNull();
   });
 
   it('creates a monthly recurrence on day 31', async () => {
@@ -733,25 +728,6 @@ describe('settlement and detail', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/finance/recurring-transactions/r1');
     });
-  });
-
-  it('explains when the statement is already paid', async () => {
-    const state = seed();
-    state.override = (call) =>
-      call.method === 'DELETE' && call.path.endsWith('/settlement')
-        ? problem(409, 'statement_already_paid')
-        : undefined;
-    financeServer(state);
-    const user = userEvent.setup();
-    renderFinance('/finance/transactions/t2');
-    await pageHeading('Luz');
-    await user.click(screen.getByRole('button', { name: 'Desfazer liquidação' }));
-    expect(
-      await screen.findByText(
-        'A fatura desta movimentação já foi paga. A liquidação não pode ser desfeita.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Economizou/)).toBeInTheDocument();
   });
 
   it('deletes a transaction from more actions after confirmation', async () => {

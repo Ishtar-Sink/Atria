@@ -13,18 +13,18 @@ import { useAccounts, type Account } from '../hooks/use-accounts';
 import { searchText } from '../lib/finance-period';
 
 export const accountsSearchSchema = z.object({
-  kind: z.enum(['all', 'standard', 'credit_card']).catch('all'),
+  visibility: z.enum(['all', 'personal', 'shared']).catch('all'),
   q: searchText(100),
   view: z.enum(['list', 'grid']).catch('list'),
 });
 
-function matches(account: Account, kind: string, q: string): boolean {
-  if (kind !== 'all' && account.kind !== kind) return false;
+function matches(account: Account, visibility: string, q: string): boolean {
+  if (visibility !== 'all' && account.visibility !== visibility) return false;
   const needle = q.trim().toLocaleLowerCase();
   return needle === '' || account.name.toLocaleLowerCase().includes(needle);
 }
 
-/** Aba Contas: contas e cartões com o saldo, filtro por tipo, busca e visualização. */
+/** Aba Contas: contas com o saldo, filtro por visibilidade, busca e visualização. */
 export function AccountsScreen() {
   const t = useT();
   const { locale } = usePreferences();
@@ -38,8 +38,10 @@ export function AccountsScreen() {
     rememberListLocation('finance', href);
   }, [href]);
 
-  const items = (accounts.data ?? []).filter((account) => matches(account, search.kind, search.q));
-  const filtered = search.kind !== 'all' || search.q !== '';
+  const items = (accounts.data ?? []).filter((account) =>
+    matches(account, search.visibility, search.q),
+  );
+  const filtered = search.visibility !== 'all' || search.q !== '';
 
   function body() {
     if (accounts.isError) {
@@ -87,7 +89,9 @@ export function AccountsScreen() {
                 >
                   {account.name}
                 </Link>
-                <span className={styles.rowSub}>{t(`finance.account_kind.${account.kind}`)}</span>
+                <span className={styles.rowSub}>
+                  {t(`finance.visibility.${account.visibility}`)}
+                </span>
               </div>
             </div>
             <div className={styles.rowMeta}>
@@ -120,15 +124,15 @@ export function AccountsScreen() {
         }}
         filters={
           <Chips
-            legend={t('finance.accounts.kind_filter')}
-            value={search.kind}
+            legend={t('finance.accounts.visibility_filter')}
+            value={search.visibility}
             options={[
-              { value: 'all', label: t('finance.accounts.kind_all') },
-              { value: 'standard', label: t('finance.accounts.kind_standard') },
-              { value: 'credit_card', label: t('finance.accounts.kind_credit_card') },
+              { value: 'all', label: t('finance.accounts.visibility_all') },
+              { value: 'personal', label: t('finance.accounts.visibility_personal') },
+              { value: 'shared', label: t('finance.accounts.visibility_shared') },
             ]}
-            onChange={(kind) => {
-              setSearch({ kind });
+            onChange={(visibility) => {
+              setSearch({ visibility });
             }}
           />
         }
