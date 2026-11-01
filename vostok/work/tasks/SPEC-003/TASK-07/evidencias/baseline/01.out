@@ -1,0 +1,3 @@
+$ pnpm --filter @atria/contracts typecheck
+exit: 0
+$ tsc --noEmit

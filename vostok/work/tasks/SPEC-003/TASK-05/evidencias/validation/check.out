@@ -1,0 +1,301 @@
+   Compiling atria-server v0.1.0 (/home/victor/projetos/ishtar-sink/atria/apps/server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.59s
+   Compiling atria-server v0.1.0 (/home/victor/projetos/ishtar-sink/atria/apps/server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 37.84s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 22 tests
+test finance::domain::category::tests::deleting_category_in_use_requires_replacement ... ok
+test finance::domain::category::tests::category_color_accepts_only_hex_rrggbb ... ok
+test finance::domain::category::tests::default_categories_have_two_income_and_five_expense ... ok
+test finance::domain::category::tests::replacement_cannot_be_the_deleted_category ... ok
+test finance::domain::category::tests::replacement_must_have_same_kind ... ok
+test finance::domain::category::tests::system_category_colors_are_theme_hex ... ok
+test finance::domain::category::tests::system_category_keys_round_trip ... ok
+test finance::tests::categories::ct12_default_categories_have_theme_hex_colors ... ok
+test finance::tests::categories::ct12_category_is_created_and_edited_with_hex_color ... ok
+test finance::tests::categories::default_categories_belong_to_each_person ... ok
+test finance::tests::categories::ct10_deleted_default_category_is_not_recreated ... ok
+test finance::tests::categories::ct10_default_categories_are_seeded_once ... ok
+test finance::tests::categories::ct10_person_who_deleted_all_categories_is_not_seeded_again ... ok
+test finance::tests::categories::rnf01_system_key_migration_keeps_existing_categories ... ok
+test finance::tests::categories::person_with_own_category_is_not_seeded ... ok
+test finance::tests::categories::renaming_default_category_clears_system_key ... ok
+test finance::tests::categories::rnf01_category_color_migration_converts_names_to_hex ... ok
+test finance::tests::categories::invalid_category_color_is_rejected ... ok
+test finance::tests::categories::rn09_category_color_is_stored_in_lowercase ... ok
+test finance::tests::summaries::where_it_went_groups_top_six_categories_plus_others_with_color ... ok
+test finance::tests::transfers::category_has_kind_and_color ... ok
+test reports::tests::export_json_contains_all_user_entities ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 754 filtered out; finished in 4.95s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.63s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 139 tests
+test finance::application::accounts::tests::destination_must_differ_from_deleted_account ... ok
+test finance::domain::account::tests::default_account_cannot_be_deleted ... ok
+test finance::domain::account::tests::default_account_can_be_renamed ... ok
+test finance::domain::category::tests::category_color_accepts_only_hex_rrggbb ... ok
+test finance::domain::category::tests::deleting_category_in_use_requires_replacement ... ok
+test finance::domain::category::tests::replacement_cannot_be_the_deleted_category ... ok
+test finance::domain::category::tests::default_categories_have_two_income_and_five_expense ... ok
+test finance::domain::category::tests::system_category_keys_round_trip ... ok
+test finance::domain::error::tests::codes_are_stable ... ok
+test finance::domain::category::tests::replacement_must_have_same_kind ... ok
+test finance::domain::category::tests::system_category_colors_are_theme_hex ... ok
+test finance::domain::forecast::tests::effective_date_is_settlement_date_when_settled_and_expected_date_otherwise ... ok
+test finance::domain::forecast::tests::forecast_projects_following_rule_dates_in_range_as_virtual ... ok
+test finance::domain::forecast::tests::items_are_ordered_by_effective_date_then_key ... ok
+test finance::domain::recurring_transaction::tests::deleting_copy_of_last_closing_reopens_that_occurrence ... ok
+test finance::domain::forecast::tests::forecast_starts_after_open_occurrence ... ok
+test finance::domain::recurring_transaction::tests::each_occurrence_is_settled_separately ... ok
+test finance::domain::recurring_transaction::tests::monthly_on_31_falls_on_last_day_of_short_months ... ok
+test finance::domain::recurring_transaction::tests::unsettled_open_occurrence_is_overdue_and_does_not_advance ... ok
+test finance::domain::recurring_transaction::tests::recurrence_without_dates_after_ends_on_has_no_open_occurrence ... ok
+test finance::domain::recurring_transaction::tests::open_occurrence_is_first_rule_date_after_last_closed ... ok
+test finance::domain::recurring_transaction::tests::settling_open_occurrence_returns_settled_copy_without_recurrence ... ok
+test finance::domain::recurring_transaction::tests::rule_or_amount_change_affects_open_and_following_occurrences_only ... ok
+test finance::domain::settlement::tests::expense_settled_above_expected_is_loss ... ok
+test finance::domain::settlement::tests::expense_settled_below_expected_is_saving ... ok
+test finance::domain::recurring_transaction::tests::skipping_open_occurrence_advances_without_copy ... ok
+test finance::domain::recurring_transaction::tests::yearly_on_feb_29_falls_on_feb_28_in_common_year ... ok
+test finance::domain::settlement::tests::income_settled_above_expected_is_gain ... ok
+test finance::domain::settlement::tests::income_settled_below_expected_is_loss ... ok
+test finance::domain::settlement::tests::settlement_changes_balance_by_settled_amount ... ok
+test finance::domain::summary::tests::forecast_balance_is_absent_when_period_ended_before_today ... ok
+test finance::domain::summary::tests::forecast_balance_adds_pending_items_until_period_end ... ok
+test finance::domain::summary::tests::monthly_series_has_6_realized_and_6_projected_consecutive_months ... ok
+test finance::domain::summary::tests::monthly_series_projected_months_use_pending_by_expected_date ... ok
+test finance::domain::summary::tests::monthly_series_realized_months_sum_settled_and_go_back_from_current_balance ... ok
+test finance::domain::summary::tests::previous_period_has_same_length_and_ends_the_day_before ... ok
+test finance::domain::settlement::tests::settled_equal_to_expected_has_no_difference ... ok
+test finance::domain::summary::tests::period_totals_split_realized_and_forecast ... ok
+test finance::domain::summary::tests::savings_and_losses_are_summed_from_settled_transactions ... ok
+test finance::domain::summary::tests::transfers_are_excluded_from_income_and_expense_totals ... ok
+test finance::domain::transaction::tests::expected_amount_must_be_positive ... ok
+test finance::domain::transaction::tests::settled_transaction_cannot_be_settled_again ... ok
+test finance::domain::summary::tests::upcoming_movements_cover_overdue_and_next_30_days ... ok
+test finance::domain::transaction::tests::settled_transaction_edit_allows_only_description_category_and_visibility ... ok
+test finance::domain::summary::tests::where_it_went_keeps_top_six_categories_and_sums_the_rest_as_others ... ok
+test finance::domain::transaction::tests::stored_status_is_settled_open_or_overdue ... ok
+test finance::domain::transaction::tests::undo_settlement_restores_open_state_and_reverts_balance_effect ... ok
+test finance::domain::transaction::tests::unsettled_transaction_edit_accepts_all_editable_fields ... ok
+test finance::domain::transfer::tests::transfer_between_same_account_is_refused ... ok
+test finance::domain::transfer::tests::transfer_requires_same_currency ... ok
+test finance::interface::openapi::tests::card_schemas_are_gone_from_contract ... ok
+test finance::interface::openapi::tests::documents_all_finance_routes ... ok
+test finance::tests::accounts::account_with_transactions_without_destination_is_refused ... ok
+test finance::tests::accounts::ct05_default_account_is_refused_even_with_destination ... ok
+test finance::tests::accounts::creates_renames_and_deletes_account ... ok
+test finance::tests::accounts::account_has_no_card_fields ... ok
+test finance::tests::accounts::cb04_transfer_between_deleted_and_destination_account_is_deleted ... ok
+test finance::tests::accounts::ct04_deleting_account_moves_transactions_transfers_and_recurring_to_destination ... ok
+test finance::tests::accounts::default_account_is_created_once_per_user ... ok
+test finance::tests::accounts::database_refuses_deleting_default_account ... ok
+test finance::tests::accounts::refuses_deleting_default_account_with_problem_json ... ok
+test finance::tests::accounts::ct05_destination_in_other_currency_is_refused_with_currency_mismatch ... ok
+test finance::tests::accounts::destination_must_be_another_active_account_of_the_owner ... ok
+test finance::tests::authorization::mutation_without_csrf_is_refused ... ok
+test finance::tests::authorization::other_user_resources_return_404 ... ok
+test finance::tests::authorization::statement_routes_are_gone ... ok
+test finance::tests::categories::ct10_default_categories_are_seeded_once ... ok
+test finance::tests::categories::ct12_category_is_created_and_edited_with_hex_color ... ok
+test finance::tests::categories::ct12_default_categories_have_theme_hex_colors ... ok
+test finance::tests::categories::ct10_deleted_default_category_is_not_recreated ... ok
+test finance::tests::authorization::row_level_security_hides_other_owner_rows ... ok
+test finance::tests::categories::ct10_person_who_deleted_all_categories_is_not_seeded_again ... ok
+test finance::tests::categories::person_with_own_category_is_not_seeded ... ok
+test finance::tests::categories::invalid_category_color_is_rejected ... ok
+test finance::tests::categories::default_categories_belong_to_each_person ... ok
+test finance::tests::categories::rn09_category_color_is_stored_in_lowercase ... ok
+test finance::tests::categories::renaming_default_category_clears_system_key ... ok
+test finance::tests::categories::rnf01_category_color_migration_converts_names_to_hex ... ok
+test finance::tests::categories::rnf01_system_key_migration_keeps_existing_categories ... ok
+test finance::tests::credit_card_migration::cb05_installments_become_independent_expenses ... ok
+test finance::tests::credit_card_migration::cb06_paid_statement_transfer_keeps_amount_without_period ... ok
+test finance::tests::deletion_hook::delete_without_hook_still_succeeds ... ok
+test finance::tests::credit_card_migration::ct06_rnf01_card_migration_keeps_counts_and_balances ... ok
+test finance::tests::deletion_hook::deleting_account_transaction_and_transfer_calls_entity_deleted_hook ... ok
+test finance::tests::listings::period_with_from_after_to_is_refused ... ok
+test finance::tests::listings::listing_without_period_has_no_date_limit ... ok
+test finance::tests::deletion_hook::undo_settlement_of_recurring_copy_calls_entity_deleted_hook ... ok
+test finance::tests::deletion_hook::deleting_settled_transaction_reverts_balance ... ok
+test finance::tests::listings::search_also_filters_virtual_recurring_items ... ok
+test finance::tests::listings::repetition_filter_separates_recurring_and_one_off ... ok
+test finance::tests::listings::search_with_more_than_100_characters_is_refused ... ok
+test finance::tests::listings::search_matches_description_ignoring_case_and_accents ... ok
+test finance::tests::listings::transactions_filter_by_category ... ok
+test finance::tests::listings::transactions_filter_by_settlement_date_when_settled_and_expected_date_otherwise ... ok
+test finance::tests::listings::transfers_search_by_description ... ok
+test finance::tests::listings::transfers_filter_by_period ... ok
+test finance::tests::recurring_transactions::deleting_last_settled_copy_reverts_balance_and_reopens_occurrence ... ok
+test finance::tests::recurring_transactions::deleting_older_settled_copy_only_reverts_balance ... ok
+test finance::tests::recurring_transactions::duplicate_idempotency_key_on_occurrence_settlement_returns_same_copy ... ok
+test finance::tests::recurring_transactions::ct02_deleting_never_settled_recurring_leaves_no_history_and_second_delete_is_404 ... ok
+test finance::tests::recurring_transactions::ct01_deleting_recurring_keeps_settled_copies_as_one_off_history ... ok
+test finance::tests::recurring_transactions::future_period_lists_virtual_forecast_without_persisting ... ok
+test finance::tests::recurring_transactions::lists_settled_copies_of_recurring_with_pagination ... ok
+test finance::tests::recurring_transactions::skipping_occurrence_advances_without_copy ... ok
+test finance::tests::recurring_transactions::settling_occurrence_that_is_not_open_is_refused ... ok
+test finance::tests::recurring_transactions::settling_recurring_creates_copy_linked_by_generated_from_and_advances ... ok
+test finance::tests::recurring_transactions::monthly_rent_on_31_falls_on_last_day_and_change_from_third_month_affects_only_future ... ok
+test finance::tests::recurring_transactions::undo_settlement_of_copy_after_recurring_deletion_keeps_it_as_one_off ... ok
+test finance::tests::recurring_transactions::undo_settlement_of_older_copy_deletes_copy_and_keeps_open_occurrence ... ok
+test finance::tests::summaries::ct14_recurring_income_in_7_days_is_upcoming ... ok
+test finance::tests::recurring_transactions::undo_settlement_of_last_copy_deletes_copy_and_reopens_occurrence ... ok
+test finance::tests::recurring_transactions::unsettled_occurrence_stays_open_and_overdue_until_settled_or_skipped ... ok
+test finance::tests::summaries::ct11_summary_monthly_series_has_6_realized_and_6_projected_months ... ok
+test finance::tests::summaries::monthly_series_without_movements_has_12_zero_months ... ok
+test finance::tests::summaries::period_with_more_than_3660_days_is_refused ... ok
+test finance::tests::summaries::summary_compares_with_previous_period_of_same_length ... ok
+test finance::tests::summaries::summary_balance_has_current_forecast_at_period_end_and_per_account ... ok
+test finance::tests::summaries::summary_without_period_goes_from_first_transaction_to_today_without_comparison ... ok
+test finance::tests::summaries::period_summary_matches_transactions ... ok
+test finance::tests::summaries::upcoming_movements_cover_income_and_expense_of_next_30_days ... ok
+test finance::tests::transactions::installments_are_no_longer_accepted ... ok
+test finance::tests::transactions::balance_changes_only_on_settlement ... ok
+test finance::tests::summaries::where_it_went_groups_top_six_categories_plus_others_with_color ... ok
+test finance::tests::transactions::duplicate_idempotency_key_returns_same_transaction ... ok
+test finance::tests::transactions::settled_transaction_accepts_only_description_category_and_visibility ... ok
+test finance::tests::transactions::reused_idempotency_key_with_other_body_is_refused ... ok
+test finance::tests::transactions::settling_twice_is_refused ... ok
+test finance::tests::transactions::transaction_with_category_of_other_kind_is_refused ... ok
+test finance::tests::transactions::undo_settlement_reverts_balance_and_clears_difference ... ok
+test finance::tests::transactions::update_with_category_of_other_kind_is_refused ... ok
+test finance::tests::transactions::undo_settlement_of_unsettled_transaction_is_refused ... ok
+test finance::tests::transactions::settlement_records_saving_loss_gain_and_loss ... ok
+test finance::tests::transfers::replacement_category_of_other_kind_is_refused ... ok
+test finance::tests::transfers::creates_renames_and_deletes_category ... ok
+test finance::tests::transactions::updates_unsettled_transaction_fields ... ok
+test finance::tests::transfers::category_has_kind_and_color ... ok
+test finance::tests::transfers::categories_list_filters_by_kind ... ok
+test finance::tests::transfers::deleting_category_in_use_requires_replacement ... ok
+test finance::tests::transfers::transfer_moves_both_balances_and_stays_out_of_totals ... ok
+
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 637 filtered out; finished in 14.95s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 70 tests
+test reports::domain::tests::any_period_without_records_starts_and_ends_today ... ok
+test reports::domain::tests::any_period_goes_from_first_record_to_today ... ok
+test reports::domain::tests::catalog_lists_nine_reports_grouped_by_module ... ok
+test reports::domain::tests::filters_accept_period_only_in_period_reports ... ok
+test reports::application::tests::export_service_collects_every_source ... ok
+test reports::application::tests::report_service_resolves_any_period_from_first_record_date ... ok
+test reports::domain::tests::filters_reject_filter_not_accepted_by_report ... ok
+test reports::application::tests::report_service_builds_each_kind_for_owner_and_filters ... ok
+test reports::domain::tests::fin_cat_sums_settled_expenses_by_category_with_account_and_category_filters ... ok
+test reports::domain::tests::filters_reject_unknown_type_and_goal_status ... ok
+test reports::domain::tests::goals_progress_uses_milestone_progress_with_goal_and_status_filters ... ok
+test reports::domain::tests::fin_diff_sums_savings_gains_and_losses ... ok
+test reports::domain::tests::journal_emo_counts_emotions_and_average_intensity_with_emotion_filter ... ok
+test reports::domain::tests::fin_flow_sums_settled_income_and_expense_by_month_and_account ... ok
+test reports::domain::tests::lib_status_counts_books_articles_and_videos_per_status_with_type_filter ... ok
+test reports::domain::tests::missing_from_uses_first_record_and_missing_to_uses_today ... ok
+test reports::domain::tests::money_and_dates_use_brazilian_format ... ok
+test reports::domain::tests::parses_report_kind ... ok
+test reports::domain::tests::period_rejects_from_after_to ... ok
+test reports::domain::tests::proj_cards_counts_cards_per_lane_with_project_filter ... ok
+test reports::domain::tests::read_pages_sums_pages_in_period_by_book_and_caps_progress ... ok
+test reports::domain::tests::resolved_period_with_from_after_today_is_invalid ... ok
+test reports::domain::tests::tasks_done_counts_one_off_done_and_open_tasks ... ok
+test reports::domain::tests::tasks_done_leaves_recurring_tasks_out ... ok
+test reports::infrastructure::export::tests::csv_neutralizes_spreadsheet_formulas_in_text_only ... ok
+test reports::infrastructure::export::tests::csv_escapes_quotes_commas_and_newlines ... ok
+test reports::infrastructure::export::tests::json_groups_tables_by_context ... ok
+test reports::infrastructure::palette::tests::tone_color_falls_back_to_primary ... ok
+test reports::infrastructure::palette::tests::palette_matches_theme_tokens ... ok
+test reports::infrastructure::pdf::tests::data_json_carries_palette_and_filters ... ok
+test reports::infrastructure::export::tests::csv_zip_has_one_file_per_table ... ok
+test reports::infrastructure::html::tests::html_report_has_period_and_filter_form ... ok
+test reports::infrastructure::html::tests::html_report_is_self_contained ... ok
+test reports::interface::tests::query_treats_blank_values_as_absent_and_rejects_bad_ones ... ok
+test reports::interface::tests::documents_all_reports_routes ... ok
+test reports::infrastructure::html::tests::html_style_hash_matches_csp ... ok
+test reports::infrastructure::pdf::tests::pdf_starts_with_pdf_header ... ok
+test reports::infrastructure::pdf::tests::pdf_embeds_identity_fonts ... ok
+test reports::infrastructure::pdf::tests::pdf_renders_every_report_kind ... ok
+test reports::tests::catalog_requires_session ... ok
+test reports::tests::export_requires_session ... ok
+test reports::tests::export_csv_zip_has_one_file_per_entity_type ... ok
+test reports::tests::export_json_contains_all_user_entities ... ok
+test reports::tests::finance_reports_reflect_edits_and_undone_settlements ... ok
+test reports::tests::finance_reports_use_only_settled_transactions ... ok
+test reports::tests::goals_progress_matches_goals_context_progress ... ok
+test reports::tests::report_catalog_lists_nine_reports_with_filters ... ok
+test reports::tests::export_never_includes_other_users_data ... ok
+test reports::tests::report_any_period_without_records_starts_today ... ok
+test reports::tests::lib_status_counts_each_type_by_its_own_status ... ok
+test reports::tests::report_entity_filter_never_reveals_other_users_data ... ok
+test reports::tests::report_any_period_goes_from_first_record_to_today ... ok
+test reports::tests::report_filters_by_type_and_goal_status ... ok
+test reports::tests::report_html_response_has_hash_csp ... ok
+test reports::tests::report_filters_by_account_and_category ... ok
+test reports::tests::report_filters_by_book_emotion_goal_and_project ... ok
+test reports::tests::report_html_is_self_contained_and_filters_by_period ... ok
+test reports::tests::report_journal_never_includes_entry_text ... ok
+test reports::tests::report_rejects_filter_not_accepted ... ok
+test reports::tests::report_period_accepted_only_in_period_reports ... ok
+test reports::tests::report_never_includes_other_users_data ... ok
+test reports::tests::report_pdf_applies_filters ... ok
+test reports::tests::report_json_returns_each_report_kind ... ok
+test reports::tests::report_pdf_has_pdf_content_type_and_attachment_name ... ok
+test reports::tests::write_sample_reports ... ignored, gera amostras para revisão visual
+test reports::tests::report_rejects_invalid_period ... ok
+test reports::tests::report_rejects_malformed_filter_id ... ok
+test reports::tests::report_unknown_returns_404_problem ... ok
+test reports::tests::tasks_done_reads_one_off_tasks_from_tasks_context ... ok
+test reports::tests::report_with_only_from_or_only_to ... ok
+
+test result: ok. 69 passed; 0 failed; 1 ignored; 0 measured; 706 filtered out; finished in 10.10s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 39 tests
+test http::tests::config_requires_public_url_and_key_file ... ok
+test http::tests::config_debug_redacts_secrets ... ok
+test http::tests::api_doc::openapi_schema_names_do_not_conflict ... ok
+test http::tests::api_doc::openapi_paths_have_single_api_prefix ... ok
+test http::tests::api_doc::openapi_has_no_duplicate_operations ... ok
+test http::tests::api_doc::merged_openapi_keeps_every_context_route ... ok
+test http::tests::current_user_rejects_anonymous_with_401_problem ... ok
+test http::tests::healthz_is_also_served_under_api_v1 ... ok
+test http::tests::get_issues_csrf_cookie ... ok
+test http::tests::forwarded_for_is_used_from_trusted_proxy ... ok
+test http::tests::end_user_session_invalidates_session ... ok
+test http::tests::forwarded_for_is_ignored_from_untrusted_peer ... ok
+test http::tests::hsts_only_with_https_public_url ... ok
+test http::tests::healthz_returns_ok_with_database ... ok
+test http::tests::healthz_returns_503_without_database ... ok
+test http::tests::isolation::deleting_entity_removes_its_links_on_both_sides ... ok
+test http::tests::isolation::listings_never_include_other_users_items ... ok
+test http::tests::migrations::migration_versions_are_unique_across_contexts ... ok
+test http::tests::isolation::admin_gets_404_on_other_users_content ... ok
+test http::tests::isolation::shared_visibility_does_not_grant_access ... ok
+test http::tests::isolation::other_user_gets_404_on_every_resource ... ok
+test http::tests::migrations::every_owned_table_has_row_level_security ... ok
+test http::tests::mutation_with_foreign_origin_is_rejected ... ok
+test http::tests::migrations::migrations_apply_on_empty_database_in_order ... ok
+test http::tests::mutation_with_valid_csrf_token_passes ... ok
+test http::tests::mutation_without_csrf_token_is_rejected_with_403_problem ... ok
+test http::tests::migrations::migrations_are_idempotent ... ok
+test http::tests::isolation::search_reports_and_exports_never_leak_other_users_data ... ok
+test http::tests::request_runs_to_completion_after_client_disconnects ... ok
+test http::tests::routes::healthz_responds_ok_with_all_contexts ... ok
+test http::tests::routes::unknown_route_returns_route_not_found_problem ... ok
+test http::tests::security_headers_are_present ... ok
+test http::tests::routes::admin_without_totp_is_blocked_on_every_context ... ok
+test http::tests::session_cookie_is_http_only_secure_same_site ... ok
+test http::tests::routes::wrong_method_returns_method_not_allowed_problem ... ok
+test http::tests::routes::every_openapi_path_is_routed ... ok
+test http::tests::test_support_sign_in_as_creates_authenticated_session ... ok
+test http::tests::start_user_session_rotates_session_id ... ok
+test http::tests::routes::web_push_policy_follows_instance_setting ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 737 filtered out; finished in 13.78s
+

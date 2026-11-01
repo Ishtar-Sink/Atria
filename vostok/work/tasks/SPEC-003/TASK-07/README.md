@@ -3,7 +3,7 @@
 Arquivo gerado pelo vostok a cada mudança de estado; não edite.
 
 - **Spec:** SPEC-003
-- **Status:** approved
+- **Status:** done
 - **Onda:** 7
 - **Dependências:** TASK-06
 
@@ -22,10 +22,10 @@ Arquivo gerado pelo vostok a cada mudança de estado; não edite.
 - **Tipo:** tarefa
 - **Descrição:** O OpenAPI e os tipos TypeScript refletem as mudanças das TASK-01 a TASK-06.
 - **Critérios de aceite:**
-  - [ ] O `openapi.json` do pacote de contratos é igual ao que o servidor gera e não tem mais o cartão: sem as rotas de faturas, sem `AccountKindDto` e sem `credit_cards` no resumo (RF-07).
-  - [ ] O contrato traz o `DELETE` da recorrência, o `DELETE` da conta com `move_to` e a série `monthly` do resumo (RF-07, RF-17).
-  - [ ] A cor das categorias, do "Para onde foi" e dos destaques aparece no contrato como texto, sem os enums de cor por nome (RF-18, RF-19).
-  - [ ] O `schema.ts` é o gerado do `openapi.json` novo, sem edição à mão, os tipos do pacote compilam e só os dois arquivos mudaram no pacote, sem mexer no app web ([project/api-02]).
+  - [x] O `openapi.json` do pacote de contratos é igual ao que o servidor gera e não tem mais o cartão: sem as rotas de faturas, sem `AccountKindDto` e sem `credit_cards` no resumo (RF-07).
+  - [x] O contrato traz o `DELETE` da recorrência, o `DELETE` da conta com `move_to` e a série `monthly` do resumo (RF-07, RF-17).
+  - [x] A cor das categorias, do "Para onde foi" e dos destaques aparece no contrato como texto, sem os enums de cor por nome (RF-18, RF-19).
+  - [x] O `schema.ts` é o gerado do `openapi.json` novo, sem edição à mão, os tipos do pacote compilam e só os dois arquivos mudaram no pacote, sem mexer no app web ([project/api-02]).
 - **Rótulos:** SPEC-003, padrao
 - **Estimativa:** padrao
 - **Bloqueada por:** TASK-06

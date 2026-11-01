@@ -1,0 +1,26 @@
+$ cargo test -p atria-server -- finance::tests::accounts:: finance::application::accounts::tests:: finance::domain::error::tests::codes_are_stable finance::interface::openapi::tests::documents_all_finance_routes
+# data: 2026-11-01T19:47:37Z
+# commit: 44003d1 (com mudanças não commitadas)
+# código de saída: 0
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 14 tests
+test finance::application::accounts::tests::destination_must_differ_from_deleted_account ... ok
+test finance::domain::error::tests::codes_are_stable ... ok
+test finance::interface::openapi::tests::documents_all_finance_routes ... ok
+test finance::tests::accounts::account_has_no_card_fields ... ok
+test finance::tests::accounts::ct05_default_account_is_refused_even_with_destination ... ok
+test finance::tests::accounts::creates_renames_and_deletes_account ... ok
+test finance::tests::accounts::account_with_transactions_without_destination_is_refused ... ok
+test finance::tests::accounts::cb04_transfer_between_deleted_and_destination_account_is_deleted ... ok
+test finance::tests::accounts::ct04_deleting_account_moves_transactions_transfers_and_recurring_to_destination ... ok
+test finance::tests::accounts::ct05_destination_in_other_currency_is_refused_with_currency_mismatch ... ok
+test finance::tests::accounts::database_refuses_deleting_default_account ... ok
+test finance::tests::accounts::refuses_deleting_default_account_with_problem_json ... ok
+test finance::tests::accounts::default_account_is_created_once_per_user ... ok
+test finance::tests::accounts::destination_must_be_another_active_account_of_the_owner ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 751 filtered out; finished in 2.76s
+

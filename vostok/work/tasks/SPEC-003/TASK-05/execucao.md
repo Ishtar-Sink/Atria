@@ -41,6 +41,7 @@
 - `apps/server/src/finance/tests/authorization.rs` (alterar): cor HEX na categoria criada e no `INSERT` do teste de RLS; necessário pelo mesmo motivo.
 - `apps/server/src/finance/tests/transactions.rs` (alterar): cores HEX nas chamadas de `create_category`; necessário pelo mesmo motivo.
 - `apps/server/src/finance/tests/listings.rs` (alterar): cores HEX nas chamadas de `create_category`; necessário pelo mesmo motivo.
+- `apps/server/src/http/tests/isolation.rs` (alterar): `overrides` manda uma cor HEX válida ao criar a categoria, porque a amostra gerada do OpenAPI deixou de ser um valor do enum (decisão do usuário na execução); necessário porque cor fora do HEX passa a ser recusada.
 - `apps/server/src/reports/tests.rs` (alterar): cor HEX no auxiliar `category` e conferência de que a exportação traz a cor da categoria em HEX (RF-20); necessário porque cor por nome passa a ser recusada.
 
 ### Passos
@@ -87,5 +88,6 @@ Tabela de conversão usada em todos os passos (tokens do tema claro em `packages
    - `apps/server/src/finance/tests/authorization.rs`, `transactions.rs` e `listings.rs`: as chamadas de `create_category`; no `INSERT INTO categories` do teste de RLS de `authorization.rs`, `'info'` vira `'#0369a1'` (a recusa continua vindo só da política).
    - `apps/server/src/reports/tests.rs`: no auxiliar `category`, `"color": "#6d28d9"`; em `export_json_contains_all_user_entities`, acrescente antes de `let text = ...`: para cada item de `export["contexts"]["finance"]["categories"]` (array não vazio), `color` é texto de 7 caracteres começando por `#`, e ao menos um é `#6d28d9`.
    Confira: `grep -nE '"(primary|accent|success|warning|danger|info)"' apps/server/src/finance/tests/transfers.rs apps/server/src/finance/tests/summaries.rs apps/server/src/finance/tests/authorization.rs apps/server/src/finance/tests/transactions.rs apps/server/src/finance/tests/listings.rs apps/server/src/reports/tests.rs` não lista nada.
+9a. `apps/server/src/http/tests/isolation.rs` (alterar): em `overrides`, acrescente o braço `"categories" => json!({"color": "#6d28d9"}),` antes de `_ => json!({})`, com o comentário: a cor é HEX livre e a amostra gerada do schema seria recusada. Confira: `cargo test -p atria-server http::tests::`.
 10. `apps/server/src/reports/infrastructure/mod.rs` não muda: `json!(category.color.as_str())` passa a exportar o HEX. Rode `cargo test -p atria-server finance::` e `cargo test -p atria-server reports::` até passarem.
 11. Rode `cargo fmt` e a Verificação inteira, sem `DATABASE_URL` no ambiente.

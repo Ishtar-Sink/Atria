@@ -1,0 +1,17 @@
+$ cargo test -p atria-server -- finance::tests::recurring_transactions::ct01_ finance::tests::recurring_transactions::ct02_ finance::tests::recurring_transactions::undo_settlement_of_copy_after_recurring_deletion finance::tests::authorization::other_user_resources_return_404 finance::interface::openapi::tests::documents_all_finance_routes
+# data: 2026-11-01T19:34:59Z
+# commit: 44003d1 (com mudanças não commitadas)
+# código de saída: 0
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 5 tests
+test finance::interface::openapi::tests::documents_all_finance_routes ... ok
+test finance::tests::recurring_transactions::undo_settlement_of_copy_after_recurring_deletion_keeps_it_as_one_off ... ok
+test finance::tests::recurring_transactions::ct02_deleting_never_settled_recurring_leaves_no_history_and_second_delete_is_404 ... ok
+test finance::tests::recurring_transactions::ct01_deleting_recurring_keeps_settled_copies_as_one_off_history ... ok
+test finance::tests::authorization::other_user_resources_return_404 ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 753 filtered out; finished in 0.95s
+

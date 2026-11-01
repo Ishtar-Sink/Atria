@@ -1,0 +1,13 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s
+     Running unittests src/main.rs (target/debug/deps/atria_server-fa6af7e3fc1a4d16)
+
+running 6 tests
+test finance::domain::summary::tests::monthly_series_has_6_realized_and_6_projected_consecutive_months ... ok
+test finance::domain::summary::tests::monthly_series_projected_months_use_pending_by_expected_date ... ok
+test finance::domain::summary::tests::monthly_series_realized_months_sum_settled_and_go_back_from_current_balance ... ok
+test finance::interface::openapi::tests::documents_all_finance_routes ... ok
+test finance::tests::summaries::monthly_series_without_movements_has_12_zero_months ... ok
+test finance::tests::summaries::ct11_summary_monthly_series_has_6_realized_and_6_projected_months ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 764 filtered out; finished in 0.90s
+

@@ -9,17 +9,18 @@ wave: 4
 covers: [RF-17, CT-11, CB-08]
 type: tarefa
 labels: [SPEC-003, padrao]
-status: approved
-content_hash: f75bc3bc65b0f55405666378229b0a45ee8ec906954f4c317ffb632e5ccb8580
+status: done
+content_hash: a3bb70c68c32a17e338ceff1467e88f1bd2a928fefba7bcdbf1a48eac6253e98
 adjustments: 0
 adjusted_at: null
 approved_at: 2026-11-01T18:04:46Z
 approved_hash: f75bc3bc65b0f55405666378229b0a45ee8ec906954f4c317ffb632e5ccb8580
 attempts: 0
-tests_result: null
-regression_result: null
-evidence_result: null
+tests_result: passed
+regression_result: passed
+evidence_result: passed
 execution_hash: f9d7948e2eb4f1500b10854e82a1068dd9e2a57e901f5681de676de1a2072c0c
 verification_hash: db1210e3d648b61acd82603d45efdfcce201f35f0082d9c6a2e997da0d61d5b6
-criteria_hash: d41a7b016dac96ef45dfe1faec62c8be21109aace30d3c27755bbbf3674c3cc7
-state_hash: c15856cdb3af70b44545751b489407d524db705597266f62e9c2431ccee3a03c
+criteria_hash: 82cf54c541a35cf7d911d1dccf4923f19111077ca100c2ba6da907c35fa789e9
+state_hash: f234ef68a3fbeadeec81437e060ac231e6eaaa2222034dbe8dc70caf7d3fa614
+model: claude-opus-5-5
