@@ -77,6 +77,7 @@ skills:
     - rules/project/database.md
     - rules/project/frontend.md
     - rules/project/testing.md
+    - rules/project/development-methodology.md
   plan-tasks:
     - config/tasks.yml
     - rules/project/naming-convention.md

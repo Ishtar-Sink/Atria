@@ -2,7 +2,7 @@
 type: knowledge
 title: "Conhecimentos"
 description: "Descobertas e peculiaridades do projeto sem documentação primária. Consulte antes de pesquisar ou investigar um assunto pouco documentado."
-updated_at: 2026-10-31T03:29:39Z
+updated_at: 2026-11-01T14:06:30Z
 ---
 
 # Conhecimentos
@@ -91,3 +91,21 @@ Entradas criadas por `vostok memory add` e consultadas por `vostok memory search
 - **Conhecimento:** O `tower-sessions-sqlx-store` liga o recurso `time` do `sqlx`; com `time` e `chrono` ligados, as macros (`query!`, `query_as!`, `query_scalar!`) mapeiam `DATE`/`TIMESTAMPTZ` para `time::Date`/`OffsetDateTime`, e o sqlx 0.8 não tem opção para preferir `chrono`. Parâmetros chrono precisam de `valor as _`; colunas de saída precisam de `AS "col: _"` em `query_as!` (usa o tipo do campo da struct) ou `AS "col: DateTime<Utc>"`/`"col: NaiveDate"` em `query!`/`query_scalar!`. Enums próprios (`Visibility`, status) seguem a mesma regra. O `sqlx-cli` precisa ser da mesma versão do `sqlx` (0.8.6).
 - **Como foi descoberto:** Na TASK-18 da SPEC-001, ao trocar as queries de produção pelas macros: todo parâmetro e coluna de data falhou com `expected OffsetDateTime, found DateTime<Utc>`; `cargo tree -i sqlx -e features` mostrou o `time` vindo do store de sessões.
 - **Validade:** Enquanto o store de sessões depender do recurso `time` do sqlx e o projeto usar `chrono` (sqlx 0.8; o 0.9 tem sobreposição de tipos no `sqlx.toml`). Para regenerar a `.sqlx` num banco vazio, aplique as migrações com um binário compilado com `SQLX_OFFLINE=true` (com `DATABASE_URL` apontando para o banco vazio o crate não compila), e só depois rode `cargo sqlx prepare --workspace`: uma falha no `prepare` apaga a `.sqlx`.
+
+## KNW-010: Responder sempre em pt-br, inclusive em mensagens curtas de progresso entre comandos
+
+- **Data:** 2026-11-01
+- **Status:** válido
+- **Tags:** idioma, respostas, pt-br
+- **Conhecimento:** Toda mensagem ao usuário sai em pt-br, inclusive as frases curtas de progresso escritas entre chamadas de ferramenta, que tendem a escapar em inglês.
+- **Como foi descoberto:** O usuário reclamou duas vezes de respostas em inglês, a última na finalização da onda 1 da SPEC-002.
+- **Validade:** Permanente, em todas as skills e sessões do projeto.
+
+## KNW-011: vostok task evidence --reviewed aceita várias vezes na mesma chamada
+
+- **Data:** 2026-11-01
+- **Status:** válido
+- **Tags:** vostok, evidências, prints, finish-task
+- **Conhecimento:** Cada `vostok task evidence` roda de novo todas as evidências e regera os prints, o que zera a conferência dos prints que não vieram no `--reviewed` da chamada. Numa tarefa com mais de um print ou vídeo, registre todos numa só chamada, repetindo a opção: `vostok task evidence SPEC TASK --reviewed a.webm --reviewed b.png`.
+- **Como foi descoberto:** Na finalização da onda 4 da SPEC-002, registrar um print por chamada deixou as TASK-20 e 28 com prints sem conferência, e o `vostok task finish` recusou.
+- **Validade:** Enquanto o `vostok task evidence` regerar todos os prints a cada chamada.
