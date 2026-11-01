@@ -68,3 +68,10 @@ export type { DialogProps } from './dialog/dialog';
 export { MoneyField } from './money-field/money-field';
 export type { MoneyFieldProps } from './money-field/money-field';
 export { maskMoneyInput, parseMoneyInput, formatCents } from './money-field/money-mask';
+export { Autocomplete } from './autocomplete/autocomplete';
+export type {
+  AutocompleteProps,
+  AutocompleteOption,
+  AutocompleteSingleProps,
+  AutocompleteMultipleProps,
+} from './autocomplete/autocomplete';
