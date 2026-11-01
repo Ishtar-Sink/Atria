@@ -1265,6 +1265,121 @@
         }
       }
     },
+    "/api/v1/articles/{id}/highlights/{highlight_id}": {
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "operationId": "delete_article_highlight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id do artigo",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "highlight_id",
+            "in": "path",
+            "description": "Id do destaque",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Destaque excluído do leitor e das listas"
+          },
+          "404": {
+            "description": "article_not_found ou highlight_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "library"
+        ],
+        "operationId": "update_article_highlight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id do artigo",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "highlight_id",
+            "in": "path",
+            "description": "Id do destaque",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHighlightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Troca a cor do destaque",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "article_not_found ou highlight_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/articles/{id}/pdf": {
       "put": {
         "tags": [
@@ -2467,6 +2582,121 @@
         }
       }
     },
+    "/api/v1/books/{id}/highlights/{highlight_id}": {
+      "delete": {
+        "tags": [
+          "library"
+        ],
+        "operationId": "delete_book_highlight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id do livro",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "highlight_id",
+            "in": "path",
+            "description": "Id do destaque",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Destaque excluído do leitor e das listas"
+          },
+          "404": {
+            "description": "book_not_found ou highlight_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "library"
+        ],
+        "operationId": "update_book_highlight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id do livro",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "highlight_id",
+            "in": "path",
+            "description": "Id do destaque",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHighlightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Troca a cor do destaque",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "book_not_found ou highlight_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/books/{id}/pdf": {
       "put": {
         "tags": [
@@ -3409,6 +3639,7 @@
         },
         "responses": {
           "200": {
+            "description": "Renomeia ou troca o ícone",
             "content": {
               "application/json": {
                 "schema": {
@@ -3506,6 +3737,18 @@
             }
           },
           {
+            "name": "Range",
+            "in": "header",
+            "description": "Um intervalo em bytes, como bytes=0-65535",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "download",
             "in": "query",
             "description": "`true` responde com `Content-Disposition: attachment`.",
@@ -3517,13 +3760,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Conteúdo do arquivo; o tipo é o gravado no envio",
+            "description": "Arquivo inteiro, com Accept-Ranges: bytes; o tipo é o gravado no envio",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "206": {
+            "description": "Trecho pedido em Range, com Content-Range: bytes início-fim/tamanho",
             "content": {
               "application/pdf": {}
             }
           },
           "404": {
             "description": "file_not_found, também para arquivo de outra pessoa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "416": {
+            "description": "range_not_satisfiable, com Content-Range: bytes */tamanho",
             "content": {
               "application/json": {
                 "schema": {
@@ -9543,6 +9802,17 @@
             "type": "string",
             "format": "uuid"
           },
+          "system_key": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SystemCategoryKey",
+                "description": "Chave da categoria padrão (RF-11): a tela traduz o nome por ela; nula nas criadas pela pessoa e nas padrão renomeadas."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time"
@@ -9912,6 +10182,17 @@
           "name"
         ],
         "properties": {
+          "icon": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmotionIconKey",
+                "description": "Ícone do conjunto fixo; ausente, a tela mostra o ícone neutro."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
             "type": "string",
             "description": "De 1 a 50 caracteres depois de aparado, sem repetir outro nome da lista."
@@ -10437,8 +10718,8 @@
           "recurrence": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/RecurrenceRule",
-                "description": "Com a regra, a tarefa é recorrente."
+                "$ref": "#/components/schemas/TaskRecurrenceRule",
+                "description": "Com a regra, a tarefa é recorrente. `time` opcional: sem ele, a ocorrência vale\no dia inteiro (RN-04)."
               },
               {
                 "type": "null"
@@ -10679,6 +10960,24 @@
           "loss"
         ]
       },
+      "EmotionIconKey": {
+        "type": "string",
+        "description": "Ícone de uma emoção, de um conjunto fixo (RF-19); uma chave fora dele falha na\nleitura do corpo e vira 422 `validation_failed`.",
+        "enum": [
+          "sun",
+          "rain",
+          "flame",
+          "bolt",
+          "wind",
+          "leaf",
+          "heart",
+          "star",
+          "moon",
+          "cloud",
+          "sparkles",
+          "smile"
+        ]
+      },
       "EmotionList": {
         "type": "object",
         "description": "A lista inteira de emoções da pessoa: ela é curta, então não é paginada.",
@@ -10707,6 +11006,17 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmotionIconKey",
+                "description": "Nulo: a tela usa o ícone pela `system_key` ou o neutro (CB-09)."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "type": "string",
@@ -10900,7 +11210,7 @@
             "items": {
               "$ref": "#/components/schemas/TransactionItemResponse"
             },
-            "description": "Saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas."
+            "description": "Entradas e saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas, com as ocorrências abertas das recorrentes (RF-15)."
           },
           "where_it_went": {
             "type": "array",
@@ -13031,6 +13341,19 @@
           }
         }
       },
+      "SystemCategoryKey": {
+        "type": "string",
+        "description": "Chave estável de uma categoria padrão (RF-11).",
+        "enum": [
+          "salary",
+          "freelance",
+          "housing",
+          "groceries",
+          "transport",
+          "leisure",
+          "health"
+        ]
+      },
       "SystemEmotionKey": {
         "type": "string",
         "description": "Chave de uma emoção padrão; o nome exibido vem da tradução do frontend\n([project/language-06]).",
@@ -13070,6 +13393,62 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "TaskRecurrenceRule": {
+        "type": "object",
+        "description": "Regra das tarefas (RN-04): sem horário, a ocorrência vale o dia inteiro na data.\nLembretes e Financeiro usam `RecurrenceRule`, que exige o horário.",
+        "required": [
+          "frequency",
+          "interval",
+          "timezone",
+          "starts_on"
+        ],
+        "properties": {
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "interval": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "month_day": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "08:00"
+          },
+          "timezone": {
+            "type": "string",
+            "example": "America/Sao_Paulo"
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Weekday"
+            }
           }
         }
       },
@@ -13124,6 +13503,14 @@
               "type": "string"
             }
           },
+          "next_occurrence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Recorrente: a próxima data não concluída a partir de hoje; pontual: igual a `due_on`; terminada: nulo (RF-38)."
+          },
           "owner_id": {
             "type": "string",
             "format": "uuid"
@@ -13131,8 +13518,8 @@
           "recurrence": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/RecurrenceRule",
-                "description": "Regra vigente da tarefa recorrente."
+                "$ref": "#/components/schemas/TaskRecurrenceRule",
+                "description": "Regra vigente da tarefa recorrente. `time` opcional: sem ele, a ocorrência vale\no dia inteiro (RN-04)."
               },
               {
                 "type": "null"
@@ -13921,12 +14308,23 @@
       },
       "UpdateEmotionRequest": {
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "description": "Edição parcial: o campo ausente fica como está.",
         "properties": {
+          "icon": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmotionIconKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -13984,6 +14382,19 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateHighlightRequest": {
+        "type": "object",
+        "description": "Só a cor muda; texto, página e retângulos ficam.",
+        "required": [
+          "color"
+        ],
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/HighlightColor"
           }
         },
         "additionalProperties": false
@@ -14381,8 +14792,8 @@
           "recurrence": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/RecurrenceRule",
-                "description": "Regra nova da tarefa recorrente, valendo a partir de `effective_from`."
+                "$ref": "#/components/schemas/TaskRecurrenceRule",
+                "description": "Regra nova da tarefa recorrente, valendo a partir de `effective_from`. `time`\nopcional: sem ele, a ocorrência vale o dia inteiro (RN-04)."
               },
               {
                 "type": "null"

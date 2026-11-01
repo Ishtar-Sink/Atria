@@ -228,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/articles/{id}/highlights/{highlight_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_article_highlight"];
+        options?: never;
+        head?: never;
+        patch: operations["update_article_highlight"];
+        trace?: never;
+    };
     "/api/v1/articles/{id}/pdf": {
         parameters: {
             query?: never;
@@ -466,6 +482,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/books/{id}/highlights/{highlight_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_book_highlight"];
+        options?: never;
+        head?: never;
+        patch: operations["update_book_highlight"];
         trace?: never;
     };
     "/api/v1/books/{id}/pdf": {
@@ -1682,6 +1714,7 @@ export interface components {
             name: string;
             /** Format: uuid */
             owner_id: string;
+            system_key?: components["schemas"]["SystemCategoryKey"] | null;
             /** Format: date-time */
             updated_at: string;
             visibility: components["schemas"]["Visibility"];
@@ -1778,6 +1811,7 @@ export interface components {
             visibility?: components["schemas"]["Visibility"] | null;
         };
         CreateEmotionRequest: {
+            icon?: components["schemas"]["EmotionIconKey"] | null;
             /** @description De 1 a 50 caracteres depois de aparado, sem repetir outro nome da lista. */
             name: string;
             visibility?: components["schemas"]["Visibility"] | null;
@@ -1931,7 +1965,7 @@ export interface components {
              *     ]
              */
             labels?: string[] | null;
-            recurrence?: components["schemas"]["RecurrenceRule"] | null;
+            recurrence?: components["schemas"]["TaskRecurrenceRule"] | null;
             /** @example Pagar a conta de luz */
             title: string;
             visibility?: components["schemas"]["Visibility"];
@@ -1998,6 +2032,12 @@ export interface components {
         };
         /** @enum {string} */
         DifferenceKindDto: "saving" | "gain" | "loss";
+        /**
+         * @description Ícone de uma emoção, de um conjunto fixo (RF-19); uma chave fora dele falha na
+         *     leitura do corpo e vira 422 `validation_failed`.
+         * @enum {string}
+         */
+        EmotionIconKey: "sun" | "rain" | "flame" | "bolt" | "wind" | "leaf" | "heart" | "star" | "moon" | "cloud" | "sparkles" | "smile";
         /** @description A lista inteira de emoções da pessoa: ela é curta, então não é paginada. */
         EmotionList: {
             items: components["schemas"]["EmotionResponse"][];
@@ -2005,6 +2045,7 @@ export interface components {
         EmotionResponse: {
             /** Format: date-time */
             created_at: string;
+            icon?: components["schemas"]["EmotionIconKey"] | null;
             /** Format: uuid */
             id: string;
             /** @description Nulo numa emoção padrão não renomeada: o frontend traduz pela `system_key`. */
@@ -2056,7 +2097,7 @@ export interface components {
             previous_totals?: components["schemas"]["PeriodTotalsDto"] | null;
             savings_and_losses: components["schemas"]["SavingsAndLossesDto"];
             totals: components["schemas"]["PeriodTotalsDto"];
-            /** @description Saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas. */
+            /** @description Entradas e saídas não liquidadas dos próximos 30 dias, inclusive as atrasadas, com as ocorrências abertas das recorrentes (RF-15). */
             upcoming_bills: components["schemas"]["TransactionItemResponse"][];
             where_it_went: components["schemas"]["WhereItemDto"][];
         };
@@ -2707,6 +2748,11 @@ export interface components {
             id: string;
         };
         /**
+         * @description Chave estável de uma categoria padrão (RF-11).
+         * @enum {string}
+         */
+        SystemCategoryKey: "salary" | "freelance" | "housing" | "groceries" | "transport" | "leisure" | "health";
+        /**
          * @description Chave de uma emoção padrão; o nome exibido vem da tradução do frontend
          *     ([project/language-06]).
          * @enum {string}
@@ -2720,6 +2766,26 @@ export interface components {
         TaskPageResponse: {
             items: components["schemas"]["TaskResponse"][];
             next_cursor?: string | null;
+        };
+        /**
+         * @description Regra das tarefas (RN-04): sem horário, a ocorrência vale o dia inteiro na data.
+         *     Lembretes e Financeiro usam `RecurrenceRule`, que exige o horário.
+         */
+        TaskRecurrenceRule: {
+            /** Format: date */
+            ends_on?: string | null;
+            frequency: components["schemas"]["Frequency"];
+            /** Format: int32 */
+            interval: number;
+            /** Format: int32 */
+            month_day?: number | null;
+            /** Format: date */
+            starts_on: string;
+            /** @example 08:00 */
+            time?: string | null;
+            /** @example America/Sao_Paulo */
+            timezone: string;
+            weekdays?: components["schemas"]["Weekday"][];
         };
         TaskResponse: {
             /**
@@ -2736,9 +2802,14 @@ export interface components {
             id: string;
             is_recurring: boolean;
             labels: string[];
+            /**
+             * Format: date
+             * @description Recorrente: a próxima data não concluída a partir de hoje; pontual: igual a `due_on`; terminada: nulo (RF-38).
+             */
+            next_occurrence?: string | null;
             /** Format: uuid */
             owner_id: string;
-            recurrence?: components["schemas"]["RecurrenceRule"] | null;
+            recurrence?: components["schemas"]["TaskRecurrenceRule"] | null;
             title: string;
             /** Format: date-time */
             updated_at: string;
@@ -2956,8 +3027,10 @@ export interface components {
             name?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
+        /** @description Edição parcial: o campo ausente fica como está. */
         UpdateEmotionRequest: {
-            name: string;
+            icon?: components["schemas"]["EmotionIconKey"] | null;
+            name?: string | null;
         };
         UpdateGoalRequest: {
             /**
@@ -2972,6 +3045,10 @@ export interface components {
             status?: components["schemas"]["GoalStatus"] | null;
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
+        };
+        /** @description Só a cor muda; texto, página e retângulos ficam. */
+        UpdateHighlightRequest: {
+            color: components["schemas"]["HighlightColor"];
         };
         /**
          * @description Mudança parcial; texto vazio limpa o campo de SMTP. Campos desconhecidos (como uma
@@ -3069,7 +3146,7 @@ export interface components {
             effective_from?: string | null;
             /** @description Troca a lista inteira de etiquetas; ausente, mantém. */
             labels?: string[] | null;
-            recurrence?: components["schemas"]["RecurrenceRule"] | null;
+            recurrence?: components["schemas"]["TaskRecurrenceRule"] | null;
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -4111,6 +4188,85 @@ export interface operations {
             };
         };
     };
+    delete_article_highlight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id do artigo */
+                id: string;
+                /** @description Id do destaque */
+                highlight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Destaque excluído do leitor e das listas */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description article_not_found ou highlight_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_article_highlight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id do artigo */
+                id: string;
+                /** @description Id do destaque */
+                highlight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateHighlightRequest"];
+            };
+        };
+        responses: {
+            /** @description Troca a cor do destaque */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HighlightResponse"];
+                };
+            };
+            /** @description article_not_found ou highlight_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description validation_failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     put_article_pdf: {
         parameters: {
             query?: never;
@@ -5036,6 +5192,85 @@ export interface operations {
             };
         };
     };
+    delete_book_highlight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id do livro */
+                id: string;
+                /** @description Id do destaque */
+                highlight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Destaque excluído do leitor e das listas */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description book_not_found ou highlight_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_book_highlight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id do livro */
+                id: string;
+                /** @description Id do destaque */
+                highlight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateHighlightRequest"];
+            };
+        };
+        responses: {
+            /** @description Troca a cor do destaque */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HighlightResponse"];
+                };
+            };
+            /** @description book_not_found ou highlight_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description validation_failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     put_book_pdf: {
         parameters: {
             query?: never;
@@ -5728,6 +5963,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Renomeia ou troca o ícone */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5802,7 +6038,10 @@ export interface operations {
                 /** @description `true` responde com `Content-Disposition: attachment`. */
                 download?: boolean;
             };
-            header?: never;
+            header?: {
+                /** @description Um intervalo em bytes, como bytes=0-65535 */
+                Range?: string | null;
+            };
             path: {
                 /** @description Id do arquivo */
                 id: string;
@@ -5811,8 +6050,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Conteúdo do arquivo; o tipo é o gravado no envio */
+            /** @description Arquivo inteiro, com Accept-Ranges: bytes; o tipo é o gravado no envio */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Trecho pedido em Range, com Content-Range: bytes início-fim/tamanho */
+            206: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5822,6 +6070,15 @@ export interface operations {
             };
             /** @description file_not_found, também para arquivo de outra pessoa */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description range_not_satisfiable, com Content-Range: bytes *\/tamanho */
+            416: {
                 headers: {
                     [name: string]: unknown;
                 };
