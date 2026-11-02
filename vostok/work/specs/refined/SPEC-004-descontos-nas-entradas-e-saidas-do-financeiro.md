@@ -1,10 +1,10 @@
 ---
 id: SPEC-004
 title: "Descontos nas entradas e saídas do Financeiro"
-status: planned
+status: implemented
 author: "Victor Batalha"
 created_at: 2026-11-02T01:55:07Z
-updated_at: 2026-11-02T02:56:46Z
+updated_at: 2026-11-02T14:30:24Z
 tags: []
 type: feature
 source: "draft/SPEC-004-descontos-nas-entradas-e-saidas-do-financeiro.md"
