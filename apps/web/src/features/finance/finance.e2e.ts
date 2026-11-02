@@ -82,6 +82,53 @@ async function expectBalance(page: Page, account: string, amount: string) {
   }).toPass({ timeout: 15_000 });
 }
 
+interface AdjustmentStep {
+  name: string;
+  rate?: string;
+  amount?: string;
+  base?: string;
+  addition?: boolean;
+}
+
+/** Adiciona um item pelo editor: percentual (`rate`, com `base` opcional) ou valor fixo (`amount`). */
+async function addAdjustment(page: Page, position: number, step: AdjustmentStep) {
+  await page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }).click();
+  const item = page.getByRole('group', { name: `Item ${String(position)}`, exact: true });
+  await item.getByRole('textbox', { name: 'Nome do item' }).fill(step.name);
+  if (step.addition)
+    await item
+      .locator('label')
+      .filter({ hasText: /^Acréscimo$/ })
+      .click();
+  if (step.amount !== undefined) {
+    await item
+      .locator('label')
+      .filter({ hasText: /^Valor fixo$/ })
+      .click();
+    await item.getByRole('textbox', { name: /^Valor do item/ }).fill(step.amount);
+    return;
+  }
+  await item.getByRole('textbox', { name: 'Percentual (%)' }).fill(step.rate ?? '');
+  if (step.base !== undefined) {
+    await item.getByText('Base diferente do bruto', { exact: true }).click();
+    await item.getByRole('textbox', { name: /^Base de cálculo/ }).fill(step.base);
+  }
+}
+
+/** O líquido previsto anunciado pelo editor do formulário. */
+function expectedNet(page: Page) {
+  return page.getByRole('group', { name: 'Descontos e acréscimos' }).getByRole('status');
+}
+
+/** Clica em "Liquidar" e espera a resposta, como `settle`, sem trocar o valor efetivo. */
+async function settleNow(page: Page) {
+  const settled = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/settlement'),
+  );
+  await page.getByRole('button', { name: 'Liquidar' }).click();
+  expect((await settled).ok()).toBe(true);
+}
+
 test('default account cannot be deleted', async ({ page }) => {
   await page.goto('/finance/accounts');
   await page.getByRole('link', { name: 'Conta principal' }).click();
@@ -165,11 +212,17 @@ test('monthly rent on day 31 falls on the last day', async ({ page }) => {
   await choose(page, 'Frequência', 'Mensal');
   await choose(page, 'Dia do mês', '31');
   await page.getByRole('button', { name: 'Salvar' }).click();
+  // Desde a SPEC-002, salvar a recorrência volta para Saídas com o aviso da primeira ocorrência.
+  await expect(page).toHaveURL(/\/finance\/expenses(\?.*)?$/);
+  await expect(page.getByText(/Recorrência salva\./)).toBeVisible();
+  // A busca evita que as recorrências diárias de outros testes empurrem o aluguel da 1ª página.
+  await page.goto('/finance/expenses?period=next_30_days&repetition=recurring&q=Aluguel');
+  const rent = page.getByRole('link', { name: 'Aluguel' }).first();
+  await expect(rent).toBeVisible();
+  await checkPage(page);
+  await rent.click();
   await expect(page.getByRole('heading', { level: 1, name: 'Aluguel' })).toBeVisible();
   await expect(page.getByText('Todo mês no dia 31').first()).toBeVisible();
-  await page.goto('/finance/expenses?period=next_30_days&repetition=recurring');
-  await expect(page.getByRole('link', { name: 'Aluguel' }).first()).toBeVisible();
-  await checkPage(page);
 });
 
 test('recurring occurrence stays overdue until settled or skipped', async ({ page }) => {
@@ -293,7 +346,8 @@ test('ct04 deleting an account with transactions moves them to the destination',
   await expect(dialog.getByText('Conta de destino')).toBeVisible();
   await choose(page, 'Conta de destino', 'Conta principal');
   await dialog.getByRole('button', { name: 'Mover e excluir' }).click();
-  await expect(page).toHaveURL(/\/finance\/accounts$/);
+  // Desde a SPEC-003, a lista guarda os filtros na URL.
+  await expect(page).toHaveURL(/\/finance\/accounts(\?.*)?$/);
   await expect(page.getByRole('link', { name })).toHaveCount(0);
   await page.goto('/finance/expenses?period=all');
   await page.getByRole('link', { name: description }).click();
@@ -341,5 +395,68 @@ test('undoing a settlement restores the balance', async ({ page }) => {
   await page.getByRole('button', { name: 'Desfazer liquidação' }).click();
   await expect(page.getByText('Liquidação desfeita.')).toBeVisible();
   await expectBalance(page, account, 'R$ 0,00');
+  await checkPage(page);
+});
+
+test('ct05 settles an income with deductions by the net and the balance gets the net', async ({
+  page,
+}) => {
+  // O cartão do painel soma tudo da pessoa: este teste entra com uma pessoa só dele.
+  await signIn(page, 'user');
+  const account = `Conta salário ${SUFFIX()}`;
+  await createAccount(page, account);
+  await page.goto('/finance/transactions/new?kind=income');
+  await page.getByRole('textbox', { name: 'Descrição' }).fill('Salário');
+  await choose(page, 'Conta', account);
+  await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('8.000,00');
+  await addAdjustment(page, 1, { name: 'INSS', rate: '11' });
+  await addAdjustment(page, 2, { name: 'IRPF', rate: '15', base: '7.120,00' });
+  await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s6\.052,00/);
+  await checkPage(page);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Salário' })).toBeVisible();
+  const adjustments = page.getByRole('region', { name: 'Descontos e acréscimos' });
+  await expect(adjustments).toContainText('8.000,00');
+  await expect(adjustments).toContainText('6.052,00');
+
+  await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill('6.500,00');
+  const settlement = page.getByRole('region', { name: 'Liquidação', exact: true });
+  await expect(settlement.getByRole('region', { name: 'Prévia da liquidação' })).toContainText(
+    '8.592,20',
+  );
+  await expect(settlement).toContainText('7.647,06');
+  await checkPage(page);
+  await settleNow(page);
+  await expect(adjustments).toContainText('Liquidado');
+  await expect(adjustments).toContainText('8.592,20');
+  await expect(page.getByText('Recebeu R$ 448,00 a mais')).toBeVisible();
+  await checkPage(page);
+
+  await expectBalance(page, account, '6.500,00');
+  await page.goto('/finance');
+  await expect(page.getByRole('region', { name: /^Fechamento/ })).toContainText('6.500,00');
+  const card = page.getByRole('region', { name: 'Descontos do período' });
+  await expect(card).toContainText('INSS');
+  await expect(card).toContainText('945,14');
+  await expect(card).toContainText('IRPF');
+  await expect(card).toContainText('1.147,06');
+  await checkPage(page);
+});
+
+test('fa02 an expense with discount and fee takes the net from the balance', async ({ page }) => {
+  const account = `Conta desconto ${SUFFIX()}`;
+  await createAccount(page, account);
+  await page.goto('/finance/transactions/new?kind=expense');
+  await page.getByRole('textbox', { name: 'Descrição' }).fill('Conta de luz');
+  await choose(page, 'Conta', account);
+  await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('200,00');
+  await addAdjustment(page, 1, { name: 'Desconto à vista', rate: '10' });
+  await addAdjustment(page, 2, { name: 'Taxa', amount: '5,00', addition: true });
+  await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s185,00/);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Conta de luz' })).toBeVisible();
+  await settleNow(page);
+  await expect(page.getByText('Liquidada pelo valor previsto.')).toBeVisible();
+  await expectBalance(page, account, '185,00');
   await checkPage(page);
 });
