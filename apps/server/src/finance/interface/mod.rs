@@ -33,6 +33,11 @@ pub fn routes() -> Router<AppState> {
             "/transactions",
             get(h::list_transactions).post(h::create_transactions),
         )
+        // O segmento fixo tem precedência sobre `{id}`.
+        .route(
+            "/transactions/settlement-preview",
+            post(h::preview_settlement),
+        )
         .route(
             "/transactions/{id}",
             get(h::get_transaction)

@@ -1337,6 +1337,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transactions/settlement-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prévia da liquidação pelo líquido: bruto e itens recalculados, sem gravar (RF-09, decisão 13). */
+        post: operations["preview_settlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transactions/{id}": {
         parameters: {
             query?: never;
@@ -1536,6 +1553,52 @@ export interface components {
             updated_at: string;
             visibility: components["schemas"]["Visibility"];
         };
+        /** @enum {string} */
+        AdjustmentDirectionDto: "deduction" | "addition";
+        /** @description Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06). */
+        AdjustmentDto: {
+            /**
+             * Format: int64
+             * @description Só no fixo: valor em centavos, maior que zero.
+             */
+            amount?: number | null;
+            /**
+             * Format: int64
+             * @description Só no percentual, opcional: base digitada em centavos; ausente, a base é o bruto.
+             */
+            base_amount?: number | null;
+            /**
+             * Format: int64
+             * @description Valor calculado em centavos; preenchido na resposta e ignorado no pedido.
+             */
+            computed_amount?: number | null;
+            /** @description Desconto (`deduction`) ou acréscimo (`addition`). */
+            direction: components["schemas"]["AdjustmentDirectionDto"];
+            /** @description Valor fixo (`fixed`) ou percentual (`percent`). */
+            mode: components["schemas"]["AdjustmentModeDto"];
+            /**
+             * @description Nome do item, de 1 a 60 caracteres.
+             * @example INSS
+             */
+            name: string;
+            /**
+             * Format: int32
+             * @description Só no percentual: centésimos de ponto percentual, de 1 a 9999 (1100 = 11,00%).
+             */
+            rate_bp?: number | null;
+        };
+        /** @enum {string} */
+        AdjustmentModeDto: "fixed" | "percent";
+        /** @description Um nome do cartão "Descontos do período", em centavos: `expected` com as liquidadas pelos valores da liquidação e as previstas pelos previstos, `settled` só as liquidadas (RF-14, RN-11). */
+        AdjustmentTotalDto: {
+            direction: components["schemas"]["AdjustmentDirectionDto"];
+            /** Format: int64 */
+            expected: number;
+            /** @example INSS */
+            name: string;
+            /** Format: int64 */
+            settled: number;
+        };
         AdminPasswordResetRequest: {
             /** Format: uuid */
             user_id: string;
@@ -1621,6 +1684,14 @@ export interface components {
          * @enum {string}
          */
         BookStatus: "want_to_read" | "reading" | "read";
+        /** @description Bruto, líquido e itens calculados. */
+        BreakdownDto: {
+            adjustments: components["schemas"]["AdjustmentDto"][];
+            /** Format: int64 */
+            gross_amount: number;
+            /** Format: int64 */
+            net_amount: number;
+        };
         CardPage: {
             items: components["schemas"]["CardResponse"][];
             /** @description Sempre nulo: os cartões de um projeto vêm todos de uma vez. */
@@ -1888,11 +1959,21 @@ export interface components {
         CreateRecurringTransactionRequest: {
             /** Format: uuid */
             account_id: string;
+            /** @description De 0 a 20 itens, na ordem. */
+            adjustments?: components["schemas"]["AdjustmentDto"][];
             /** Format: uuid */
             category_id?: string | null;
             description?: string | null;
-            /** Format: int64 */
-            expected_amount: number;
+            /**
+             * Format: int64
+             * @description Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09).
+             */
+            expected_amount?: number | null;
+            /**
+             * Format: int64
+             * @description Bruto previsto de cada ocorrência; o líquido é calculado com os itens.
+             */
+            gross_amount?: number | null;
             kind: components["schemas"]["TransactionKindDto"];
             rule: components["schemas"]["RecurrenceRule"];
             visibility?: components["schemas"]["Visibility"] | null;
@@ -1939,13 +2020,23 @@ export interface components {
         CreateTransactionRequest: {
             /** Format: uuid */
             account_id: string;
+            /** @description De 0 a 20 itens, na ordem. */
+            adjustments?: components["schemas"]["AdjustmentDto"][];
             /** Format: uuid */
             category_id?: string | null;
             description?: string | null;
-            /** Format: int64 */
-            expected_amount: number;
+            /**
+             * Format: int64
+             * @description Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09).
+             */
+            expected_amount?: number | null;
             /** Format: date */
             expected_date: string;
+            /**
+             * Format: int64
+             * @description Bruto previsto em centavos; o líquido é calculado com os itens.
+             */
+            gross_amount?: number | null;
             kind: components["schemas"]["TransactionKindDto"];
             visibility?: components["schemas"]["Visibility"] | null;
         };
@@ -2032,6 +2123,8 @@ export interface components {
             field: string;
         };
         FinancialSummaryResponse: {
+            /** @description Descontos e acréscimos do período por nome, sem diferenciar maiúsculas e acentos; descontos primeiro (RF-14). */
+            adjustments_by_name: components["schemas"]["AdjustmentTotalDto"][];
             balance: components["schemas"]["BalanceDto"];
             /** @example BRL */
             currency: string;
@@ -2525,6 +2618,8 @@ export interface components {
         RecurringTransactionResponse: {
             /** Format: uuid */
             account_id: string;
+            /** @description Itens previstos da regra, na ordem, com o valor calculado. */
+            adjustments: components["schemas"]["AdjustmentDto"][];
             /** Format: uuid */
             category_id?: string | null;
             /** Format: date-time */
@@ -2532,8 +2627,16 @@ export interface components {
             /** @example BRL */
             currency: string;
             description?: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Líquido previsto de cada ocorrência.
+             */
             expected_amount: number;
+            /**
+             * Format: int64
+             * @description Bruto previsto; igual ao líquido sem itens.
+             */
+            gross_amount: number;
             /** Format: uuid */
             id: string;
             kind: components["schemas"]["TransactionKindDto"];
@@ -2618,6 +2721,8 @@ export interface components {
         };
         /** @description Liquidação da ocorrência aberta; `occurrence_date` tem de ser a dela. */
         SettleOccurrenceRequest: {
+            /** @description Itens editados na liquidação; a regra não muda (RF-10). */
+            adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: date */
             occurrence_date: string;
             /** Format: int64 */
@@ -2626,7 +2731,12 @@ export interface components {
             settled_at: string;
         };
         SettleTransactionRequest: {
-            /** Format: int64 */
+            /** @description Itens editados na liquidação; ausentes, os previstos (RF-10). */
+            adjustments?: components["schemas"]["AdjustmentDto"][] | null;
+            /**
+             * Format: int64
+             * @description Líquido liquidado, o valor que entra no caixa.
+             */
             settled_amount: number;
             /** Format: date */
             settled_at: string;
@@ -2638,6 +2748,21 @@ export interface components {
         SettledTransactionPage: {
             items: components["schemas"]["TransactionResponse"][];
             next_cursor?: string | null;
+        };
+        /** @description Prévia da liquidação pelo líquido, sem gravar (RF-09, decisão 13). */
+        SettlementPreviewRequest: {
+            /** @description Itens da liquidação, na ordem. */
+            adjustments?: components["schemas"]["AdjustmentDto"][];
+            /**
+             * Format: int64
+             * @description Bruto previsto, para escalar a base digitada na proporção do bruto (RN-06).
+             */
+            expected_gross_amount: number;
+            /**
+             * Format: int64
+             * @description Líquido informado, em centavos.
+             */
+            settled_amount: number;
         };
         SetupRequest: {
             email: string;
@@ -2758,6 +2883,8 @@ export interface components {
         TransactionItemResponse: {
             /** Format: uuid */
             account_id: string;
+            /** @description Itens previstos, na ordem, com o valor calculado. */
+            adjustments: components["schemas"]["AdjustmentDto"][];
             /** Format: uuid */
             category_id?: string | null;
             /** Format: date-time */
@@ -2770,12 +2897,20 @@ export interface components {
             difference_kind?: components["schemas"]["DifferenceKindDto"] | null;
             /** Format: date */
             effective_date: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Líquido previsto, o valor que afeta o saldo.
+             */
             expected_amount: number;
             /** Format: date */
             expected_date: string;
             /** Format: uuid */
             generated_from?: string | null;
+            /**
+             * Format: int64
+             * @description Bruto previsto; igual ao líquido sem itens.
+             */
+            gross_amount: number;
             /** Format: uuid */
             id?: string | null;
             kind: components["schemas"]["TransactionKindDto"];
@@ -2785,10 +2920,17 @@ export interface components {
             owner_id: string;
             /** Format: uuid */
             recurrence_id?: string | null;
+            /** @description Itens da liquidação; nulos enquanto prevista. */
+            settled_adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: int64 */
             settled_amount?: number | null;
             /** Format: date */
             settled_at?: string | null;
+            /**
+             * Format: int64
+             * @description Bruto liquidado; nulo enquanto prevista.
+             */
+            settled_gross_amount?: number | null;
             status: components["schemas"]["ItemStatusDto"];
             /** Format: date-time */
             updated_at?: string | null;
@@ -2804,6 +2946,8 @@ export interface components {
         TransactionResponse: {
             /** Format: uuid */
             account_id: string;
+            /** @description Itens previstos, na ordem, com o valor calculado. */
+            adjustments: components["schemas"]["AdjustmentDto"][];
             /** Format: uuid */
             category_id?: string | null;
             /** Format: date-time */
@@ -2819,7 +2963,10 @@ export interface components {
              * @description Data da liquidação, quando liquidada, e a prevista nos outros casos.
              */
             effective_date: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Líquido previsto, o valor que afeta o saldo.
+             */
             expected_amount: number;
             /** Format: date */
             expected_date: string;
@@ -2828,6 +2975,11 @@ export interface components {
              * @description Recorrente de onde veio a cópia liquidada.
              */
             generated_from?: string | null;
+            /**
+             * Format: int64
+             * @description Bruto previsto; igual ao líquido sem itens.
+             */
+            gross_amount: number;
             /** Format: uuid */
             id: string;
             kind: components["schemas"]["TransactionKindDto"];
@@ -2840,10 +2992,17 @@ export interface components {
              * @description Sempre nulo numa gravada: só as ocorrências virtuais têm recorrência.
              */
             recurrence_id?: string | null;
+            /** @description Itens da liquidação; nulos enquanto prevista. */
+            settled_adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: int64 */
             settled_amount?: number | null;
             /** Format: date */
             settled_at?: string | null;
+            /**
+             * Format: int64
+             * @description Bruto liquidado; nulo enquanto prevista.
+             */
+            settled_gross_amount?: number | null;
             status: components["schemas"]["ItemStatusDto"];
             /** Format: date-time */
             updated_at: string;
@@ -3048,11 +3207,18 @@ export interface components {
         UpdateRecurringTransactionRequest: {
             /** Format: uuid */
             account_id?: string | null;
+            /** @description Itens previstos, que substituem os atuais; valem para a aberta e as seguintes (RN-10). */
+            adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: uuid */
             category_id?: string | null;
             description?: string | null;
             /** Format: int64 */
             expected_amount?: number | null;
+            /**
+             * Format: int64
+             * @description Bruto previsto; vale para a aberta e as seguintes (RN-10).
+             */
+            gross_amount?: number | null;
             rule?: components["schemas"]["RecurrenceRule"] | null;
         };
         /** @description Edição parcial: campo ausente fica como está; `null` limpa os campos opcionais. */
@@ -3078,6 +3244,8 @@ export interface components {
         UpdateTransactionRequest: {
             /** Format: uuid */
             account_id?: string | null;
+            /** @description Itens previstos, que substituem os atuais; recalcula o líquido. */
+            adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: uuid */
             category_id?: string | null;
             description?: string | null;
@@ -3085,6 +3253,11 @@ export interface components {
             expected_amount?: number | null;
             /** Format: date */
             expected_date?: string | null;
+            /**
+             * Format: int64
+             * @description Bruto previsto; recalcula o líquido com os itens.
+             */
+            gross_amount?: number | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
         UpdateUserRequest: {
@@ -9030,6 +9203,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    preview_settlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettlementPreviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BreakdownDto"];
                 };
             };
             422: {

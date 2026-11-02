@@ -12,8 +12,9 @@ use crate::finance::domain::FinanceError;
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionKind};
 use crate::finance::infrastructure::{
-    TransactionRow, Tx, add_to_balance, begin, commit, corrupt, currency, escape_like,
-    insert_transaction, lock_account, save_settlement, storage,
+    AdjustmentRow, TransactionRow, Tx, add_to_balance, adjustment_rows, adjustments_from_rows,
+    begin, commit, corrupt, currency, escape_like, insert_transaction, lock_account,
+    save_settlement, storage,
 };
 use crate::shared::recurrence::RecurrenceRule;
 use crate::shared::visibility::Visibility;
@@ -38,6 +39,8 @@ struct RecurringRow {
     account_id: Uuid,
     category_id: Option<Uuid>,
     expected_amount: i64,
+    gross_amount: i64,
+    adjustments: Json<Vec<AdjustmentRow>>,
     currency: String,
     rule: Json<RecurrenceRule>,
     description: Option<String>,
@@ -56,6 +59,8 @@ impl RecurringRow {
             account_id: self.account_id,
             category_id: self.category_id,
             expected_amount: self.expected_amount,
+            gross_amount: self.gross_amount,
+            adjustments: adjustments_from_rows(self.adjustments.0)?,
             currency: currency(&self.currency)?,
             rule: self.rule.0,
             description: self.description,
@@ -73,7 +78,7 @@ pub(crate) async fn lock_recurring(
     id: Uuid,
 ) -> Outcome<RecurringTransaction> {
     let row: Option<RecurringRow> = sqlx::query_as!(RecurringRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, expected_amount, \
-    currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions \
+    gross_amount, adjustments AS \"adjustments: _\", currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions \
          WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE", id, owner_id)
     .fetch_optional(&mut **tx)
     .await
@@ -104,7 +109,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         let mut tx = begin(&self.pool, recurring.owner_id).await?;
         sqlx::query!("INSERT INTO recurring_transactions (id, owner_id, visibility, kind, account_id, \
              category_id, expected_amount, currency, rule, description, last_closed_on, \
-             created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)", recurring.id, recurring.owner_id, recurring.visibility as _, recurring.kind.as_str(), recurring.account_id, recurring.category_id, recurring.expected_amount, recurring.currency.as_str(), Json(&recurring.rule) as _, recurring.description.as_deref(), recurring.last_closed_on as _, recurring.created_at as _, recurring.updated_at as _)
+             created_at, updated_at, gross_amount, adjustments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)", recurring.id, recurring.owner_id, recurring.visibility as _, recurring.kind.as_str(), recurring.account_id, recurring.category_id, recurring.expected_amount, recurring.currency.as_str(), Json(&recurring.rule) as _, recurring.description.as_deref(), recurring.last_closed_on as _, recurring.created_at as _, recurring.updated_at as _, recurring.gross_amount, Json(adjustment_rows(&recurring.adjustments)) as _)
         .execute(&mut *tx)
         .await
         .map_err(storage)?;
@@ -114,7 +119,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
     async fn get(&self, owner_id: Uuid, id: Uuid) -> Outcome<RecurringTransaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let row: Option<RecurringRow> = sqlx::query_as!(RecurringRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, expected_amount, \
-    currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions \
+    gross_amount, adjustments AS \"adjustments: _\", currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions \
              WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
         .fetch_optional(&mut *tx)
         .await
@@ -132,7 +137,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
     ) -> Outcome<Vec<RecurringTransaction>> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let rows: Vec<RecurringRow> = sqlx::query_as!(RecurringRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, expected_amount, \
-    currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions WHERE owner_id = $1 \
+    gross_amount, adjustments AS \"adjustments: _\", currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions WHERE owner_id = $1 \
              AND deleted_at IS NULL AND ($2::uuid IS NULL OR id > $2) \
              AND ($3::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || \
     finance_unaccent(lower($3)) || '%' ESCAPE '\\') \
@@ -165,7 +170,8 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         let (after_date, after_id) = after.unzip();
         // Da ocorrência mais recente para a mais antiga; o id desempata.
         let rows: Vec<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
+    category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
+    settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE owner_id = $1 \
              AND generated_from = $2 AND deleted_at IS NULL \
@@ -185,7 +191,8 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         lock_recurring(&mut tx, recurring.owner_id, recurring.id).await?;
         sqlx::query!(
             "UPDATE recurring_transactions SET account_id = $1, category_id = $2, \
-             expected_amount = $3, currency = $4, rule = $5, description = $6, updated_at = $7 \
+             expected_amount = $3, currency = $4, rule = $5, description = $6, updated_at = $7, \
+             gross_amount = $10, adjustments = $11 \
              WHERE id = $8 AND owner_id = $9 AND deleted_at IS NULL",
             recurring.account_id,
             recurring.category_id,
@@ -195,7 +202,9 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
             recurring.description.as_deref(),
             recurring.updated_at as _,
             recurring.id,
-            recurring.owner_id
+            recurring.owner_id,
+            recurring.gross_amount,
+            Json(adjustment_rows(&recurring.adjustments)) as _
         )
         .execute(&mut *tx)
         .await

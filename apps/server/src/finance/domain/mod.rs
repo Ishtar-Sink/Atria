@@ -2,6 +2,7 @@
 //! ([project/architecture-03]).
 
 pub mod account;
+pub mod adjustment;
 pub mod category;
 pub mod error;
 pub mod forecast;

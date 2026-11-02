@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 AND ($2::uuid IS NULL OR account_id = $2) AND ($3::uuid IS NULL OR category_id = $3) AND ($4::text IS NULL OR kind = $4) AND ($5::date IS NULL OR effective_date >= $5) AND ($6::date IS NULL OR effective_date <= $6) AND ($7::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($7)) || '%' ESCAPE '\\') AND ($8::boolean IS NULL OR (settled_at IS NOT NULL) = $8) AND ($9::date IS NULL OR (effective_date, id) > ($9, $10)) ORDER BY effective_date, id LIMIT $11",
   "describe": {
     "columns": [
       {
@@ -45,51 +45,71 @@
       },
       {
         "ordinal": 8,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "adjustments: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
         "name": "expected_date: _",
         "type_info": "Date"
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "settled_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "settled_at: _",
         "type_info": "Date"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
+        "name": "settled_gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "settled_adjustments: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 15,
         "name": "difference_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 12,
+        "ordinal": 16,
         "name": "difference_kind",
         "type_info": "Text"
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
         "name": "currency",
         "type_info": "Bpchar"
       },
       {
-        "ordinal": 14,
+        "ordinal": 18,
         "name": "generated_from",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 15,
+        "ordinal": 19,
         "name": "occurrence_date: _",
         "type_info": "Date"
       },
       {
-        "ordinal": 16,
+        "ordinal": 20,
         "name": "created_at: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 21,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
       }
@@ -97,7 +117,16 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date",
+        "Date",
+        "Text",
+        "Bool",
+        "Date",
+        "Uuid",
+        "Int8"
       ]
     },
     "nullable": [
@@ -110,6 +139,10 @@
       true,
       false,
       false,
+      false,
+      false,
+      true,
+      true,
       true,
       true,
       true,
@@ -121,5 +154,5 @@
       false
     ]
   },
-  "hash": "83d94a3ae5d8b9ad12b2ce217acf4a1b29895e20fa16c93622fc658cd2e95e7e"
+  "hash": "5635d5c8c125eebb8e7ebb2b7094ea7c2de0c1351920534bc836354de7219a40"
 }

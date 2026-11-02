@@ -1,6 +1,7 @@
 //! Casos de uso de movimentações: registro, liquidação, listagem por período livre
 //! com as ocorrências virtuais das recorrentes e exclusão (RF-27, RF-28, RF-32,
-//! RF-33, PD-51, PD-52, PD-55).
+//! RF-33, PD-51, PD-52, PD-55). Com bruto e descontos e acréscimos (SPEC-004), cria e edita
+//! pelo bruto e calcula a prévia da liquidação pelo líquido sem gravar (RF-01, RF-09).
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -10,12 +11,13 @@ use crate::finance::application::ports::{
     AccountRepository, CategoryRepository, Outcome, RecurringTransactionRepository, Repetition,
     SettlementRequest, TransactionFilter, TransactionRepository, UndoneSettlement,
 };
+use crate::finance::domain::adjustment::{Adjustment, Breakdown, gross_for_net};
 use crate::finance::domain::category::ensure_same_kind;
 use crate::finance::domain::forecast::{FinanceItem, VirtualOccurrence, project, sort_items};
 use crate::finance::domain::optional_text;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::transaction::{
-    DESCRIPTION_MAX_CHARS, Transaction, TransactionEdit, TransactionKind, validate_expected_amount,
+    DESCRIPTION_MAX_CHARS, Transaction, TransactionEdit, TransactionKind, planned_amounts,
 };
 use crate::shared::visibility::Visibility;
 
@@ -25,7 +27,9 @@ pub struct NewTransaction {
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
-    pub expected_amount: i64,
+    pub expected_amount: Option<i64>,
+    pub gross_amount: Option<i64>,
+    pub adjustments: Vec<Adjustment>,
     pub expected_date: NaiveDate,
     pub visibility: Visibility,
 }
@@ -58,7 +62,11 @@ where
     C: CategoryRepository,
     T: TransactionRepository,
 {
-    validate_expected_amount(input.expected_amount)?;
+    let planned = planned_amounts(
+        input.expected_amount,
+        input.gross_amount,
+        &input.adjustments,
+    )?;
     let description = optional_text(
         input.description.clone(),
         "description",
@@ -74,10 +82,13 @@ where
         account_id: account.id,
         category_id: input.category_id,
         description,
-        expected_amount: input.expected_amount,
+        expected_amount: planned.expected_amount,
+        gross_amount: planned.gross_amount,
+        adjustments: planned.adjustments,
         expected_date: input.expected_date,
         currency: account.currency,
         settlement: None,
+        settled_adjustments: Vec::new(),
         generated_from: None,
         occurrence_date: None,
         created_at: env.clock.now(),
@@ -226,6 +237,8 @@ pub struct TransactionPatch {
     pub account_id: Option<Uuid>,
     pub category_id: Option<Uuid>,
     pub visibility: Option<Visibility>,
+    pub gross_amount: Option<i64>,
+    pub adjustments: Option<Vec<Adjustment>>,
 }
 
 /// Edita a movimentação: confere a conta e a categoria do mesmo tipo e grava sem
@@ -260,10 +273,21 @@ where
         account,
         category_id: patch.category_id,
         visibility: patch.visibility,
+        gross_amount: patch.gross_amount,
+        adjustments: patch.adjustments,
     };
     transactions
         .update(owner_id, id, &edit, env.clock.now())
         .await
+}
+
+/// Bruto e itens equivalentes a um líquido, sem gravar nada (RF-09, decisão 13).
+pub fn preview_settlement(
+    settled_amount: i64,
+    adjustments: &[Adjustment],
+    expected_gross_amount: i64,
+) -> Outcome<Breakdown> {
+    gross_for_net(settled_amount, adjustments, expected_gross_amount)
 }
 
 pub async fn undo_settlement<T: TransactionRepository>(

@@ -7,13 +7,18 @@
 //! Excluir a recorrente é exclusão lógica: a aberta some junto, porque não é gravada,
 //! e as cópias liquidadas perdem a ligação e ficam como movimentações pontuais do
 //! histórico, sem mudar o saldo (RF-01, RF-02, RF-03, RN-01).
+//! O bruto e os itens de ajuste da regra (SPEC-004) valem para a aberta e as seguintes;
+//! a cópia liquidada guarda os previstos e os da liquidação (RN-10, RF-11).
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveTime, Utc};
 use chrono_tz::Tz;
 use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
-use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKind};
+use crate::finance::domain::adjustment::{Adjustment, ComputedAdjustment};
+use crate::finance::domain::transaction::{
+    ItemStatus, PlannedAmounts, Transaction, TransactionKind,
+};
 use crate::shared::money::Currency;
 use crate::shared::recurrence::{Frequency, RecurrenceError, RecurrenceRule};
 use crate::shared::visibility::Visibility;
@@ -30,7 +35,12 @@ pub struct RecurringTransaction {
     pub kind: TransactionKind,
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
+    /// Líquido previsto de cada ocorrência.
     pub expected_amount: i64,
+    /// Bruto previsto; igual a `expected_amount` sem itens (RN-09).
+    pub gross_amount: i64,
+    /// Itens previstos, na ordem, com o valor calculado (RF-02).
+    pub adjustments: Vec<ComputedAdjustment>,
     pub currency: Currency,
     pub rule: RecurrenceRule,
     pub description: Option<String>,
@@ -41,11 +51,13 @@ pub struct RecurringTransaction {
 }
 
 /// Pedido de liquidação da ocorrência aberta.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OccurrenceSettlement {
     pub occurrence_date: NaiveDate,
     pub settled_amount: i64,
     pub settled_at: NaiveDate,
+    /// Itens editados na liquidação; ausentes, os da regra (RF-10).
+    pub adjustments: Option<Vec<Adjustment>>,
 }
 
 pub fn validate_rule(rule: &RecurrenceRule) -> Result<(), FinanceError> {
@@ -151,15 +163,31 @@ impl RecurringTransaction {
         }
     }
 
-    /// Liquida a aberta: devolve a cópia liquidada, com o modelo e o valor atuais, e a
-    /// variação do saldo; a recorrente passa para a ocorrência seguinte.
+    /// Líquido, bruto e itens previstos da regra.
+    pub fn planned(&self) -> PlannedAmounts {
+        PlannedAmounts {
+            expected_amount: self.expected_amount,
+            gross_amount: self.gross_amount,
+            adjustments: self.adjustments.clone(),
+        }
+    }
+
+    /// Liquida a aberta: devolve a cópia liquidada, com o modelo, o valor e os itens
+    /// previstos atuais e os itens da liquidação (os do pedido ou os da regra), e a
+    /// variação do saldo; a regra não muda (RF-11) e passa para a ocorrência seguinte.
     pub fn settle_open(
         &mut self,
         copy_id: Uuid,
         request: OccurrenceSettlement,
         now: DateTime<Utc>,
     ) -> Result<(Transaction, i64), FinanceError> {
-        self.ensure_open(request.occurrence_date)?;
+        let OccurrenceSettlement {
+            occurrence_date,
+            settled_amount,
+            settled_at,
+            adjustments,
+        } = request;
+        self.ensure_open(occurrence_date)?;
         let mut copy = Transaction {
             id: copy_id,
             owner_id: self.owner_id,
@@ -169,16 +197,19 @@ impl RecurringTransaction {
             category_id: self.category_id,
             description: self.description.clone(),
             expected_amount: self.expected_amount,
-            expected_date: request.occurrence_date,
+            gross_amount: self.gross_amount,
+            adjustments: self.adjustments.clone(),
+            expected_date: occurrence_date,
             currency: self.currency,
             settlement: None,
+            settled_adjustments: Vec::new(),
             generated_from: Some(self.id),
-            occurrence_date: Some(request.occurrence_date),
+            occurrence_date: Some(occurrence_date),
             created_at: now,
             updated_at: now,
         };
-        let delta = copy.settle(request.settled_amount, request.settled_at, now)?;
-        self.close(request.occurrence_date, now);
+        let delta = copy.settle_with(settled_amount, settled_at, adjustments, now)?;
+        self.close(occurrence_date, now);
         Ok((copy, delta))
     }
 
@@ -242,6 +273,8 @@ pub(crate) mod fixtures {
             account_id: Uuid::from_u128(2),
             category_id: None,
             expected_amount: 200_000,
+            gross_amount: 200_000,
+            adjustments: Vec::new(),
             currency: Currency::default(),
             rule: rule(Frequency::Monthly, "2027-01-31", Some(31)),
             description: Some("Aluguel".to_owned()),
@@ -256,6 +289,7 @@ pub(crate) mod fixtures {
             occurrence_date: date(day),
             settled_amount: amount,
             settled_at: date(day),
+            adjustments: None,
         }
     }
 }
@@ -266,6 +300,80 @@ mod tests {
     use super::*;
     use crate::finance::domain::forecast::project;
     use crate::finance::domain::transaction::fixtures::{date, instant};
+
+    use crate::finance::domain::adjustment::{AdjustmentDirection, AdjustmentMode};
+    use crate::finance::domain::transaction::planned_from_gross;
+
+    fn deduction(name: &str, rate_bp: i32, base_amount: Option<i64>) -> Adjustment {
+        Adjustment {
+            name: name.to_owned(),
+            direction: AdjustmentDirection::Deduction,
+            mode: AdjustmentMode::Percent,
+            amount: None,
+            rate_bp: Some(rate_bp),
+            base_amount,
+        }
+    }
+
+    fn salary_model() -> RecurringTransaction {
+        let planned = planned_from_gross(
+            800_000,
+            &[
+                deduction("INSS", 1100, None),
+                deduction("IRPF", 1500, Some(712_000)),
+            ],
+        )
+        .unwrap();
+        let mut model = rent();
+        model.kind = TransactionKind::Income;
+        model.expected_amount = planned.expected_amount;
+        model.gross_amount = planned.gross_amount;
+        model.adjustments = planned.adjustments;
+        model
+    }
+
+    fn values(items: &[ComputedAdjustment]) -> Vec<i64> {
+        items.iter().map(|item| item.computed_amount).collect()
+    }
+
+    #[test]
+    fn adj_settle_open_copies_rule_items_and_settles_by_net() {
+        let mut model = salary_model();
+        let before = model.adjustments.clone();
+
+        let (copy, delta) = model
+            .settle_open(
+                Uuid::from_u128(100),
+                settlement("2027-01-31", 650_000),
+                instant(),
+            )
+            .unwrap();
+
+        assert_eq!(copy.gross_amount, 800_000);
+        assert_eq!(copy.adjustments, before);
+        assert_eq!(copy.settlement.unwrap().gross_amount, 859_220);
+        assert_eq!(values(&copy.settled_adjustments), [94_514, 114_706]);
+        assert_eq!(delta, 650_000);
+        assert_eq!(model.adjustments, before);
+    }
+
+    #[test]
+    fn adj_settle_open_with_edited_items_keeps_rule_items() {
+        let mut model = salary_model();
+        let mut request = settlement("2027-01-31", 650_000);
+        request.adjustments = Some(vec![
+            deduction("INSS", 1100, None),
+            deduction("IRPF", 2250, Some(712_000)),
+        ]);
+
+        let (copy, _) = model
+            .settle_open(Uuid::from_u128(100), request, instant())
+            .unwrap();
+
+        assert_eq!(copy.settlement.unwrap().gross_amount, 942_370);
+        assert_eq!(values(&copy.settled_adjustments), [103_661, 188_709]);
+        assert_eq!(model.adjustments[1].adjustment.rate_bp, Some(1500));
+    }
 
     #[test]
     fn monthly_on_31_falls_on_last_day_of_short_months() {
@@ -319,6 +427,7 @@ mod tests {
                     occurrence_date: date("2027-01-31"),
                     settled_amount: 190_000,
                     settled_at: date("2027-01-30"),
+                    adjustments: None,
                 },
                 instant(),
             )

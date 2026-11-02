@@ -1,5 +1,6 @@
 //! Liquidação: diferença entre o efetivo e o previsto, o tipo dela (RN-02, RN-03) e o
-//! efeito no saldo da conta (RN-01).
+//! efeito no saldo da conta (RN-01). Com descontos e acréscimos, a diferença é sempre entre
+//! os líquidos, liquidado e previsto (SPEC-004, RN-08).
 
 use chrono::NaiveDate;
 
@@ -38,6 +39,8 @@ pub struct Settlement {
     pub settled_at: NaiveDate,
     pub difference_amount: i64,
     pub difference_kind: Option<DifferenceKind>,
+    /// Bruto liquidado; igual ao liquidado sem itens (RN-09). A movimentação com itens troca pelo bruto equivalente (RF-09).
+    pub gross_amount: i64,
 }
 
 /// `difference_amount = settled_amount - expected_amount`.
@@ -61,6 +64,7 @@ pub fn settle(
         settled_at,
         difference_amount,
         difference_kind: difference_kind(kind, difference_amount),
+        gross_amount: settled_amount,
     })
 }
 
@@ -89,6 +93,15 @@ mod tests {
 
     fn day() -> NaiveDate {
         "2026-11-03".parse().unwrap()
+    }
+
+    #[test]
+    fn adj_ct08_difference_uses_net_amounts() {
+        let result = settle(TransactionKind::Income, 708_000, 700_000, day()).unwrap();
+
+        assert_eq!(result.difference_amount, -8_000);
+        assert_eq!(result.difference_kind, Some(DifferenceKind::Loss));
+        assert_eq!(result.gross_amount, 700_000);
     }
 
     #[test]

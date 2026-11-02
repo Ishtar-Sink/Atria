@@ -10,10 +10,14 @@ pub mod pg_transactions;
 pub mod pg_transfers;
 
 use chrono::{DateTime, NaiveDate, Utc};
+use sqlx::types::Json;
 use sqlx::{PgPool, Postgres, Transaction as DbTransaction};
 use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
+use crate::finance::domain::adjustment::{
+    Adjustment, AdjustmentDirection, AdjustmentMode, ComputedAdjustment,
+};
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
 use crate::finance::domain::transaction::{Transaction, TransactionKind};
 use crate::shared::db::begin_for_user;
@@ -116,6 +120,56 @@ pub(crate) async fn add_to_balance(
     Ok(())
 }
 
+/// Item de ajuste como fica nas colunas `JSONB`, com as chaves do contrato (RF-01).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct AdjustmentRow {
+    name: String,
+    direction: String,
+    mode: String,
+    amount: Option<i64>,
+    rate_bp: Option<i32>,
+    base_amount: Option<i64>,
+    computed_amount: i64,
+}
+
+pub(crate) fn adjustment_rows(items: &[ComputedAdjustment]) -> Vec<AdjustmentRow> {
+    items
+        .iter()
+        .map(|item| AdjustmentRow {
+            name: item.adjustment.name.clone(),
+            direction: item.adjustment.direction.as_str().to_owned(),
+            mode: item.adjustment.mode.as_str().to_owned(),
+            amount: item.adjustment.amount,
+            rate_bp: item.adjustment.rate_bp,
+            base_amount: item.adjustment.base_amount,
+            computed_amount: item.computed_amount,
+        })
+        .collect()
+}
+
+pub(crate) fn adjustments_from_rows(
+    rows: Vec<AdjustmentRow>,
+) -> Result<Vec<ComputedAdjustment>, FinanceError> {
+    rows.into_iter()
+        .map(|row| {
+            let direction =
+                AdjustmentDirection::parse(&row.direction).ok_or_else(|| corrupt("adjustments"))?;
+            let mode = AdjustmentMode::parse(&row.mode).ok_or_else(|| corrupt("adjustments"))?;
+            Ok(ComputedAdjustment {
+                adjustment: Adjustment {
+                    name: row.name,
+                    direction,
+                    mode,
+                    amount: row.amount,
+                    rate_bp: row.rate_bp,
+                    base_amount: row.base_amount,
+                },
+                computed_amount: row.computed_amount,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub(crate) struct TransactionRow {
     id: Uuid,
@@ -126,8 +180,12 @@ pub(crate) struct TransactionRow {
     category_id: Option<Uuid>,
     description: Option<String>,
     expected_amount: i64,
+    gross_amount: i64,
+    adjustments: Json<Vec<AdjustmentRow>>,
     expected_date: NaiveDate,
     settled_amount: Option<i64>,
+    settled_gross_amount: Option<i64>,
+    settled_adjustments: Option<Json<Vec<AdjustmentRow>>>,
     settled_at: Option<NaiveDate>,
     difference_amount: Option<i64>,
     difference_kind: Option<String>,
@@ -153,8 +211,13 @@ impl TransactionRow {
                         DifferenceKind::parse(text).ok_or_else(|| corrupt("difference_kind"))
                     })
                     .transpose()?,
+                gross_amount: self.settled_gross_amount.unwrap_or(settled_amount),
             }),
             _ => None,
+        };
+        let settled_adjustments = match self.settled_adjustments {
+            Some(Json(rows)) => adjustments_from_rows(rows)?,
+            None => Vec::new(),
         };
         Ok(Transaction {
             id: self.id,
@@ -165,9 +228,12 @@ impl TransactionRow {
             category_id: self.category_id,
             description: self.description,
             expected_amount: self.expected_amount,
+            gross_amount: self.gross_amount,
+            adjustments: adjustments_from_rows(self.adjustments.0)?,
             expected_date: self.expected_date,
             currency: currency(&self.currency)?,
             settlement,
+            settled_adjustments,
             generated_from: self.generated_from,
             occurrence_date: self.occurrence_date,
             created_at: self.created_at,
@@ -184,9 +250,9 @@ pub(crate) async fn insert_transaction(
 ) -> Result<(), FinanceError> {
     sqlx::query!(
         "INSERT INTO transactions (id, owner_id, visibility, kind, account_id, category_id, \
-         description, expected_amount, expected_date, currency, generated_from, occurrence_date, \
-         created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+         description, expected_amount, gross_amount, adjustments, expected_date, currency, \
+         generated_from, occurrence_date, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
         item.id,
         item.owner_id,
         item.visibility as _,
@@ -195,6 +261,8 @@ pub(crate) async fn insert_transaction(
         item.category_id,
         item.description.as_deref(),
         item.expected_amount,
+        item.gross_amount,
+        Json(adjustment_rows(&item.adjustments)) as _,
         item.expected_date as _,
         item.currency.as_str(),
         item.generated_from,
@@ -223,11 +291,14 @@ pub(crate) async fn save_settlement(
     };
     sqlx::query!(
         "UPDATE transactions SET settled_amount = $1, settled_at = $2, difference_amount = $3, \
-         difference_kind = $4, updated_at = $5 WHERE id = $6 AND owner_id = $7",
+         difference_kind = $4, settled_gross_amount = $5, settled_adjustments = $6, \
+         updated_at = $7 WHERE id = $8 AND owner_id = $9",
         done.settled_amount,
         done.settled_at as _,
         done.difference_amount,
         done.difference_kind.map(DifferenceKind::as_str),
+        done.gross_amount,
+        Json(adjustment_rows(&item.settled_adjustments)) as _,
         item.updated_at as _,
         item.id,
         item.owner_id

@@ -5,6 +5,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
+use crate::finance::domain::adjustment::ComputedAdjustment;
 use crate::finance::domain::recurring_transaction::{RecurringTransaction, next_date_after};
 use crate::finance::domain::settlement::Settlement;
 use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKind};
@@ -23,6 +24,10 @@ pub struct VirtualOccurrence {
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
     pub expected_amount: i64,
+    /// Bruto da regra; igual a `expected_amount` sem itens.
+    pub gross_amount: i64,
+    /// Itens previstos da regra, na ordem (RF-08).
+    pub adjustments: Vec<ComputedAdjustment>,
     pub currency: Currency,
     pub occurrence_date: NaiveDate,
     pub status: ItemStatus,
@@ -94,6 +99,26 @@ impl FinanceItem {
         self.settlement().is_some()
     }
 
+    /// Itens previstos, na ordem.
+    // TODO(SPEC-004 TASK-06): usado pelo total por nome do resumo.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn adjustments(&self) -> &[ComputedAdjustment] {
+        match self {
+            Self::Stored(item) => &item.adjustments,
+            Self::Virtual(item) => &item.adjustments,
+        }
+    }
+
+    /// Itens da liquidação; vazia enquanto prevista.
+    // TODO(SPEC-004 TASK-06): usado pelo total por nome do resumo.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn settled_adjustments(&self) -> &[ComputedAdjustment] {
+        match self {
+            Self::Stored(item) => &item.settled_adjustments,
+            Self::Virtual(_) => &[],
+        }
+    }
+
     /// O valor liquidado, quando liquidado, e o previsto nos outros casos.
     pub fn value(&self) -> i64 {
         self.settlement()
@@ -156,6 +181,8 @@ fn virtual_occurrence(
         category_id: recurring.category_id,
         description: recurring.description.clone(),
         expected_amount: recurring.expected_amount,
+        gross_amount: recurring.gross_amount,
+        adjustments: recurring.adjustments.clone(),
         currency: recurring.currency,
         occurrence_date,
         status,
@@ -178,6 +205,71 @@ mod tests {
             .iter()
             .map(|item| (item.occurrence_date, item.status))
             .collect()
+    }
+
+    #[test]
+    fn adj_virtual_occurrence_carries_model_gross_and_adjustments() {
+        use crate::finance::domain::adjustment::{Adjustment, AdjustmentDirection, AdjustmentMode};
+        use crate::finance::domain::transaction::planned_from_gross;
+
+        let inss = Adjustment {
+            name: "INSS".to_owned(),
+            direction: AdjustmentDirection::Deduction,
+            mode: AdjustmentMode::Percent,
+            amount: None,
+            rate_bp: Some(1100),
+            base_amount: None,
+        };
+        let planned = planned_from_gross(200_000, &[inss]).unwrap();
+        let mut model = rent();
+        model.expected_amount = planned.expected_amount;
+        model.gross_amount = planned.gross_amount;
+        model.adjustments = planned.adjustments.clone();
+
+        let items = project(
+            &model,
+            Some(date("2027-01-01")),
+            Some(date("2027-02-28")),
+            instant(),
+            usize::MAX,
+        );
+
+        assert!(!items.is_empty());
+        for item in &items {
+            assert_eq!(item.gross_amount, 200_000);
+            assert_eq!(item.adjustments, planned.adjustments);
+        }
+        let virtual_item = FinanceItem::Virtual(items[0].clone());
+        assert_eq!(virtual_item.adjustments(), planned.adjustments.as_slice());
+        assert!(virtual_item.settled_adjustments().is_empty());
+    }
+
+    #[test]
+    fn adj_stored_item_exposes_expected_and_settled_adjustments() {
+        use crate::finance::domain::adjustment::{Adjustment, AdjustmentDirection, AdjustmentMode};
+        use crate::finance::domain::transaction::planned_from_gross;
+
+        let sindical = Adjustment {
+            name: "Sindical".to_owned(),
+            direction: AdjustmentDirection::Deduction,
+            mode: AdjustmentMode::Fixed,
+            amount: Some(4_000),
+            rate_bp: None,
+            base_amount: None,
+        };
+        let planned = planned_from_gross(50_000, &[sindical]).unwrap();
+        let mut stored = transaction(TransactionKind::Income, planned.expected_amount);
+        stored.gross_amount = planned.gross_amount;
+        stored.adjustments = planned.adjustments.clone();
+        let item = FinanceItem::Stored(stored.clone());
+
+        assert_eq!(item.adjustments(), planned.adjustments.as_slice());
+        assert!(item.settled_adjustments().is_empty());
+        stored
+            .settle(46_000, date("2026-11-05"), instant())
+            .unwrap();
+        let settled = FinanceItem::Stored(stored);
+        assert_eq!(settled.settled_adjustments()[0].computed_amount, 4_000);
     }
 
     #[test]

@@ -690,6 +690,8 @@ mod tests {
             category_id: None,
             description: Some("Aluguel".to_owned()),
             expected_amount: 100,
+            gross_amount: 100,
+            adjustments: Vec::new(),
             currency: Currency::default(),
             occurrence_date: fixtures::date("2026-12-05"),
             status: ItemStatus::Forecast,

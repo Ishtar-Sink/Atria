@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, expected_amount, currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions WHERE owner_id = $1 AND deleted_at IS NULL AND ($2::uuid IS NULL OR id > $2) AND ($3::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($3)) || '%' ESCAPE '\\') ORDER BY id LIMIT $4",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, expected_amount, gross_amount, adjustments AS \"adjustments: _\", currency, rule AS \"rule: _\", description, last_closed_on AS \"last_closed_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM recurring_transactions WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -40,31 +40,41 @@
       },
       {
         "ordinal": 7,
-        "name": "currency",
-        "type_info": "Bpchar"
+        "name": "gross_amount",
+        "type_info": "Int8"
       },
       {
         "ordinal": 8,
-        "name": "rule: _",
+        "name": "adjustments: _",
         "type_info": "Jsonb"
       },
       {
         "ordinal": 9,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "rule: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
         "name": "description",
         "type_info": "Text"
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "last_closed_on: _",
         "type_info": "Date"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "created_at: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
       }
@@ -72,9 +82,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Text",
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -87,11 +95,13 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "b37399335080ea1716235110f17eac3228f028821cde0281ecc8280ac1575f22"
+  "hash": "a22aa87bcc5345573e6a3578cc013afa4a6fbca8c9db5b3760fafc9ce9fff08c"
 }

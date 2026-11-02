@@ -27,6 +27,7 @@ use crate::shared::visibility::Visibility;
         handlers::update_transaction,
         handlers::delete_transaction,
         handlers::settle_transaction,
+        handlers::preview_settlement,
         handlers::undo_settlement,
         handlers::list_transfers,
         handlers::create_transfer,
@@ -48,6 +49,7 @@ use crate::shared::visibility::Visibility;
         CreateAccountRequest, UpdateAccountRequest, AccountResponse, AccountPage,
         CreateCategoryRequest, UpdateCategoryRequest, CategoryResponse, CategoryPage,
         CreateTransactionRequest, UpdateTransactionRequest, SettleTransactionRequest, TransactionResponse,
+        AdjustmentDirectionDto, AdjustmentModeDto, AdjustmentDto, SettlementPreviewRequest, BreakdownDto,
         TransactionItemResponse, CreatedTransactions, TransactionPage,
         CreateTransferRequest, TransferResponse, TransferPage,
         CreateRecurringTransactionRequest, UpdateRecurringTransactionRequest,
@@ -55,7 +57,7 @@ use crate::shared::visibility::Visibility;
         RecurringTransactionResponse, RecurringTransactionPage, SettledTransactionPage,
         PeriodDto, FlowDto, PeriodTotalsDto, WhereGroupDto, WhereItemDto, PlannedDto,
         ExpectedVsSettledDto, SavingsAndLossesDto, AccountBalanceDto, BalanceDto,
-        FinancialSummaryResponse, MonthlyTotalsDto,
+        FinancialSummaryResponse, MonthlyTotalsDto, AdjustmentTotalDto,
         RecurrenceRule, Frequency, Weekday, Visibility, ProblemDetails, FieldError,
     )),
     tags((name = "finance", description = "Financeiro: contas, movimentações, recorrências e painel"))
@@ -77,6 +79,7 @@ mod tests {
             ("/api/v1/transactions", &["get", "post"]),
             ("/api/v1/transactions/{id}", &["get", "patch", "delete"]),
             ("/api/v1/transactions/{id}/settlement", &["post", "delete"]),
+            ("/api/v1/transactions/settlement-preview", &["post"]),
             ("/api/v1/transfers", &["get", "post"]),
             ("/api/v1/transfers/{id}", &["get", "delete"]),
             ("/api/v1/recurring-transactions", &["get", "post"]),
@@ -113,8 +116,44 @@ mod tests {
         );
         assert!(json["components"]["schemas"]["TransactionResponse"].is_object());
         assert!(json["components"]["schemas"]["TransactionItemResponse"].is_object());
+        assert!(json["components"]["schemas"]["AdjustmentDto"].is_object());
+        assert!(json["components"]["schemas"]["BreakdownDto"].is_object());
+        let response = &json["components"]["schemas"]["TransactionResponse"]["properties"];
+        for field in [
+            "gross_amount",
+            "adjustments",
+            "settled_gross_amount",
+            "settled_adjustments",
+        ] {
+            assert!(response[field].is_object(), "TransactionResponse.{field}");
+        }
+        let schemas = &json["components"]["schemas"];
+        for (schema, fields) in [
+            (
+                "RecurringTransactionResponse",
+                &["gross_amount", "adjustments"][..],
+            ),
+            (
+                "CreateRecurringTransactionRequest",
+                &["gross_amount", "adjustments"][..],
+            ),
+            ("SettleOccurrenceRequest", &["adjustments"][..]),
+        ] {
+            for field in fields {
+                assert!(
+                    schemas[schema]["properties"][field].is_object(),
+                    "{schema}.{field}"
+                );
+            }
+        }
         assert!(json["components"]["schemas"]["FinancialSummaryResponse"].is_object());
         assert!(json["components"]["schemas"]["MonthlyTotalsDto"].is_object());
+        assert!(json["components"]["schemas"]["AdjustmentTotalDto"].is_object());
+        assert!(
+            json["components"]["schemas"]["FinancialSummaryResponse"]["properties"]
+                ["adjustments_by_name"]
+                .is_object()
+        );
         assert!(
             json["components"]["schemas"]["FinancialSummaryResponse"]["properties"]["monthly"]
                 .is_object()

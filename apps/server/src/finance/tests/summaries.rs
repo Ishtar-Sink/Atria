@@ -1,5 +1,6 @@
 //! Painel do Financeiro por período livre (CT-22, RF-35, PD-55, PD-58, DEC-004) e a
 //! série "Mês a mês" (RF-17, CT-11, CB-08 da SPEC-003).
+//! Descontos e acréscimos do período por nome (SPEC-004: RF-14, CT-12 e CB-07).
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
@@ -477,4 +478,107 @@ async fn monthly_series_without_movements_has_12_zero_months() {
         .map(|(index, name)| month(name, 0, 0, 0, index >= 6))
         .collect();
     assert_eq!(body["monthly"], json!(expected));
+}
+
+fn percent(name: &str, direction: &str, rate_bp: i64, base_amount: Option<i64>) -> Value {
+    let mut item = json!({
+        "name": name,
+        "direction": direction,
+        "mode": "percent",
+        "rate_bp": rate_bp,
+    });
+    if let Some(base) = base_amount {
+        item["base_amount"] = json!(base);
+    }
+    item
+}
+
+fn fixed(name: &str, direction: &str, amount: i64) -> Value {
+    json!({ "name": name, "direction": direction, "mode": "fixed", "amount": amount })
+}
+
+async fn create_gross(
+    t: &FinanceTest,
+    account: &str,
+    kind: &str,
+    gross: i64,
+    adjustments: Value,
+    day: &str,
+) -> String {
+    let body = json!({
+        "kind": kind,
+        "account_id": account,
+        "gross_amount": gross,
+        "adjustments": adjustments,
+        "expected_date": day,
+    });
+    let (status, body) = t.post(&t.alice, "/transactions", body).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    id_of(&body["items"][0])
+}
+
+#[tokio::test]
+async fn adj_ct12_summary_sums_adjustments_by_name_ignoring_case() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let salary = create_gross(
+        &t,
+        &account,
+        "income",
+        800_000,
+        json!([percent("INSS", "deduction", 1100, None)]),
+        "2026-11-05",
+    )
+    .await;
+    let (status, _) = t.settle(&t.alice, &salary, 712_000, "2026-11-05").await;
+    assert_eq!(status, StatusCode::OK);
+    create_gross(
+        &t,
+        &account,
+        "income",
+        300_000,
+        json!([fixed("inss", "deduction", 33_000)]),
+        "2026-11-20",
+    )
+    .await;
+    create_gross(
+        &t,
+        &account,
+        "expense",
+        20_000,
+        json!([fixed("Juros", "addition", 1_500)]),
+        "2026-11-10",
+    )
+    .await;
+    create_gross(
+        &t,
+        &account,
+        "income",
+        100_000,
+        json!([fixed("INSS", "deduction", 11_000)]),
+        "2026-12-05",
+    )
+    .await;
+
+    let body = summary(&t, "?from=2026-11-01&to=2026-11-30").await;
+
+    assert_eq!(
+        body["adjustments_by_name"],
+        json!([
+            { "name": "INSS", "direction": "deduction", "expected": 121_000, "settled": 88_000 },
+            { "name": "Juros", "direction": "addition", "expected": 1_500, "settled": 0 },
+        ])
+    );
+}
+
+#[tokio::test]
+async fn adj_summary_without_adjustments_has_empty_list() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    t.create_transaction(&t.alice, &account, "expense", 10_000, "2026-11-10")
+        .await;
+
+    let body = summary(&t, "?from=2026-11-01&to=2026-11-30").await;
+
+    assert_eq!(body["adjustments_by_name"], json!([]));
 }

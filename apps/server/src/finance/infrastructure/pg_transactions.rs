@@ -3,6 +3,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::PgPool;
+use sqlx::types::Json;
 use uuid::Uuid;
 
 use crate::finance::application::ports::{
@@ -12,8 +13,8 @@ use crate::finance::domain::FinanceError;
 use crate::finance::domain::transaction::{Transaction, TransactionEdit};
 use crate::finance::infrastructure::pg_recurring_transactions::{lock_recurring, save_last_closed};
 use crate::finance::infrastructure::{
-    TransactionRow, Tx, add_to_balance, begin, commit, escape_like, insert_transaction,
-    lock_account, save_settlement, storage,
+    TransactionRow, Tx, add_to_balance, adjustment_rows, begin, commit, escape_like,
+    insert_transaction, lock_account, save_settlement, storage,
 };
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,8 @@ impl PgTransactions {
 
 async fn lock_transaction(tx: &mut Tx<'_>, owner_id: Uuid, id: Uuid) -> Outcome<Transaction> {
     let row: Option<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
+    category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
+    settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
          WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE", id, owner_id)
@@ -44,7 +46,8 @@ async fn save_edit(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
     sqlx::query!(
         "UPDATE transactions SET description = $1, expected_amount = $2, expected_date = $3, \
          account_id = $4, currency = $5, category_id = $6, visibility = $7, \
-         updated_at = $8 WHERE id = $9 AND owner_id = $10",
+         updated_at = $8, gross_amount = $11, adjustments = $12 \
+         WHERE id = $9 AND owner_id = $10",
         item.description.as_deref(),
         item.expected_amount,
         item.expected_date as _,
@@ -54,7 +57,9 @@ async fn save_edit(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
         item.visibility as _,
         item.updated_at as _,
         item.id,
-        item.owner_id
+        item.owner_id,
+        item.gross_amount,
+        Json(adjustment_rows(&item.adjustments)) as _
     )
     .execute(&mut **tx)
     .await
@@ -79,7 +84,8 @@ async fn soft_delete(tx: &mut Tx<'_>, item: &Transaction, now: DateTime<Utc>) ->
 async fn clear_settlement(tx: &mut Tx<'_>, item: &Transaction) -> Outcome<()> {
     sqlx::query!(
         "UPDATE transactions SET settled_amount = NULL, settled_at = NULL, \
-         difference_amount = NULL, difference_kind = NULL, updated_at = $1 \
+         difference_amount = NULL, difference_kind = NULL, settled_gross_amount = NULL, \
+         settled_adjustments = NULL, updated_at = $1 \
          WHERE id = $2 AND owner_id = $3",
         item.updated_at as _,
         item.id,
@@ -124,7 +130,8 @@ impl TransactionRepository for PgTransactions {
     async fn get(&self, owner_id: Uuid, id: Uuid) -> Outcome<Transaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let row: Option<TransactionRow> = sqlx::query_as!(TransactionRow, "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
+    category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
+    settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
              WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
@@ -148,7 +155,8 @@ impl TransactionRepository for PgTransactions {
         let rows = sqlx::query_as!(
             TransactionRow,
             "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, \
-    category_id, description, expected_amount, expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", \
+    category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
+    settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
     created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" \
              FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 \
@@ -191,7 +199,12 @@ impl TransactionRepository for PgTransactions {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
         lock_account(&mut tx, owner_id, item.account_id).await?;
-        let delta = item.settle(request.settled_amount, request.settled_at, now)?;
+        let delta = item.settle_with(
+            request.settled_amount,
+            request.settled_at,
+            request.adjustments,
+            now,
+        )?;
         save_settlement(&mut tx, &item).await?;
         add_to_balance(&mut tx, owner_id, item.account_id, delta, now).await?;
         commit(tx).await?;
@@ -236,7 +249,7 @@ impl TransactionRepository for PgTransactions {
             UndoneSettlement::CopyDeleted(item.id)
         } else {
             clear_settlement(&mut tx, &item).await?;
-            UndoneSettlement::Reopened(item.clone())
+            UndoneSettlement::Reopened(Box::new(item.clone()))
         };
         add_to_balance(&mut tx, owner_id, item.account_id, revert, now).await?;
         commit(tx).await?;

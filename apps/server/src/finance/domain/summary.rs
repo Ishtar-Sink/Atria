@@ -2,13 +2,16 @@
 //! e previsto, comparação com o período anterior, "Para onde foi", previsto x
 //! realizado, economias e perdas, saldo previsto, próximas movimentações e a série
 //! "Mês a mês", com 6 meses realizados e 6 projetados (RF-17). As transferências
-//! ficam fora de todos os totais (RN-05).
+//! ficam fora de todos os totais (RN-05). O total dos descontos e acréscimos por nome
+//! (SPEC-004, RF-14) agrupa sem diferenciar maiúsculas e acentos, com as liquidadas pelos
+//! valores da liquidação e as previstas e projeções pelos previstos (RN-11).
 
 use std::collections::HashMap;
 
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use uuid::Uuid;
 
+use crate::finance::domain::adjustment::{AdjustmentDirection, ComputedAdjustment};
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::settlement::DifferenceKind;
 use crate::finance::domain::transaction::TransactionKind;
@@ -356,9 +359,215 @@ fn add_to(totals: &mut MonthTotals, kind: TransactionKind, amount: i64) {
     }
 }
 
+/// Total de um desconto ou acréscimo no período, pelo nome (RF-14): `expected` com as liquidadas pelos valores da liquidação e as previstas e projeções pelos previstos; `settled` só as liquidadas (RN-11).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdjustmentTotal {
+    pub name: String,
+    pub direction: AdjustmentDirection,
+    pub expected: i64,
+    pub settled: i64,
+}
+
+/// Letra sem acento. Uma tabela própria das letras do português e do espanhol basta
+/// para agrupar os nomes, sem trazer uma dependência de normalização Unicode
+/// ([project/stack-12]).
+fn unaccent(c: char) -> char {
+    match c {
+        'á' | 'à' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+        'é' | 'è' | 'ê' | 'ë' => 'e',
+        'í' | 'ì' | 'î' | 'ï' => 'i',
+        'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+        'ú' | 'ù' | 'û' | 'ü' => 'u',
+        'ç' => 'c',
+        'ñ' => 'n',
+        'ý' | 'ÿ' => 'y',
+        other => other,
+    }
+}
+
+/// Chave de agrupamento: aparada, com os espaços internos reduzidos a um, em
+/// minúsculas e sem acentos (RN-11).
+fn name_key(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+        .chars()
+        .map(unaccent)
+        .collect()
+}
+
+type TotalsByName = HashMap<(String, &'static str), (String, AdjustmentTotal)>;
+
+fn add_items(totals: &mut TotalsByName, list: &[ComputedAdjustment], settled: bool) {
+    for item in list {
+        let name = item.adjustment.name.trim();
+        let direction = item.adjustment.direction;
+        let (_, total) = totals
+            .entry((name_key(name), direction.as_str()))
+            .or_insert_with(|| {
+                (
+                    name_key(name),
+                    AdjustmentTotal {
+                        name: name.to_owned(),
+                        direction,
+                        expected: 0,
+                        settled: 0,
+                    },
+                )
+            });
+        total.expected = total.expected.saturating_add(item.computed_amount);
+        if settled {
+            total.settled = total.settled.saturating_add(item.computed_amount);
+        }
+    }
+}
+
+/// Descontos e acréscimos do período por nome: descontos primeiro e, em cada sentido,
+/// o maior `expected` antes (RF-14).
+pub fn adjustments_by_name(entries: &[Entry]) -> Vec<AdjustmentTotal> {
+    let mut totals = TotalsByName::new();
+    for item in items(entries) {
+        let (list, settled) = if item.is_settled() {
+            (item.settled_adjustments(), true)
+        } else {
+            (item.adjustments(), false)
+        };
+        add_items(&mut totals, list, settled);
+    }
+    let mut ranked: Vec<(String, AdjustmentTotal)> = totals.into_values().collect();
+    ranked.sort_by_key(|(key, total)| {
+        (
+            total.direction == AdjustmentDirection::Addition,
+            std::cmp::Reverse(total.expected),
+            key.clone(),
+        )
+    });
+    ranked.into_iter().map(|(_, total)| total).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::finance::domain::adjustment::{Adjustment, AdjustmentMode};
+    use crate::finance::domain::transaction::planned_from_gross;
+
+    fn fixed_item(name: &str, direction: AdjustmentDirection, amount: i64) -> Adjustment {
+        Adjustment {
+            name: name.to_owned(),
+            direction,
+            mode: AdjustmentMode::Fixed,
+            amount: Some(amount),
+            rate_bp: None,
+            base_amount: None,
+        }
+    }
+
+    fn with_items(kind: TransactionKind, gross: i64, items: &[Adjustment]) -> Transaction {
+        let planned = planned_from_gross(gross, items).unwrap();
+        let mut item = transaction(kind, planned.expected_amount);
+        item.gross_amount = planned.gross_amount;
+        item.adjustments = planned.adjustments;
+        item
+    }
+
+    fn entry(item: Transaction) -> Entry {
+        Entry::Item(Box::new(FinanceItem::Stored(item)))
+    }
+
+    fn totals(rows: &[AdjustmentTotal]) -> Vec<(&str, i64, i64)> {
+        rows.iter()
+            .map(|row| (row.name.as_str(), row.expected, row.settled))
+            .collect()
+    }
+
+    #[test]
+    fn adj_adjustments_by_name_groups_names_ignoring_case_and_accents() {
+        use AdjustmentDirection::Deduction;
+        let entries: Vec<Entry> = [
+            ("INSS", 1_000),
+            ("inss", 2_000),
+            ("  Inss ", 3_000),
+            ("Contribuição", 400),
+            ("CONTRIBUICAO", 600),
+        ]
+        .into_iter()
+        .map(|(name, amount)| {
+            entry(with_items(
+                TransactionKind::Income,
+                100_000,
+                &[fixed_item(name, Deduction, amount)],
+            ))
+        })
+        .collect();
+
+        let rows = adjustments_by_name(&entries);
+
+        assert_eq!(
+            totals(&rows),
+            [("INSS", 6_000, 0), ("Contribuição", 1_000, 0)]
+        );
+    }
+
+    #[test]
+    fn adj_adjustments_by_name_uses_settled_values_for_settled_items() {
+        use AdjustmentDirection::Deduction;
+        let mut done = with_items(
+            TransactionKind::Income,
+            800_000,
+            &[fixed_item("INSS", Deduction, 88_000)],
+        );
+        done.settle_with(
+            702_000,
+            date("2026-11-10"),
+            Some(vec![fixed_item("INSS", Deduction, 98_000)]),
+            instant(),
+        )
+        .unwrap();
+        let open = with_items(
+            TransactionKind::Income,
+            100_000,
+            &[fixed_item("inss", Deduction, 10_000)],
+        );
+
+        let rows = adjustments_by_name(&[entry(done), entry(open)]);
+
+        assert_eq!(totals(&rows), [("INSS", 108_000, 98_000)]);
+    }
+
+    #[test]
+    fn adj_adjustments_by_name_orders_deductions_then_additions_and_skips_transfers() {
+        use AdjustmentDirection::{Addition, Deduction};
+        let entries = [
+            entry(with_items(
+                TransactionKind::Expense,
+                10_000,
+                &[fixed_item("Juros", Addition, 500)],
+            )),
+            entry(with_items(
+                TransactionKind::Expense,
+                10_000,
+                &[fixed_item("Taxa", Addition, 1_500)],
+            )),
+            entry(with_items(
+                TransactionKind::Income,
+                10_000,
+                &[fixed_item("INSS", Deduction, 300)],
+            )),
+            Entry::Transfer { amount: 9_000 },
+            planned(TransactionKind::Expense, 4_000),
+        ];
+
+        let rows = adjustments_by_name(&entries);
+
+        assert_eq!(
+            totals(&rows),
+            [("INSS", 300, 0), ("Taxa", 1_500, 0), ("Juros", 500, 0)]
+        );
+        assert_eq!(rows[0].direction, Deduction);
+        assert_eq!(rows[1].direction, Addition);
+        assert!(adjustments_by_name(&[planned(TransactionKind::Expense, 4_000)]).is_empty());
+    }
     use crate::finance::domain::forecast::project;
     use crate::finance::domain::recurring_transaction::fixtures::rent;
     use crate::finance::domain::transaction::Transaction;

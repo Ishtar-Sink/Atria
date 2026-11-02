@@ -1,6 +1,7 @@
 //! Dados do painel do Financeiro num período livre (RF-35, PD-55, PD-58, DEC-004).
 //! Fechamento, comparação, "Para onde foi", previsto x realizado e economias seguem
-//! o período; saldo, próximas contas e a série "Mês a mês" são o estado de hoje.
+//! o período; saldo, próximas contas e a série "Mês a mês" são o estado de hoje. Os
+//! descontos e acréscimos por nome (SPEC-004, RF-14) também seguem o período.
 
 use std::collections::HashMap;
 
@@ -17,9 +18,10 @@ use crate::finance::domain::category::Category;
 use crate::finance::domain::forecast::{FinanceItem, project};
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::summary::{
-    Entry, ExpectedVsSettled, MonthTotals, Period, PeriodTotals, SavingsAndLosses, UPCOMING_DAYS,
-    WhereItem, expected_vs_settled, forecast_balance, monthly_series, monthly_window,
-    period_totals, savings_and_losses, upcoming_movements, where_it_went,
+    AdjustmentTotal, Entry, ExpectedVsSettled, MonthTotals, Period, PeriodTotals, SavingsAndLosses,
+    UPCOMING_DAYS, WhereItem, adjustments_by_name, expected_vs_settled, forecast_balance,
+    monthly_series, monthly_window, period_totals, savings_and_losses, upcoming_movements,
+    where_it_went,
 };
 use crate::shared::money::Currency;
 
@@ -55,6 +57,8 @@ pub struct PeriodSummaryView {
     pub upcoming_bills: Vec<FinanceItem>,
     /// "Mês a mês": 6 meses realizados e 6 projetados, o estado de hoje, fora do período (RF-17).
     pub monthly: Vec<MonthTotals>,
+    /// Descontos e acréscimos do período por nome (RF-14).
+    pub adjustments_by_name: Vec<AdjustmentTotal>,
 }
 
 /// Repositórios que o resumo lê.
@@ -147,6 +151,7 @@ where
         accounts: all_accounts,
         upcoming_bills: bills,
         monthly,
+        adjustments_by_name: adjustments_by_name(&entries),
     })
 }
 

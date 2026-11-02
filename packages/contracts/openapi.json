@@ -8066,6 +8066,45 @@
         }
       }
     },
+    "/api/v1/transactions/settlement-preview": {
+      "post": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Prévia da liquidação pelo líquido: bruto e itens recalculados, sem gravar (RF-09, decisão 13).",
+        "operationId": "preview_settlement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreakdownDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/transactions/{id}": {
       "get": {
         "tags": [
@@ -9233,6 +9272,104 @@
           }
         }
       },
+      "AdjustmentDirectionDto": {
+        "type": "string",
+        "enum": [
+          "deduction",
+          "addition"
+        ]
+      },
+      "AdjustmentDto": {
+        "type": "object",
+        "description": "Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06).",
+        "required": [
+          "name",
+          "direction",
+          "mode"
+        ],
+        "properties": {
+          "amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Só no fixo: valor em centavos, maior que zero."
+          },
+          "base_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Só no percentual, opcional: base digitada em centavos; ausente, a base é o bruto."
+          },
+          "computed_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Valor calculado em centavos; preenchido na resposta e ignorado no pedido."
+          },
+          "direction": {
+            "$ref": "#/components/schemas/AdjustmentDirectionDto",
+            "description": "Desconto (`deduction`) ou acréscimo (`addition`)."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AdjustmentModeDto",
+            "description": "Valor fixo (`fixed`) ou percentual (`percent`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome do item, de 1 a 60 caracteres.",
+            "example": "INSS"
+          },
+          "rate_bp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Só no percentual: centésimos de ponto percentual, de 1 a 9999 (1100 = 11,00%)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "AdjustmentModeDto": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "percent"
+        ]
+      },
+      "AdjustmentTotalDto": {
+        "type": "object",
+        "description": "Um nome do cartão \"Descontos do período\", em centavos: `expected` com as liquidadas pelos valores da liquidação e as previstas pelos previstos, `settled` só as liquidadas (RF-14, RN-11).",
+        "required": [
+          "name",
+          "direction",
+          "expected",
+          "settled"
+        ],
+        "properties": {
+          "direction": {
+            "$ref": "#/components/schemas/AdjustmentDirectionDto"
+          },
+          "expected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "example": "INSS"
+          },
+          "settled": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "AdminPasswordResetRequest": {
         "type": "object",
         "required": [
@@ -9493,6 +9630,31 @@
           "reading",
           "read"
         ]
+      },
+      "BreakdownDto": {
+        "type": "object",
+        "description": "Bruto, líquido e itens calculados.",
+        "required": [
+          "gross_amount",
+          "net_amount",
+          "adjustments"
+        ],
+        "properties": {
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            }
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "CardPage": {
         "type": "object",
@@ -10431,13 +10593,19 @@
         "required": [
           "kind",
           "account_id",
-          "expected_amount",
           "rule"
         ],
         "properties": {
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "De 0 a 20 itens, na ordem."
           },
           "category_id": {
             "type": [
@@ -10453,8 +10621,20 @@
             ]
           },
           "expected_amount": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09)."
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto previsto de cada ocorrência; o líquido é calculado com os itens."
           },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
@@ -10605,13 +10785,19 @@
         "required": [
           "kind",
           "account_id",
-          "expected_amount",
           "expected_date"
         ],
         "properties": {
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "De 0 a 20 itens, na ordem."
           },
           "category_id": {
             "type": [
@@ -10627,12 +10813,24 @@
             ]
           },
           "expected_amount": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09)."
           },
           "expected_date": {
             "type": "string",
             "format": "date"
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto previsto em centavos; o líquido é calculado com os itens."
           },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
@@ -10970,9 +11168,17 @@
           "balance",
           "upcoming_bills",
           "monthly",
+          "adjustments_by_name",
           "currency"
         ],
         "properties": {
+          "adjustments_by_name": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentTotalDto"
+            },
+            "description": "Descontos e acréscimos do período por nome, sem diferenciar maiúsculas e acentos; descontos primeiro (RF-14)."
+          },
           "balance": {
             "$ref": "#/components/schemas/BalanceDto"
           },
@@ -12589,6 +12795,8 @@
           "kind",
           "account_id",
           "expected_amount",
+          "gross_amount",
+          "adjustments",
           "currency",
           "rule"
         ],
@@ -12596,6 +12804,13 @@
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens previstos da regra, na ordem, com o valor calculado."
           },
           "category_id": {
             "type": [
@@ -12620,7 +12835,13 @@
           },
           "expected_amount": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Líquido previsto de cada ocorrência."
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bruto previsto; igual ao líquido sem itens."
           },
           "id": {
             "type": "string",
@@ -12888,6 +13109,16 @@
           "settled_at"
         ],
         "properties": {
+          "adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens editados na liquidação; a regra não muda (RF-10)."
+          },
           "occurrence_date": {
             "type": "string",
             "format": "date"
@@ -12910,9 +13141,20 @@
           "settled_at"
         ],
         "properties": {
+          "adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens editados na liquidação; ausentes, os previstos (RF-10)."
+          },
           "settled_amount": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Líquido liquidado, o valor que entra no caixa."
           },
           "settled_at": {
             "type": "string",
@@ -12941,6 +13183,34 @@
             ]
           }
         }
+      },
+      "SettlementPreviewRequest": {
+        "type": "object",
+        "description": "Prévia da liquidação pelo líquido, sem gravar (RF-09, decisão 13).",
+        "required": [
+          "settled_amount",
+          "expected_gross_amount"
+        ],
+        "properties": {
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens da liquidação, na ordem."
+          },
+          "expected_gross_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bruto previsto, para escalar a base digitada na proporção do bruto (RN-06)."
+          },
+          "settled_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Líquido informado, em centavos."
+          }
+        },
+        "additionalProperties": false
       },
       "SetupRequest": {
         "type": "object",
@@ -13306,6 +13576,8 @@
           "kind",
           "account_id",
           "expected_amount",
+          "gross_amount",
+          "adjustments",
           "expected_date",
           "currency",
           "status",
@@ -13315,6 +13587,13 @@
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens previstos, na ordem, com o valor calculado."
           },
           "category_id": {
             "type": [
@@ -13363,7 +13642,8 @@
           },
           "expected_amount": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Líquido previsto, o valor que afeta o saldo."
           },
           "expected_date": {
             "type": "string",
@@ -13375,6 +13655,11 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bruto previsto; igual ao líquido sem itens."
           },
           "id": {
             "type": [
@@ -13404,6 +13689,16 @@
             ],
             "format": "uuid"
           },
+          "settled_adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens da liquidação; nulos enquanto prevista."
+          },
           "settled_amount": {
             "type": [
               "integer",
@@ -13417,6 +13712,14 @@
               "null"
             ],
             "format": "date"
+          },
+          "settled_gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto liquidado; nulo enquanto prevista."
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatusDto"
@@ -13472,6 +13775,8 @@
           "kind",
           "account_id",
           "expected_amount",
+          "gross_amount",
+          "adjustments",
           "expected_date",
           "currency",
           "status",
@@ -13481,6 +13786,13 @@
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens previstos, na ordem, com o valor calculado."
           },
           "category_id": {
             "type": [
@@ -13527,7 +13839,8 @@
           },
           "expected_amount": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Líquido previsto, o valor que afeta o saldo."
           },
           "expected_date": {
             "type": "string",
@@ -13540,6 +13853,11 @@
             ],
             "format": "uuid",
             "description": "Recorrente de onde veio a cópia liquidada."
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bruto previsto; igual ao líquido sem itens."
           },
           "id": {
             "type": "string",
@@ -13567,6 +13885,16 @@
             "format": "uuid",
             "description": "Sempre nulo numa gravada: só as ocorrências virtuais têm recorrência."
           },
+          "settled_adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens da liquidação; nulos enquanto prevista."
+          },
           "settled_amount": {
             "type": [
               "integer",
@@ -13580,6 +13908,14 @@
               "null"
             ],
             "format": "date"
+          },
+          "settled_gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto liquidado; nulo enquanto prevista."
           },
           "status": {
             "$ref": "#/components/schemas/ItemStatusDto"
@@ -14383,6 +14719,16 @@
             ],
             "format": "uuid"
           },
+          "adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens previstos, que substituem os atuais; valem para a aberta e as seguintes (RN-10)."
+          },
           "category_id": {
             "type": [
               "string",
@@ -14402,6 +14748,14 @@
               "null"
             ],
             "format": "int64"
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto previsto; vale para a aberta e as seguintes (RN-10)."
           },
           "rule": {
             "oneOf": [
@@ -14492,6 +14846,16 @@
             ],
             "format": "uuid"
           },
+          "adjustments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AdjustmentDto"
+            },
+            "description": "Itens previstos, que substituem os atuais; recalcula o líquido."
+          },
           "category_id": {
             "type": [
               "string",
@@ -14518,6 +14882,14 @@
               "null"
             ],
             "format": "date"
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Bruto previsto; recalcula o líquido com os itens."
           },
           "visibility": {
             "oneOf": [

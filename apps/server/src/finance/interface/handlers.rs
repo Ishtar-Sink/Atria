@@ -23,6 +23,7 @@ use crate::finance::application::ports::{
 use crate::finance::application::{
     Env, accounts, categories, recurring_transactions, summaries, transactions, transfers,
 };
+use crate::finance::domain::adjustment::Adjustment;
 use crate::finance::domain::recurring_transaction::OccurrenceSettlement;
 use crate::finance::domain::summary::{MAX_PERIOD_DAYS, Period};
 use crate::finance::domain::{FieldIssue, FinanceError};
@@ -129,6 +130,20 @@ fn check_amount(field: &'static str, value: i64) -> ApiResult<()> {
         return Err(invalid(field, "too_large"));
     }
     Ok(())
+}
+
+/// Os valores em centavos dos itens passam pelo mesmo limite dos outros campos.
+fn check_adjustments(items: &[AdjustmentDto]) -> ApiResult<()> {
+    for item in items {
+        for value in [item.amount, item.base_amount].into_iter().flatten() {
+            check_amount("adjustments", value)?;
+        }
+    }
+    Ok(())
+}
+
+fn adjustments(items: &[AdjustmentDto]) -> Vec<Adjustment> {
+    items.iter().cloned().map(Into::into).collect()
 }
 
 fn page_limit(params: &PageParams) -> u32 {
@@ -570,7 +585,13 @@ pub async fn create_transactions(
     headers: HeaderMap,
     Body(body): Body<CreateTransactionRequest>,
 ) -> ApiResult<Response> {
-    check_amount("expected_amount", body.expected_amount)?;
+    if let Some(amount) = body.expected_amount {
+        check_amount("expected_amount", amount)?;
+    }
+    if let Some(amount) = body.gross_amount {
+        check_amount("gross_amount", amount)?;
+    }
+    check_adjustments(&body.adjustments)?;
     let scope = "POST /transactions".to_owned();
     idempotent(&state, user.user_id, &headers, scope, &body, || async {
         let input = transactions::NewTransaction {
@@ -579,6 +600,8 @@ pub async fn create_transactions(
             category_id: body.category_id,
             description: body.description.clone(),
             expected_amount: body.expected_amount,
+            gross_amount: body.gross_amount,
+            adjustments: adjustments(&body.adjustments),
             expected_date: body.expected_date,
             visibility: body.visibility.unwrap_or_default(),
         };
@@ -629,6 +652,12 @@ pub async fn update_transaction(
     if let Some(amount) = body.expected_amount {
         check_amount("expected_amount", amount)?;
     }
+    if let Some(amount) = body.gross_amount {
+        check_amount("gross_amount", amount)?;
+    }
+    if let Some(items) = &body.adjustments {
+        check_adjustments(items)?;
+    }
     let patch = transactions::TransactionPatch {
         description: body.description,
         expected_amount: body.expected_amount,
@@ -636,6 +665,8 @@ pub async fn update_transaction(
         account_id: body.account_id,
         category_id: body.category_id,
         visibility: body.visibility,
+        gross_amount: body.gross_amount,
+        adjustments: body.adjustments.as_deref().map(adjustments),
     };
     let item = transactions::update(
         &PgAccounts::new(state.pool.clone()),
@@ -669,7 +700,7 @@ pub async fn undo_settlement(
         .map_err(api_error)?;
     match outcome {
         UndoneSettlement::Reopened(item) => {
-            let response = TransactionResponse::new(item, today(&state));
+            let response = TransactionResponse::new(*item, today(&state));
             Ok((StatusCode::OK, Json(response)).into_response())
         }
         UndoneSettlement::CopyDeleted(copy_id) => {
@@ -721,11 +752,15 @@ pub async fn settle_transaction(
     Body(body): Body<SettleTransactionRequest>,
 ) -> ApiResult<Response> {
     check_amount("settled_amount", body.settled_amount)?;
+    if let Some(items) = &body.adjustments {
+        check_adjustments(items)?;
+    }
     let scope = format!("POST /transactions/{id}/settlement");
     idempotent(&state, user.user_id, &headers, scope, &body, || async {
         let request = SettlementRequest {
             settled_amount: body.settled_amount,
             settled_at: body.settled_at,
+            adjustments: body.adjustments.as_deref().map(adjustments),
         };
         let repo = PgTransactions::new(state.pool.clone());
         let item = transactions::settle(&repo, env(&state), user.user_id, id, request)
@@ -735,6 +770,26 @@ pub async fn settle_transaction(
         Ok((StatusCode::OK, to_json(response)?))
     })
     .await
+}
+
+/// Prévia da liquidação pelo líquido: bruto e itens recalculados, sem gravar (RF-09, decisão 13).
+#[utoipa::path(post, path = "/api/v1/transactions/settlement-preview", tag = "finance",
+    request_body = SettlementPreviewRequest,
+    responses((status = 200, body = BreakdownDto), (status = 422, body = ProblemDetails)))]
+pub async fn preview_settlement(
+    _user: CurrentUser,
+    Body(body): Body<SettlementPreviewRequest>,
+) -> ApiResult<Json<BreakdownDto>> {
+    check_amount("settled_amount", body.settled_amount)?;
+    check_amount("expected_gross_amount", body.expected_gross_amount)?;
+    check_adjustments(&body.adjustments)?;
+    let breakdown = transactions::preview_settlement(
+        body.settled_amount,
+        &adjustments(&body.adjustments),
+        body.expected_gross_amount,
+    )
+    .map_err(api_error)?;
+    Ok(Json(breakdown.into()))
 }
 
 // Transferências ------------------------------------------------------------
@@ -868,7 +923,13 @@ pub async fn create_recurring_transaction(
     headers: HeaderMap,
     Body(body): Body<CreateRecurringTransactionRequest>,
 ) -> ApiResult<Response> {
-    check_amount("expected_amount", body.expected_amount)?;
+    if let Some(amount) = body.expected_amount {
+        check_amount("expected_amount", amount)?;
+    }
+    if let Some(amount) = body.gross_amount {
+        check_amount("gross_amount", amount)?;
+    }
+    check_adjustments(&body.adjustments)?;
     let scope = "POST /recurring-transactions".to_owned();
     idempotent(&state, user.user_id, &headers, scope, &body, || async {
         let input = recurring_transactions::NewRecurringTransaction {
@@ -876,6 +937,8 @@ pub async fn create_recurring_transaction(
             account_id: body.account_id,
             category_id: body.category_id,
             expected_amount: body.expected_amount,
+            gross_amount: body.gross_amount,
+            adjustments: adjustments(&body.adjustments),
             description: body.description.clone(),
             rule: body.rule.clone(),
             visibility: body.visibility.unwrap_or_default(),
@@ -927,12 +990,20 @@ pub async fn update_recurring_transaction(
     if let Some(amount) = body.expected_amount {
         check_amount("expected_amount", amount)?;
     }
+    if let Some(amount) = body.gross_amount {
+        check_amount("gross_amount", amount)?;
+    }
+    if let Some(items) = &body.adjustments {
+        check_adjustments(items)?;
+    }
     let patch = recurring_transactions::RecurringTransactionPatch {
         account_id: body.account_id,
         expected_amount: body.expected_amount,
         category_id: body.category_id,
         description: body.description,
         rule: body.rule,
+        gross_amount: body.gross_amount,
+        adjustments: body.adjustments.as_deref().map(adjustments),
     };
     let updated = recurring_transactions::change(
         &PgAccounts::new(state.pool.clone()),
@@ -980,12 +1051,16 @@ pub async fn settle_occurrence(
     Body(body): Body<SettleOccurrenceRequest>,
 ) -> ApiResult<Response> {
     check_amount("settled_amount", body.settled_amount)?;
+    if let Some(items) = &body.adjustments {
+        check_adjustments(items)?;
+    }
     let scope = format!("POST /recurring-transactions/{id}/settlement");
     idempotent(&state, user.user_id, &headers, scope, &body, || async {
         let request = OccurrenceSettlement {
             occurrence_date: body.occurrence_date,
             settled_amount: body.settled_amount,
             settled_at: body.settled_at,
+            adjustments: body.adjustments.as_deref().map(adjustments),
         };
         let repo = PgRecurringTransactions::new(state.pool.clone());
         let copy = recurring_transactions::settle_occurrence(

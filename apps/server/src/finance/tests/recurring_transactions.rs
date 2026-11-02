@@ -1,6 +1,9 @@
 //! Recorrência financeira com ocorrência aberta única, cópia liquidada e previsão
 //! virtual (CT-21, CB-02, CB-09, RF-31, RN-08, RN-09, PD-51, DEC-003, DEC-004), e a
 //! exclusão da recorrente (RF-01, RF-02, RF-03, CT-01, CT-02, CB-01, CB-02 da SPEC-003).
+//! Bruto, descontos e acréscimos na regra (SPEC-004: RF-02, RF-08, RF-10, RF-11, RN-10,
+//! CT-04, CT-05 e CT-06): as virtuais levam os itens da regra, e a cópia liquidada guarda
+//! os previstos e os da liquidação, sem mudar a regra.
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
@@ -642,4 +645,342 @@ async fn undo_settlement_of_copy_after_recurring_deletion_keeps_it_as_one_off() 
     assert!(undone["generated_from"].is_null(), "{undone}");
     assert_eq!(t.balance(&t.alice, &account).await, 0);
     assert_eq!(stored_transactions(&t).await, 1);
+}
+
+fn percent(name: &str, direction: &str, rate_bp: i64, base_amount: Option<i64>) -> Value {
+    let mut item = json!({
+        "name": name,
+        "direction": direction,
+        "mode": "percent",
+        "rate_bp": rate_bp,
+    });
+    if let Some(base) = base_amount {
+        item["base_amount"] = json!(base);
+    }
+    item
+}
+
+fn fixed(name: &str, direction: &str, amount: i64) -> Value {
+    json!({ "name": name, "direction": direction, "mode": "fixed", "amount": amount })
+}
+
+fn ct02_items() -> Value {
+    json!([
+        percent("INSS", "deduction", 1100, None),
+        percent("IRPF", "deduction", 1500, Some(712_000)),
+    ])
+}
+
+fn computed(items: &Value) -> Vec<i64> {
+    items
+        .as_array()
+        .expect("itens")
+        .iter()
+        .map(|item| item["computed_amount"].as_i64().expect("computed_amount"))
+        .collect()
+}
+
+fn error_is(body: &Value, field: &str, code: &str) -> bool {
+    body["errors"][0]["field"] == field && body["errors"][0]["code"] == code
+}
+
+async fn salary(t: &FinanceTest, account: &str) -> Value {
+    let body = json!({
+        "kind": "income",
+        "account_id": account,
+        "gross_amount": 800_000,
+        "adjustments": ct02_items(),
+        "description": "Salário",
+        "rule": monthly_rule("2026-11-05", 5),
+    });
+    let (status, body) = t.post(&t.alice, "/recurring-transactions", body).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    body
+}
+
+#[tokio::test]
+async fn adj_ct04_recurring_with_adjustments_projects_net_and_items() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+
+    let body = salary(&t, &account).await;
+    let items = t
+        .items(&t.alice, "/transactions?from=2026-11-01&to=2027-01-31")
+        .await;
+    let (status, summary) = t
+        .get(
+            &t.alice,
+            "/financial-summaries?from=2026-12-01&to=2026-12-31",
+        )
+        .await;
+
+    assert_eq!(body["expected_amount"], 605_200);
+    assert_eq!(body["gross_amount"], 800_000);
+    assert_eq!(computed(&body["adjustments"]), [88_000, 106_800]);
+    assert_eq!(body["adjustments"][1]["base_amount"], 712_000);
+    let dates: Vec<&str> = items
+        .iter()
+        .map(|item| item["expected_date"].as_str().unwrap())
+        .collect();
+    assert_eq!(dates, ["2026-11-05", "2026-12-05", "2027-01-05"]);
+    for item in &items {
+        assert_eq!(item["id"], Value::Null);
+        assert_eq!(item["recurrence_id"], body["id"]);
+        assert_eq!(item["expected_amount"], 605_200);
+        assert_eq!(item["gross_amount"], 800_000);
+        assert_eq!(computed(&item["adjustments"]), [88_000, 106_800]);
+        assert_eq!(item["settled_adjustments"], Value::Null);
+    }
+    assert_eq!(stored_transactions(&t).await, 0);
+    assert_eq!(status, StatusCode::OK, "{summary}");
+    assert_eq!(summary["totals"]["income"]["forecast"], 605_200);
+}
+
+#[tokio::test]
+async fn adj_rn09_recurring_without_adjustments_keeps_gross_equal_to_net() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+
+    let body = t
+        .create_recurring(
+            &t.alice,
+            &account,
+            "expense",
+            5_000,
+            monthly_rule("2026-11-10", 10),
+        )
+        .await;
+    let items = t
+        .items(&t.alice, "/transactions?from=2026-11-10&to=2026-11-10")
+        .await;
+
+    assert_eq!(body["gross_amount"], 5_000);
+    assert_eq!(body["adjustments"], json!([]));
+    assert_eq!(items[0]["gross_amount"], 5_000);
+    assert_eq!(items[0]["adjustments"], json!([]));
+}
+
+#[tokio::test]
+async fn adj_ct05_settling_occurrence_by_net_stores_settled_items_on_copy() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let rule = salary(&t, &account).await;
+    let id = id_of(&rule);
+
+    let (status, copy) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-05", 650_000, "2026-11-05")
+        .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    assert_eq!(copy["generated_from"], rule["id"]);
+    assert_eq!(copy["expected_amount"], 605_200);
+    assert_eq!(copy["gross_amount"], 800_000);
+    assert_eq!(computed(&copy["adjustments"]), [88_000, 106_800]);
+    assert_eq!(copy["settled_amount"], 650_000);
+    assert_eq!(copy["settled_gross_amount"], 859_220);
+    let settled = computed(&copy["settled_adjustments"]);
+    assert_eq!(settled, [94_514, 114_706]);
+    assert_eq!(copy["settled_adjustments"][1]["base_amount"], 764_706);
+    let gross = copy["settled_gross_amount"].as_i64().unwrap();
+    assert_eq!(gross - settled.iter().sum::<i64>(), 650_000);
+    assert_eq!(t.balance(&t.alice, &account).await, 650_000);
+    let (_, unchanged) = t
+        .get(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(unchanged["gross_amount"], 800_000);
+    assert_eq!(unchanged["adjustments"][1]["rate_bp"], 1500);
+    assert_eq!(unchanged["adjustments"][1]["base_amount"], 712_000);
+    assert_eq!(
+        unchanged["open_occurrence"]["occurrence_date"],
+        "2026-12-05"
+    );
+    let next = t
+        .items(&t.alice, "/transactions?from=2026-12-01&to=2026-12-31")
+        .await;
+    assert_eq!(computed(&next[0]["adjustments"]), [88_000, 106_800]);
+}
+
+#[tokio::test]
+async fn adj_ct06_edited_adjustments_on_settlement_keep_rule() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = id_of(&salary(&t, &account).await);
+    let body = json!({
+        "occurrence_date": "2026-11-05",
+        "settled_at": "2026-11-05",
+        "settled_amount": 650_000,
+        "adjustments": [
+            percent("INSS", "deduction", 1100, None),
+            percent("IRPF", "deduction", 2250, Some(712_000)),
+        ],
+    });
+
+    let (status, copy) = t
+        .post(
+            &t.alice,
+            &format!("/recurring-transactions/{id}/settlement"),
+            body,
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    assert_eq!(copy["settled_gross_amount"], 942_370);
+    assert_eq!(computed(&copy["settled_adjustments"]), [103_661, 188_709]);
+    assert_eq!(copy["settled_adjustments"][1]["base_amount"], 838_709);
+    assert_eq!(copy["settled_adjustments"][1]["rate_bp"], 2250);
+    assert_eq!(copy["adjustments"][1]["rate_bp"], 1500);
+    let (_, rule) = t
+        .get(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(rule["adjustments"][1]["rate_bp"], 1500);
+    let copies = t
+        .items(
+            &t.alice,
+            &format!("/recurring-transactions/{id}/settled-transactions"),
+        )
+        .await;
+    assert_eq!(copies[0]["settled_adjustments"][1]["rate_bp"], 2250);
+}
+
+#[tokio::test]
+async fn adj_rn10_changing_adjustments_affects_open_and_following_but_not_copies() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = id_of(&salary(&t, &account).await);
+    let (status, copy) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-05", 605_200, "2026-11-05")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    assert_eq!(copy["settled_gross_amount"], 800_000);
+    let uri = format!("/recurring-transactions/{id}");
+
+    let (status, changed) = t
+        .patch(
+            &t.alice,
+            &uri,
+            json!({ "adjustments": [percent("INSS", "deduction", 1100, None)] }),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["expected_amount"], 712_000);
+    assert_eq!(computed(&changed["adjustments"]), [88_000]);
+    let following = t
+        .items(&t.alice, "/transactions?from=2026-12-01&to=2027-01-31")
+        .await;
+    assert_eq!(following.len(), 2);
+    for item in &following {
+        assert_eq!(item["expected_amount"], 712_000);
+        assert_eq!(item["adjustments"].as_array().unwrap().len(), 1);
+    }
+    let (_, kept) = t
+        .get(&t.alice, &format!("/transactions/{}", id_of(&copy)))
+        .await;
+    assert_eq!(kept["expected_amount"], 605_200);
+    assert_eq!(kept["adjustments"].as_array().unwrap().len(), 2);
+    assert_eq!(kept["settled_gross_amount"], 800_000);
+    let (status, raised) = t
+        .patch(&t.alice, &uri, json!({ "gross_amount": 900_000 }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{raised}");
+    assert_eq!(raised["expected_amount"], 801_000);
+}
+
+#[tokio::test]
+async fn adj_recurring_amount_fields_are_validated() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let base = |extra: Value| {
+        let mut body = json!({
+            "kind": "expense",
+            "account_id": account,
+            "rule": monthly_rule("2026-11-10", 10),
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            body[key] = value.clone();
+        }
+        body
+    };
+    let too_many = Value::Array(vec![fixed("Item", "deduction", 100); 21]);
+
+    for (body, field, code) in [
+        (
+            base(json!({ "expected_amount": 5_000, "gross_amount": 5_000 })),
+            "expected_amount",
+            "conflicts_with_gross_amount",
+        ),
+        (
+            base(json!({ "gross_amount": 100_000, "adjustments": too_many })),
+            "adjustments",
+            "too_many",
+        ),
+    ] {
+        let (status, response) = t.post(&t.alice, "/recurring-transactions", body).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{response}");
+        assert!(
+            error_is(&response, field, code),
+            "{field}/{code}: {response}"
+        );
+    }
+    let id = id_of(&salary(&t, &account).await);
+    let (status, refused) = t
+        .patch(
+            &t.alice,
+            &format!("/recurring-transactions/{id}"),
+            json!({ "expected_amount": 5_000 }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
+    assert!(
+        error_is(&refused, "expected_amount", "has_adjustments"),
+        "{refused}"
+    );
+    let body = json!({
+        "occurrence_date": "2026-11-05",
+        "settled_at": "2026-11-05",
+        "settled_amount": 0,
+        "adjustments": [fixed("Taxa", "addition", 500)],
+    });
+    let (status, refused) = t
+        .post(
+            &t.alice,
+            &format!("/recurring-transactions/{id}/settlement"),
+            body,
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
+    assert!(
+        error_is(&refused, "adjustments", "no_gross_for_net"),
+        "{refused}"
+    );
+    assert_eq!(
+        open_occurrence(&t, &id).await["occurrence_date"],
+        "2026-11-05"
+    );
+    assert_eq!(stored_transactions(&t).await, 0);
+}
+
+#[tokio::test]
+async fn adj_undo_settlement_of_copy_reopens_occurrence_with_rule_items() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = id_of(&salary(&t, &account).await);
+    let (status, copy) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-05", 650_000, "2026-11-05")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+
+    let (status, _) = t.undo_settlement(&t.alice, &id_of(&copy)).await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        open_occurrence(&t, &id).await["occurrence_date"],
+        "2026-11-05"
+    );
+    assert_eq!(t.balance(&t.alice, &account).await, 0);
+    let items = t
+        .items(&t.alice, "/transactions?from=2026-11-05&to=2026-11-05")
+        .await;
+    assert_eq!(items[0]["expected_amount"], 605_200);
+    assert_eq!(computed(&items[0]["adjustments"]), [88_000, 106_800]);
 }

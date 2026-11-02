@@ -1,6 +1,7 @@
 //! Casos de uso das movimentações recorrentes (RF-31, PD-51, DEC-003): criação,
 //! mudança (vale para a aberta e as seguintes, RN-08), liquidação da aberta com
-//! cópia, pulo e exclusão.
+//! cópia, pulo e exclusão. O bruto e os itens de ajuste da regra (SPEC-004) seguem as
+//! mesmas regras da avulsa e valem para a aberta e as seguintes (RN-10).
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -10,12 +11,13 @@ use crate::finance::application::ports::{
     AccountRepository, CategoryRepository, Outcome, RecurringTransactionRepository,
 };
 use crate::finance::application::transactions::check_category;
+use crate::finance::domain::adjustment::Adjustment;
 use crate::finance::domain::optional_text;
 use crate::finance::domain::recurring_transaction::{
     OccurrenceSettlement, RecurringTransaction, validate_rule,
 };
 use crate::finance::domain::transaction::{
-    DESCRIPTION_MAX_CHARS, Transaction, TransactionKind, validate_expected_amount,
+    DESCRIPTION_MAX_CHARS, Transaction, TransactionKind, edited_amounts, planned_amounts,
 };
 use crate::shared::recurrence::RecurrenceRule;
 use crate::shared::visibility::Visibility;
@@ -25,7 +27,9 @@ pub struct NewRecurringTransaction {
     pub kind: TransactionKind,
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
-    pub expected_amount: i64,
+    pub expected_amount: Option<i64>,
+    pub gross_amount: Option<i64>,
+    pub adjustments: Vec<Adjustment>,
     pub description: Option<String>,
     pub rule: RecurrenceRule,
     pub visibility: Visibility,
@@ -39,6 +43,8 @@ pub struct RecurringTransactionPatch {
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
     pub rule: Option<RecurrenceRule>,
+    pub gross_amount: Option<i64>,
+    pub adjustments: Option<Vec<Adjustment>>,
 }
 
 pub async fn create<A, C, R>(
@@ -54,7 +60,11 @@ where
     C: CategoryRepository,
     R: RecurringTransactionRepository,
 {
-    validate_expected_amount(input.expected_amount)?;
+    let planned = planned_amounts(
+        input.expected_amount,
+        input.gross_amount,
+        &input.adjustments,
+    )?;
     validate_rule(&input.rule)?;
     let description = optional_text(input.description, "description", DESCRIPTION_MAX_CHARS)?;
     let account = accounts.get(owner_id, input.account_id).await?;
@@ -67,7 +77,9 @@ where
         kind: input.kind,
         account_id: account.id,
         category_id: input.category_id,
-        expected_amount: input.expected_amount,
+        expected_amount: planned.expected_amount,
+        gross_amount: planned.gross_amount,
+        adjustments: planned.adjustments,
         currency: account.currency,
         rule: input.rule,
         description,
@@ -116,9 +128,15 @@ where
     R: RecurringTransactionRepository,
 {
     let mut updated = recurring.get(owner_id, id).await?;
-    if let Some(amount) = patch.expected_amount {
-        validate_expected_amount(amount)?;
-        updated.expected_amount = amount;
+    if let Some(planned) = edited_amounts(
+        &updated.planned(),
+        patch.expected_amount,
+        patch.gross_amount,
+        patch.adjustments.as_deref(),
+    )? {
+        updated.expected_amount = planned.expected_amount;
+        updated.gross_amount = planned.gross_amount;
+        updated.adjustments = planned.adjustments;
     }
     if let Some(account_id) = patch.account_id {
         let account = accounts.get(owner_id, account_id).await?;

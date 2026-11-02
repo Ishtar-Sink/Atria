@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::account::Account;
+use crate::finance::domain::adjustment::Adjustment;
 use crate::finance::domain::category::Category;
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionEdit, TransactionKind};
@@ -136,18 +137,21 @@ pub struct TransferFilter {
 }
 
 /// Resultado de desfazer a liquidação: a comum volta a ficar prevista; a cópia de
-/// uma recorrente é apagada (DEC-005).
+/// uma recorrente é apagada (DEC-005). A movimentação vai numa `Box` porque, com os
+/// itens de ajuste, ela é bem maior que o id da outra variante.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UndoneSettlement {
-    Reopened(Transaction),
+    Reopened(Box<Transaction>),
     CopyDeleted(Uuid),
 }
 
 /// Pedido de liquidação.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettlementRequest {
     pub settled_amount: i64,
     pub settled_at: NaiveDate,
+    /// Itens editados na liquidação; ausentes, os previstos (RF-09, RF-10).
+    pub adjustments: Option<Vec<Adjustment>>,
 }
 
 pub trait TransactionRepository: Send + Sync {

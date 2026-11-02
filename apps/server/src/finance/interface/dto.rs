@@ -9,13 +9,16 @@ use uuid::Uuid;
 use crate::finance::application::ports::Repetition;
 use crate::finance::application::summaries::{PeriodSummaryView, WhereView};
 use crate::finance::domain::account::Account;
+use crate::finance::domain::adjustment::{
+    Adjustment, AdjustmentDirection, AdjustmentMode, Breakdown, ComputedAdjustment,
+};
 use crate::finance::domain::category::{Category, SystemCategory};
 use crate::finance::domain::forecast::FinanceItem;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
 use crate::finance::domain::summary::{
-    ExpectedVsSettled, Flow, MonthTotals, Period, PeriodTotals, Planned, SavingsAndLosses,
-    WhereGroup,
+    AdjustmentTotal, ExpectedVsSettled, Flow, MonthTotals, Period, PeriodTotals, Planned,
+    SavingsAndLosses, WhereGroup,
 };
 use crate::finance::domain::transaction::{ItemStatus, Transaction, TransactionKind};
 use crate::finance::domain::transfer::Transfer;
@@ -275,6 +278,109 @@ pub struct CategoryPage {
 
 // Movimentações ------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AdjustmentDirectionDto {
+    Deduction,
+    Addition,
+}
+
+impl From<AdjustmentDirectionDto> for AdjustmentDirection {
+    fn from(value: AdjustmentDirectionDto) -> Self {
+        match value {
+            AdjustmentDirectionDto::Deduction => Self::Deduction,
+            AdjustmentDirectionDto::Addition => Self::Addition,
+        }
+    }
+}
+
+impl From<AdjustmentDirection> for AdjustmentDirectionDto {
+    fn from(value: AdjustmentDirection) -> Self {
+        match value {
+            AdjustmentDirection::Deduction => Self::Deduction,
+            AdjustmentDirection::Addition => Self::Addition,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AdjustmentModeDto {
+    Fixed,
+    Percent,
+}
+
+impl From<AdjustmentModeDto> for AdjustmentMode {
+    fn from(value: AdjustmentModeDto) -> Self {
+        match value {
+            AdjustmentModeDto::Fixed => Self::Fixed,
+            AdjustmentModeDto::Percent => Self::Percent,
+        }
+    }
+}
+
+impl From<AdjustmentMode> for AdjustmentModeDto {
+    fn from(value: AdjustmentMode) -> Self {
+        match value {
+            AdjustmentMode::Fixed => Self::Fixed,
+            AdjustmentMode::Percent => Self::Percent,
+        }
+    }
+}
+
+/// Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AdjustmentDto {
+    /// Nome do item, de 1 a 60 caracteres.
+    #[schema(example = "INSS")]
+    pub name: String,
+    /// Desconto (`deduction`) ou acréscimo (`addition`).
+    pub direction: AdjustmentDirectionDto,
+    /// Valor fixo (`fixed`) ou percentual (`percent`).
+    pub mode: AdjustmentModeDto,
+    /// Só no fixo: valor em centavos, maior que zero.
+    pub amount: Option<i64>,
+    /// Só no percentual: centésimos de ponto percentual, de 1 a 9999 (1100 = 11,00%).
+    pub rate_bp: Option<i32>,
+    /// Só no percentual, opcional: base digitada em centavos; ausente, a base é o bruto.
+    pub base_amount: Option<i64>,
+    /// Valor calculado em centavos; preenchido na resposta e ignorado no pedido.
+    pub computed_amount: Option<i64>,
+}
+
+impl From<AdjustmentDto> for Adjustment {
+    fn from(value: AdjustmentDto) -> Self {
+        Self {
+            name: value.name,
+            direction: value.direction.into(),
+            mode: value.mode.into(),
+            amount: value.amount,
+            rate_bp: value.rate_bp,
+            base_amount: value.base_amount,
+        }
+    }
+}
+
+impl From<ComputedAdjustment> for AdjustmentDto {
+    fn from(value: ComputedAdjustment) -> Self {
+        let item = value.adjustment;
+        Self {
+            name: item.name,
+            direction: item.direction.into(),
+            mode: item.mode.into(),
+            amount: item.amount,
+            rate_bp: item.rate_bp,
+            base_amount: item.base_amount,
+            computed_amount: Some(value.computed_amount),
+        }
+    }
+}
+
+fn adjustment_dtos(items: Vec<ComputedAdjustment>) -> Vec<AdjustmentDto> {
+    items.into_iter().map(Into::into).collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTransactionRequest {
@@ -282,7 +388,13 @@ pub struct CreateTransactionRequest {
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
-    pub expected_amount: i64,
+    /// Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09).
+    pub expected_amount: Option<i64>,
+    /// Bruto previsto em centavos; o líquido é calculado com os itens.
+    pub gross_amount: Option<i64>,
+    /// De 0 a 20 itens, na ordem.
+    #[serde(default)]
+    pub adjustments: Vec<AdjustmentDto>,
     pub expected_date: NaiveDate,
     pub visibility: Option<Visibility>,
 }
@@ -298,13 +410,51 @@ pub struct UpdateTransactionRequest {
     pub account_id: Option<Uuid>,
     pub category_id: Option<Uuid>,
     pub visibility: Option<Visibility>,
+    /// Bruto previsto; recalcula o líquido com os itens.
+    pub gross_amount: Option<i64>,
+    /// Itens previstos, que substituem os atuais; recalcula o líquido.
+    pub adjustments: Option<Vec<AdjustmentDto>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SettleTransactionRequest {
+    /// Líquido liquidado, o valor que entra no caixa.
     pub settled_amount: i64,
     pub settled_at: NaiveDate,
+    /// Itens editados na liquidação; ausentes, os previstos (RF-10).
+    pub adjustments: Option<Vec<AdjustmentDto>>,
+}
+
+/// Prévia da liquidação pelo líquido, sem gravar (RF-09, decisão 13).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SettlementPreviewRequest {
+    /// Líquido informado, em centavos.
+    pub settled_amount: i64,
+    /// Itens da liquidação, na ordem.
+    #[serde(default)]
+    pub adjustments: Vec<AdjustmentDto>,
+    /// Bruto previsto, para escalar a base digitada na proporção do bruto (RN-06).
+    pub expected_gross_amount: i64,
+}
+
+/// Bruto, líquido e itens calculados.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BreakdownDto {
+    pub gross_amount: i64,
+    pub net_amount: i64,
+    pub adjustments: Vec<AdjustmentDto>,
+}
+
+impl From<Breakdown> for BreakdownDto {
+    fn from(value: Breakdown) -> Self {
+        Self {
+            gross_amount: value.gross_amount,
+            net_amount: value.net_amount,
+            adjustments: adjustment_dtos(value.items),
+        }
+    }
 }
 
 /// Período livre pela data efetiva, a da liquidação ou a prevista (PD-55); sem
@@ -339,12 +489,21 @@ pub struct TransactionResponse {
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
+    /// Líquido previsto, o valor que afeta o saldo.
     pub expected_amount: i64,
+    /// Bruto previsto; igual ao líquido sem itens.
+    pub gross_amount: i64,
+    /// Itens previstos, na ordem, com o valor calculado.
+    pub adjustments: Vec<AdjustmentDto>,
     pub expected_date: NaiveDate,
     pub settled_amount: Option<i64>,
     pub settled_at: Option<NaiveDate>,
     pub difference_amount: Option<i64>,
     pub difference_kind: Option<DifferenceKindDto>,
+    /// Bruto liquidado; nulo enquanto prevista.
+    pub settled_gross_amount: Option<i64>,
+    /// Itens da liquidação; nulos enquanto prevista.
+    pub settled_adjustments: Option<Vec<AdjustmentDto>>,
     #[schema(example = "BRL")]
     pub currency: String,
     pub status: ItemStatusDto,
@@ -374,11 +533,15 @@ impl TransactionResponse {
             category_id: item.category_id,
             description: item.description,
             expected_amount: item.expected_amount,
+            gross_amount: item.gross_amount,
+            adjustments: adjustment_dtos(item.adjustments),
             expected_date: item.expected_date,
             settled_amount: settlement.map(|done| done.settled_amount),
             settled_at: settlement.map(|done| done.settled_at),
             difference_amount: settlement.map(|done| done.difference_amount),
             difference_kind: difference_kind(settlement),
+            settled_gross_amount: settlement.map(|done| done.gross_amount),
+            settled_adjustments: settlement.map(|_| adjustment_dtos(item.settled_adjustments)),
             currency: item.currency.to_string(),
             status,
             effective_date,
@@ -408,12 +571,21 @@ pub struct TransactionItemResponse {
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
+    /// Líquido previsto, o valor que afeta o saldo.
     pub expected_amount: i64,
+    /// Bruto previsto; igual ao líquido sem itens.
+    pub gross_amount: i64,
+    /// Itens previstos, na ordem, com o valor calculado.
+    pub adjustments: Vec<AdjustmentDto>,
     pub expected_date: NaiveDate,
     pub settled_amount: Option<i64>,
     pub settled_at: Option<NaiveDate>,
     pub difference_amount: Option<i64>,
     pub difference_kind: Option<DifferenceKindDto>,
+    /// Bruto liquidado; nulo enquanto prevista.
+    pub settled_gross_amount: Option<i64>,
+    /// Itens da liquidação; nulos enquanto prevista.
+    pub settled_adjustments: Option<Vec<AdjustmentDto>>,
     #[schema(example = "BRL")]
     pub currency: String,
     pub status: ItemStatusDto,
@@ -438,11 +610,15 @@ impl TransactionItemResponse {
                 category_id: projected.category_id,
                 description: projected.description,
                 expected_amount: projected.expected_amount,
+                gross_amount: projected.gross_amount,
+                adjustments: adjustment_dtos(projected.adjustments),
                 expected_date: projected.occurrence_date,
                 settled_amount: None,
                 settled_at: None,
                 difference_amount: None,
                 difference_kind: None,
+                settled_gross_amount: None,
+                settled_adjustments: None,
                 currency: projected.currency.to_string(),
                 status: projected.status.into(),
                 effective_date: projected.occurrence_date,
@@ -467,11 +643,15 @@ impl From<TransactionResponse> for TransactionItemResponse {
             category_id: item.category_id,
             description: item.description,
             expected_amount: item.expected_amount,
+            gross_amount: item.gross_amount,
+            adjustments: item.adjustments,
             expected_date: item.expected_date,
             settled_amount: item.settled_amount,
             settled_at: item.settled_at,
             difference_amount: item.difference_amount,
             difference_kind: item.difference_kind,
+            settled_gross_amount: item.settled_gross_amount,
+            settled_adjustments: item.settled_adjustments,
             currency: item.currency,
             status: item.status,
             effective_date: item.effective_date,
@@ -567,7 +747,13 @@ pub struct CreateRecurringTransactionRequest {
     pub kind: TransactionKindDto,
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
-    pub expected_amount: i64,
+    /// Líquido sem itens, como antes; com itens, informe `gross_amount` (RN-09).
+    pub expected_amount: Option<i64>,
+    /// Bruto previsto de cada ocorrência; o líquido é calculado com os itens.
+    pub gross_amount: Option<i64>,
+    /// De 0 a 20 itens, na ordem.
+    #[serde(default)]
+    pub adjustments: Vec<AdjustmentDto>,
     pub description: Option<String>,
     pub rule: RecurrenceRule,
     pub visibility: Option<Visibility>,
@@ -583,6 +769,10 @@ pub struct UpdateRecurringTransactionRequest {
     pub category_id: Option<Uuid>,
     pub description: Option<String>,
     pub rule: Option<RecurrenceRule>,
+    /// Bruto previsto; vale para a aberta e as seguintes (RN-10).
+    pub gross_amount: Option<i64>,
+    /// Itens previstos, que substituem os atuais; valem para a aberta e as seguintes (RN-10).
+    pub adjustments: Option<Vec<AdjustmentDto>>,
 }
 
 /// Liquidação da ocorrência aberta; `occurrence_date` tem de ser a dela.
@@ -592,6 +782,8 @@ pub struct SettleOccurrenceRequest {
     pub occurrence_date: NaiveDate,
     pub settled_amount: i64,
     pub settled_at: NaiveDate,
+    /// Itens editados na liquidação; a regra não muda (RF-10).
+    pub adjustments: Option<Vec<AdjustmentDto>>,
 }
 
 /// Pulo da ocorrência aberta, sem cópia.
@@ -617,7 +809,12 @@ pub struct RecurringTransactionResponse {
     pub kind: TransactionKindDto,
     pub account_id: Uuid,
     pub category_id: Option<Uuid>,
+    /// Líquido previsto de cada ocorrência.
     pub expected_amount: i64,
+    /// Bruto previsto; igual ao líquido sem itens.
+    pub gross_amount: i64,
+    /// Itens previstos da regra, na ordem, com o valor calculado.
+    pub adjustments: Vec<AdjustmentDto>,
     #[schema(example = "BRL")]
     pub currency: String,
     pub description: Option<String>,
@@ -648,6 +845,8 @@ impl RecurringTransactionResponse {
             account_id: recurring.account_id,
             category_id: recurring.category_id,
             expected_amount: recurring.expected_amount,
+            gross_amount: recurring.gross_amount,
+            adjustments: adjustment_dtos(recurring.adjustments),
             currency: recurring.currency.to_string(),
             description: recurring.description,
             rule: recurring.rule,
@@ -861,6 +1060,27 @@ impl From<MonthTotals> for MonthlyTotalsDto {
     }
 }
 
+/// Um nome do cartão "Descontos do período", em centavos: `expected` com as liquidadas pelos valores da liquidação e as previstas pelos previstos, `settled` só as liquidadas (RF-14, RN-11).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AdjustmentTotalDto {
+    #[schema(example = "INSS")]
+    pub name: String,
+    pub direction: AdjustmentDirectionDto,
+    pub expected: i64,
+    pub settled: i64,
+}
+
+impl From<AdjustmentTotal> for AdjustmentTotalDto {
+    fn from(value: AdjustmentTotal) -> Self {
+        Self {
+            name: value.name,
+            direction: value.direction.into(),
+            expected: value.expected,
+            settled: value.settled,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FinancialSummaryResponse {
     pub period: PeriodDto,
@@ -875,6 +1095,8 @@ pub struct FinancialSummaryResponse {
     pub upcoming_bills: Vec<TransactionItemResponse>,
     /// 6 meses realizados e 6 projetados, em ordem (RF-17).
     pub monthly: Vec<MonthlyTotalsDto>,
+    /// Descontos e acréscimos do período por nome, sem diferenciar maiúsculas e acentos; descontos primeiro (RF-14).
+    pub adjustments_by_name: Vec<AdjustmentTotalDto>,
     #[schema(example = "BRL")]
     pub currency: String,
 }
@@ -909,6 +1131,11 @@ impl From<PeriodSummaryView> for FinancialSummaryResponse {
                 .map(|item| TransactionItemResponse::new(item, today))
                 .collect(),
             monthly: view.monthly.into_iter().map(Into::into).collect(),
+            adjustments_by_name: view
+                .adjustments_by_name
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             currency: view.currency.to_string(),
         }
     }

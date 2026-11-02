@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE transactions SET settled_amount = $1, settled_at = $2, difference_amount = $3, difference_kind = $4, settled_gross_amount = $5, settled_adjustments = $6, updated_at = $7 WHERE id = $8 AND owner_id = $9",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Date",
+        "Int8",
+        "Text",
+        "Int8",
+        "Jsonb",
+        "Timestamptz",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "563662de8d294ea96e32a368968dbe98f9764838c8ffb9b659921033c84bd794"
+}

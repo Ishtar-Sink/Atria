@@ -124,7 +124,8 @@ fn id_of(created: &[Created], resource: &str) -> String {
 fn overrides(resource: &str, created: &[Created]) -> Map<String, Value> {
     let id = |name: &str| json!(id_of(created, name));
     let value = match resource {
-        "transactions" => json!({"account_id": id("accounts")}),
+        // O valor é opcional desde os descontos (SPEC-004): sem ele nem o bruto, é recusado.
+        "transactions" => json!({"account_id": id("accounts"), "expected_amount": 1000}),
         // Sem horário, o lembrete é recusado (`missing_schedule`).
         "reminders" => {
             json!({"remind_at": "2026-11-05T08:00:00Z", "timezone": "America/Sao_Paulo"})
