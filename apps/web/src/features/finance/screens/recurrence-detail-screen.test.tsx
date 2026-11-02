@@ -5,10 +5,12 @@ import { axe } from 'vitest-axe';
 import { clearToasts } from '../../../shared/toast/toast-store';
 import {
   account,
+  breakdownRows,
   financeServer,
   item,
   pageHeading,
   renderFinance,
+  SALARY_ADJUSTMENTS,
   transaction,
   world,
   type ApiCall,
@@ -26,7 +28,7 @@ const RULE = {
   ends_on: null,
 };
 
-function rent() {
+function rent(overrides: Record<string, unknown> = {}) {
   return {
     id: 'r1',
     account_id: 'a1',
@@ -34,6 +36,8 @@ function rent() {
     currency: 'BRL',
     description: 'Aluguel',
     expected_amount: 200000,
+    gross_amount: 200000,
+    adjustments: [],
     kind: 'expense',
     owner_id: 'u1',
     visibility: 'personal',
@@ -41,6 +45,7 @@ function rent() {
     open_occurrence: { occurrence_date: '2026-10-31', status: 'overdue' },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
   };
 }
 
@@ -257,5 +262,24 @@ describe('settled copy of a recurrence', () => {
           .some((call) => call.method === 'GET' && call.path.startsWith('/accounts')),
       ).toBe(true);
     });
+  });
+});
+
+describe('recurrence adjustments', () => {
+  it('rf12 shows the items of the recurrence and the expected net', async () => {
+    const state = seed();
+    state.recurring = [
+      rent({ gross_amount: 800000, expected_amount: 605200, adjustments: SALARY_ADJUSTMENTS }),
+    ];
+    financeServer(state);
+    renderFinance('/finance/recurring-transactions/r1');
+    await pageHeading('Aluguel');
+    const region = await screen.findByRole('region', { name: 'Descontos e acréscimos' });
+    expect(breakdownRows(region.querySelector('dl') as Element)).toEqual([
+      'Valor bruto R$ 8.000,00',
+      'INSS 11,00% do bruto −R$ 880,00',
+      'IRPF 15,00% de R$ 7.120,00 −R$ 1.068,00',
+      'Líquido previsto R$ 6.052,00',
+    ]);
   });
 });

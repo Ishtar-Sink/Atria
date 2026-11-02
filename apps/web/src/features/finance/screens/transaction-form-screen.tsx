@@ -11,7 +11,7 @@ import {
 } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch, type Control } from 'react-hook-form';
 import { z } from 'zod';
 import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { FormDate, FormSelect, useDateLabels } from '../../../shared/forms/form-fields';
@@ -26,6 +26,8 @@ import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { pushToast } from '../../../shared/toast/toast-store';
+import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-breakdown';
+import { AdjustmentsField } from '../components/adjustments-field';
 import styles from '../components/finance.module.css';
 import { MoneyField } from '../components/money-field';
 import { VisibilityField } from '../components/visibility-field';
@@ -47,6 +49,7 @@ import {
   type RecurringTransaction,
 } from '../hooks/use-recurring-transactions';
 import {
+  amountFields,
   changedFields,
   editableFields,
   useCreateTransaction,
@@ -54,6 +57,8 @@ import {
   useUpdateTransaction,
   type EditableField,
 } from '../hooks/use-transactions';
+import { adjustments_schema, fromAdjustments, toAdjustments } from '../lib/adjustment-form';
+import { computeNet } from '../lib/adjustments';
 import { todayInTimeZone } from '../lib/finance-period';
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -72,8 +77,20 @@ const form_schema = z
     repeat: z.boolean(),
     rule: z.custom<RecurrenceRule>(),
     visibility: z.enum(['personal', 'shared']),
+    adjustments: adjustments_schema,
   })
   .superRefine((values, context) => {
+    const items = values.adjustments.length > 0 ? toAdjustments(values.adjustments) : null;
+    if (items && values.expected_amount !== null) {
+      const result = computeNet(values.expected_amount, items);
+      if (!result.ok && result.issue.code === 'net_not_positive') {
+        context.addIssue({
+          code: 'custom',
+          path: ['adjustments'],
+          message: 'finance.adjustments.net_not_positive',
+        });
+      }
+    }
     if (values.expected_amount === null) {
       context.addIssue({
         code: 'custom',
@@ -117,18 +134,19 @@ function titleKey(mode: Mode): string {
   return `finance.transaction_form.new_${kind}`;
 }
 
-function initialValues(mode: Mode, time_zone: string, today: string): FormValues {
+function initialValues(mode: Mode, time_zone: string, today: string, locale: string): FormValues {
   if (mode.type === 'edit') {
     const item = mode.transaction;
     return {
       description: item.description ?? '',
       account_id: item.account_id,
       category_id: item.category_id ?? '',
-      expected_amount: item.expected_amount,
+      expected_amount: item.gross_amount,
       expected_date: item.expected_date,
       repeat: false,
       rule: defaultRecurrenceRule(time_zone, item.expected_date),
       visibility: item.visibility,
+      adjustments: fromAdjustments(item.adjustments, locale),
     };
   }
   if (mode.type === 'recurrence') {
@@ -137,11 +155,12 @@ function initialValues(mode: Mode, time_zone: string, today: string): FormValues
       description: item.description ?? '',
       account_id: item.account_id,
       category_id: item.category_id ?? '',
-      expected_amount: item.expected_amount,
+      expected_amount: item.gross_amount,
       expected_date: item.rule.starts_on,
       repeat: true,
       rule: toFormRule(item.rule),
       visibility: item.visibility,
+      adjustments: fromAdjustments(item.adjustments, locale),
     };
   }
   return {
@@ -153,7 +172,43 @@ function initialValues(mode: Mode, time_zone: string, today: string): FormValues
     repeat: false,
     rule: { ...defaultRecurrenceRule(time_zone, today), frequency: 'monthly' },
     visibility: 'personal',
+    adjustments: [],
   };
+}
+
+/** Líquido previsto a cada mudança do bruto ou de um item, com a mesma regra do servidor (RF-13). */
+function LiveNet({ control, currency }: { control: Control<FormValues>; currency: string }) {
+  const t = useT();
+  const { locale } = usePreferences();
+  const gross = useWatch({ control, name: 'expected_amount' });
+  const items = useWatch({ control, name: 'adjustments' });
+  if (items.length === 0) return null;
+  const inputs = toAdjustments(items);
+  const result = gross != null && inputs ? computeNet(gross, inputs) : null;
+  if (!result?.ok) {
+    return (
+      <p role="status" className={styles.cardHelp}>
+        {t('finance.adjustments.net_incomplete')}
+      </p>
+    );
+  }
+  const { breakdown } = result;
+  return (
+    <>
+      <AdjustmentsBreakdown
+        currency={currency}
+        gross_amount={breakdown.gross_amount}
+        items={breakdown.adjustments}
+        net_amount={breakdown.net_amount}
+        net_label={t('finance.adjustments.net_expected')}
+      />
+      <p role="status" className={styles.srOnly}>
+        {t('finance.adjustments.net_live', {
+          value: formatMoney(breakdown.net_amount, currency, locale),
+        })}
+      </p>
+    </>
+  );
 }
 
 interface TransactionFormProps {
@@ -165,7 +220,7 @@ interface TransactionFormProps {
 function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
   const t = useT();
   const navigate = useNavigate();
-  const { locale, time_zone } = usePreferences();
+  const { locale, time_zone, currency } = usePreferences();
   const date_labels = useDateLabels();
   const today = todayInTimeZone(new Date(), time_zone);
   const kind = kindOf(mode);
@@ -186,7 +241,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     setError: setFieldError,
   } = useForm<FormValues>({
     resolver: zodResolver(form_schema),
-    defaultValues: initialValues(mode, time_zone, today),
+    defaultValues: initialValues(mode, time_zone, today, locale),
   });
   const repeat = useWatch({ control, name: 'repeat' });
   const editable: readonly EditableField[] =
@@ -196,6 +251,8 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     mode.type === 'edit' && mode.transaction.status === 'settled'
       ? t('finance.transaction_form.settled_locked')
       : undefined;
+  const adjustments_error =
+    formState.errors.adjustments?.message ?? formState.errors.adjustments?.root?.message;
   const account_options = accounts.map((item) => ({ value: item.id, label: item.name }));
   const category_options = categories.map((item) => ({ value: item.id, label: item.name }));
 
@@ -214,7 +271,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
       account_id: values.account_id,
       category_id: values.category_id || null,
       description: values.description.trim() || null,
-      expected_amount: values.expected_amount ?? 0,
+      ...amountFields(values.expected_amount ?? 0, toAdjustments(values.adjustments) ?? [], false),
       visibility: values.visibility,
     };
     if (values.repeat) {
@@ -264,7 +321,11 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
           description: values.description.trim() || null,
           account_id: values.account_id,
           category_id: values.category_id || null,
-          expected_amount: values.expected_amount,
+          ...amountFields(
+            values.expected_amount ?? 0,
+            toAdjustments(values.adjustments) ?? [],
+            mode.transaction.adjustments.length > 0,
+          ),
           expected_date: values.expected_date,
           visibility: values.visibility,
         });
@@ -279,7 +340,11 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
         description: values.description.trim() || null,
         account_id: values.account_id,
         category_id: values.category_id || null,
-        expected_amount: values.expected_amount,
+        ...amountFields(
+          values.expected_amount ?? 0,
+          toAdjustments(values.adjustments) ?? [],
+          mode.recurrence.adjustments.length > 0,
+        ),
         rule: toContractRule({ ...values.rule, timezone: time_zone }),
       });
       await navigate({
@@ -369,7 +434,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
             <TextField
               label={t('finance.transaction_form.expected_amount')}
               value={formatMoney(
-                mode.type === 'edit' ? mode.transaction.expected_amount : 0,
+                mode.type === 'edit' ? mode.transaction.gross_amount : 0,
                 mode.type === 'edit' ? mode.transaction.currency : 'BRL',
                 locale,
               )}
@@ -388,6 +453,30 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
               )}
             />
           )}
+          <div data-span="full">
+            {locked('expected_amount') ? (
+              mode.type === 'edit' && mode.transaction.adjustments.length > 0 ? (
+                <AdjustmentsBreakdown
+                  currency={mode.transaction.currency}
+                  gross_amount={mode.transaction.gross_amount}
+                  items={breakdownItems(mode.transaction.adjustments)}
+                  net_amount={mode.transaction.expected_amount}
+                  net_label={t('finance.adjustments.net_expected')}
+                />
+              ) : null
+            ) : (
+              <>
+                <AdjustmentsField control={control}>
+                  <LiveNet control={control} currency={currency} />
+                </AdjustmentsField>
+                {adjustments_error ? (
+                  <p role="alert" className={styles.formError}>
+                    {t(adjustments_error)}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
           {repeat ? null : locked('expected_date') ? (
             <Controller
               control={control}

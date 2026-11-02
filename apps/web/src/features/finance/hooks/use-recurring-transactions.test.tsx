@@ -34,6 +34,8 @@ const RENT: RecurringTransaction = {
   currency: 'BRL',
   description: 'Aluguel',
   expected_amount: 200000,
+  gross_amount: 200000,
+  adjustments: [],
   kind: 'expense',
   owner_id: 'u1',
   visibility: 'personal',
@@ -295,5 +297,34 @@ describe('recurring transactions hooks', () => {
       expect(result.current.list.items).toHaveLength(4);
     });
     expect(getToasts().map((toast) => toast.message_key)).toContain('common.errors.generic');
+  });
+
+  it('rf10 sends the edited items with the occurrence settlement', async () => {
+    const { calls } = mockApi({
+      'GET /recurring-transactions/:id': { body: RENT },
+      'POST /recurring-transactions/:id/settlement': {
+        status: 201,
+        body: transaction({ id: 'copy', generated_from: 'r1', status: 'settled' }),
+      },
+    });
+    const { result } = renderFinanceHook(() => useSettleOccurrence('r1'));
+    const adjustments = [
+      { name: 'Taxa', direction: 'addition', mode: 'fixed', amount: 500 } as const,
+    ];
+    await act(() =>
+      result.current.mutateAsync({
+        occurrence_date: '2026-11-30',
+        settled_amount: 200500,
+        settled_at: '2026-11-29',
+        adjustments: [...adjustments],
+        idempotency_key: 'k3',
+      }),
+    );
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
+      occurrence_date: '2026-11-30',
+      settled_amount: 200500,
+      settled_at: '2026-11-29',
+      adjustments,
+    });
   });
 });

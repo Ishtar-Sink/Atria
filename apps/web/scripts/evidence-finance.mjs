@@ -9,7 +9,11 @@
 // TASK-12 acrescenta excluir-conta: finance-excluir-conta.webm (excluir conta com conta de destino).
 // TASK-15 acrescenta graficos (finance-graficos.png) e graficos-video (finance-graficos.webm).
 // TASK-17 acrescenta sinais (finance-sinais.png): valores com sinal e cor nas listas e no painel.
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais]
+// TASK-07 da SPEC-004 acrescenta descontos-form (finance-descontos-form.png): editor de descontos e acréscimos, líquido ao vivo e detalhamento.
+// TASK-08 da SPEC-004 acrescenta descontos-liquidacao (finance-descontos-liquidacao.png): liquidação pelo líquido com a prévia e a edição dos itens.
+// TASK-09 da SPEC-004 acrescenta descontos-painel (finance-descontos-painel.png): cartão Descontos do período.
+// TASK-10 da SPEC-004 acrescenta descontos-video (finance-descontos.webm): o fluxo dos descontos do formulário ao painel.
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais|descontos-form|descontos-liquidacao|descontos-painel|descontos-video]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -104,6 +108,10 @@ function transaction(o) {
     generated_from: null,
     recurrence_id: null,
     occurrence_date: null,
+    gross_amount: o.expected_amount ?? 10000,
+    adjustments: [],
+    settled_gross_amount: null,
+    settled_adjustments: [],
     ...STAMP,
     ...o,
   };
@@ -131,6 +139,8 @@ function recurring(o) {
     rule: RULE,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
+    gross_amount: o.expected_amount,
+    adjustments: [],
     ...o,
   };
 }
@@ -245,6 +255,7 @@ function summary() {
         status: 'open',
       }),
     ],
+    adjustments_by_name: [],
     currency: 'BRL',
   };
 }
@@ -973,6 +984,192 @@ function signedWorld() {
   };
   return state;
 }
+
+// ---------- descontos e acréscimos (TASK-07 da SPEC-004) ----------
+
+// Os mesmos números de src/features/finance/test-utils.tsx (casos ct02 e ct05 da tabela comum).
+const SALARY_ADJUSTMENTS = [
+  { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100, computed_amount: 88000 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 1500,
+    base_amount: 712000,
+    computed_amount: 106800,
+  },
+];
+const SALARY_SETTLED_ADJUSTMENTS = [
+  { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100, computed_amount: 94514 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 1500,
+    base_amount: 764706,
+    computed_amount: 114706,
+  },
+];
+
+/** O mundo de sempre com o salário previsto (t20), o liquidado (t21) e a recorrente r5. */
+function adjustedWorld() {
+  const state = seed();
+  const salary = {
+    kind: 'income',
+    description: 'Salário',
+    category_id: null,
+    gross_amount: 800000,
+    expected_amount: 605200,
+    adjustments: SALARY_ADJUSTMENTS,
+    expected_date: '2026-11-05',
+    effective_date: '2026-11-05',
+  };
+  state.transactions.push(
+    transaction({ id: 't20', ...salary }),
+    transaction({
+      id: 't21',
+      ...salary,
+      status: 'settled',
+      settled_amount: 650000,
+      settled_at: '2026-11-05',
+      settled_gross_amount: 859220,
+      settled_adjustments: SALARY_SETTLED_ADJUSTMENTS,
+      difference_amount: 44800,
+      difference_kind: 'gain',
+    }),
+  );
+  state.recurring.push(
+    recurring({
+      id: 'r5',
+      kind: 'income',
+      category_id: null,
+      description: 'Salário mensal',
+      gross_amount: 800000,
+      expected_amount: 605200,
+      adjustments: SALARY_ADJUSTMENTS,
+      rule: { ...RULE, month_day: 5, starts_on: '2026-01-05' },
+      open_occurrence: { occurrence_date: '2026-11-05', status: 'open' },
+    }),
+  );
+  return state;
+}
+
+/** Preenche um campo de valor como o usuário: clica, digita e sai do campo. */
+async function typeMoney(page, field, text) {
+  await field.click();
+  await page.keyboard.type(text);
+  await page.keyboard.press('Tab');
+}
+
+/** Abre um item novo no editor e preenche o nome; devolve o grupo do item. */
+async function addItem(page, number, name) {
+  await page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }).click();
+  const group = page.getByRole('group', { name: `Item ${number}`, exact: true });
+  await group.getByRole('textbox', { name: 'Nome do item' }).fill(name);
+  return group;
+}
+
+// Respostas da prévia: os casos ct06 (IRPF a 22,5%), ct05 (líquido 6.500,00) e o previsto.
+const PREVIEW_CT06 = {
+  gross_amount: 942370,
+  net_amount: 650000,
+  adjustments: [
+    { ...SALARY_ADJUSTMENTS[0], computed_amount: 103661 },
+    { ...SALARY_ADJUSTMENTS[1], rate_bp: 2250, base_amount: 838709, computed_amount: 188709 },
+  ],
+};
+const PREVIEW_CT05 = {
+  gross_amount: 859220,
+  net_amount: 650000,
+  adjustments: SALARY_SETTLED_ADJUSTMENTS,
+};
+const PREVIEW_EXPECTED = {
+  gross_amount: 800000,
+  net_amount: 605200,
+  adjustments: SALARY_ADJUSTMENTS,
+};
+
+function previewFor(body) {
+  if (body.adjustments?.some((item) => item.rate_bp === 2250)) return PREVIEW_CT06;
+  if (body.settled_amount === 650000) return PREVIEW_CT05;
+  if (body.settled_amount === 605200) return PREVIEW_EXPECTED;
+  return null;
+}
+
+/** Prévia e liquidação com itens; o resto segue as rotas padrão. */
+function adjustmentsOverride(call, state) {
+  if (call.method === 'POST' && call.path === '/transactions/settlement-preview') {
+    const preview = previewFor(call.body);
+    if (preview) return { body: preview };
+    return {
+      status: 422,
+      body: {
+        type: 'about:blank',
+        title: 'validation_failed',
+        status: 422,
+        code: 'validation_failed',
+        errors: [{ field: 'adjustments', code: 'no_gross_for_net' }],
+      },
+    };
+  }
+  const match = /^\/transactions\/([^/]+)\/settlement$/.exec(call.path);
+  if (call.method !== 'POST' || !match) return undefined;
+  const found = state.transactions.find((e) => e.id === match[1]);
+  if (!found || found.adjustments.length === 0) return undefined;
+  const { settled_amount, settled_at, adjustments } = call.body;
+  const preview = previewFor({ settled_amount, adjustments }) ?? PREVIEW_EXPECTED;
+  const difference_amount = settled_amount - found.expected_amount;
+  Object.assign(found, {
+    status: 'settled',
+    settled_amount,
+    settled_at,
+    effective_date: settled_at,
+    difference_amount,
+    difference_kind:
+      difference_amount === 0
+        ? null
+        : found.kind === 'expense'
+          ? difference_amount < 0
+            ? 'saving'
+            : 'loss'
+          : difference_amount > 0
+            ? 'gain'
+            : 'loss',
+    settled_gross_amount: preview.gross_amount,
+    settled_adjustments: preview.adjustments,
+  });
+  return { body: found };
+}
+
+/** Troca o valor efetivo e espera a prévia mostrar `expected`. */
+async function previewWith(page, value, expected) {
+  // Foco em vez de clique: no desktop, rolar até o campo recolhe o cabeçalho fixo e o campo
+  // não fica parado para o clique do Playwright.
+  const field = page.getByRole('textbox', { name: 'Valor efetivo (R$)' });
+  await field.fill('');
+  await field.focus();
+  await page.keyboard.type(value);
+  await page.keyboard.press('Tab');
+  const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+  await preview.getByText(expected).first().waitFor();
+  return preview;
+}
+
+// ---------- cartão Descontos do período (TASK-09 da SPEC-004) ----------
+
+const PANEL_ADJUSTMENTS = [
+  { name: 'INSS', direction: 'deduction', expected: 176000, settled: 88000 },
+  { name: 'IRPF', direction: 'deduction', expected: 213600, settled: 106800 },
+  { name: 'Juros', direction: 'addition', expected: 1200, settled: 1200 },
+];
+
+function panelAdjustmentsWorld() {
+  const state = seed();
+  state.summary = { ...state.summary, adjustments_by_name: PANEL_ADJUSTMENTS };
+  return state;
+}
+
+const ADJUSTMENTS_CARD = 'Descontos do período';
 
 let recurringPosts = 0;
 
@@ -2133,6 +2330,218 @@ const scenarios = [
       await settle(page);
     },
   },
+  {
+    name: 'editor com o líquido ao vivo',
+    group: 'descontos-form',
+    path: '/finance/transactions/new?kind=income',
+    combos: ALL,
+    world: adjustedWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '8000');
+      const inss = await addItem(page, 1, 'INSS');
+      await inss.getByRole('textbox', { name: 'Percentual (%)' }).fill('11');
+      const irpf = await addItem(page, 2, 'IRPF');
+      await irpf.getByRole('textbox', { name: 'Percentual (%)' }).fill('15');
+      await irpf.getByText('Base diferente do bruto').click();
+      const base = irpf.getByRole('textbox', { name: 'Base de cálculo (R$)' });
+      await typeMoney(page, base, '7120');
+      const sindical = await addItem(page, 3, 'Sindical');
+      await sindical.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, sindical.getByRole('textbox', { name: 'Valor do item (R$)' }), '40');
+      const editor = page.getByRole('group', { name: 'Descontos e acréscimos', exact: true });
+      const status = plain(await editor.getByRole('status').textContent());
+      check(
+        `${tag}: editor com o líquido ao vivo`,
+        status === 'Líquido previsto: R$ 6.012,00' && (await base.isVisible()),
+        status,
+      );
+      await editor.locator('dl').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'detalhe previsto e liquidado',
+    group: 'descontos-form',
+    path: '/finance/transactions/t21',
+    combos: ALL,
+    world: adjustedWorld,
+    run: async (page, tag) => {
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      const text = plain(await region.innerText());
+      const values = ['R$ 8.000,00', 'R$ 6.052,00', 'R$ 8.592,20', 'R$ 6.500,00'];
+      check(
+        `${tag}: detalhe previsto e liquidado`,
+        values.every((v) => text.includes(v)),
+        values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores',
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await region.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'recorrente com descontos',
+    group: 'descontos-form',
+    path: '/finance/recurring-transactions/r5',
+    combos: ALL,
+    world: adjustedWorld,
+    run: async (page, tag) => {
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      const text = plain(await region.innerText());
+      check(
+        `${tag}: recorrente com descontos`,
+        text.includes('Líquido previsto') && text.includes('R$ 6.052,00'),
+        text.replace(/\s+/g, ' ').slice(0, 120),
+      );
+      await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'prévia pelo líquido',
+    group: 'descontos-liquidacao',
+    path: '/finance/transactions/t20',
+    combos: ALL,
+    world: adjustedWorld,
+    override: adjustmentsOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário' }).waitFor();
+      const preview = await previewWith(page, '6500', 'R$ 8.592,20');
+      const text = plain(await preview.innerText());
+      const values = ['R$ 8.592,20', 'R$ 7.647,06', 'R$ 6.500,00'];
+      check(
+        `${tag}: prévia pelo líquido`,
+        values.every((v) => text.includes(v)),
+        values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores',
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'edição dos itens antes de confirmar',
+    group: 'descontos-liquidacao',
+    path: '/finance/transactions/t20',
+    combos: ALL,
+    world: adjustedWorld,
+    override: adjustmentsOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário' }).waitFor();
+      await page.getByRole('button', { name: 'Editar descontos e acréscimos' }).click();
+      const rate = page
+        .getByRole('group', { name: 'Item 2', exact: true })
+        .getByRole('textbox', { name: 'Percentual (%)' });
+      await rate.fill('22,5');
+      const preview = await previewWith(page, '6500', 'R$ 9.423,70');
+      const text = plain(await preview.innerText());
+      check(
+        `${tag}: edição dos itens antes de confirmar`,
+        text.includes('R$ 9.423,70') && text.includes('R$ 8.387,09'),
+        text.replace(/\s+/g, ' ').slice(0, 160),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await rate.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'liquidado com os itens',
+    group: 'descontos-liquidacao',
+    path: '/finance/transactions/t20',
+    combos: ALL,
+    world: adjustedWorld,
+    override: adjustmentsOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário' }).waitFor();
+      await previewWith(page, '6500', 'R$ 8.592,20');
+      // Pelo teclado, pelo mesmo motivo do campo em `previewWith`.
+      await page.getByRole('button', { name: 'Liquidar' }).focus();
+      await page.keyboard.press('Enter');
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.getByRole('heading', { name: 'Liquidado' }).waitFor();
+      const text = plain(await region.innerText());
+      check(
+        `${tag}: liquidado com os itens`,
+        text.includes('Liquidado') && text.includes('R$ 8.592,20'),
+        text.replace(/\s+/g, ' ').slice(0, 160),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'ocorrência da recorrente',
+    group: 'descontos-liquidacao',
+    path: '/finance/recurring-transactions/r5',
+    combos: ALL,
+    world: adjustedWorld,
+    override: adjustmentsOverride,
+    run: async (page, tag) => {
+      const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+      await preview.getByText('R$ 8.000,00').first().waitFor();
+      check(
+        `${tag}: ocorrência da recorrente`,
+        plain(await preview.innerText()).includes('R$ 8.000,00'),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'Descontos do período por nome',
+    group: 'descontos-painel',
+    path: '/finance',
+    combos: ALL,
+    world: panelAdjustmentsWorld,
+    run: async (page, tag) => {
+      const card = page.getByRole('region', { name: ADJUSTMENTS_CARD, exact: true });
+      await card.waitFor();
+      await settle(page, 400);
+      await centerCard(page, ADJUSTMENTS_CARD);
+      const deductions = plain(await card.getByRole('list', { name: 'Descontos' }).innerText());
+      const additions = plain(await card.getByRole('list', { name: 'Acréscimos' }).innerText());
+      check(
+        `${tag}: Descontos do período por nome`,
+        deductions.includes('INSS') &&
+          deductions.includes('IRPF') &&
+          deductions.includes(`${MINUS}R$ 880,00`) &&
+          additions.includes('Juros') &&
+          additions.includes('+R$ 12,00'),
+        `${deductions.replace(/\s+/g, ' ')} | ${additions.replace(/\s+/g, ' ')}`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await settle(page);
+    },
+  },
+  {
+    name: 'cartão sem descontos',
+    group: 'descontos-painel',
+    path: '/finance',
+    combos: PAIR,
+    run: async (page, tag) => {
+      const card = page.getByRole('region', { name: ADJUSTMENTS_CARD, exact: true });
+      await card.waitFor();
+      await settle(page, 400);
+      await centerCard(page, ADJUSTMENTS_CARD);
+      check(
+        `${tag}: cartão sem descontos`,
+        await card.getByText('Nenhum desconto ou acréscimo neste período.').isVisible(),
+      );
+      await settle(page);
+    },
+  },
 ];
 
 /** "Mais ações", "Excluir" e confirmar: a conta com movimentações abre o diálogo da conta de destino. */
@@ -2513,6 +2922,114 @@ async function recordChartsVideo(browser, base) {
   });
 }
 
+/** Cria a entrada nova como uma cópia aberta da `t20`, com a descrição do formulário. */
+function newSalary(call, state) {
+  if (call.method !== 'POST' || call.path !== '/transactions') return undefined;
+  const template = state.transactions.find((e) => e.id === 't20');
+  const created = {
+    ...template,
+    id: 't30',
+    description: call.body.description,
+    status: 'open',
+    settled_amount: null,
+    settled_at: null,
+    settled_gross_amount: null,
+    settled_adjustments: [],
+    difference_amount: null,
+    difference_kind: null,
+  };
+  state.transactions.push(created);
+  return { status: 201, body: { items: [created] } };
+}
+
+async function recordAdjustmentsVideo(browser, base) {
+  await withVideo(browser, 'finance-descontos.webm', async ({ page, context, pause, clickAt }) => {
+    const state = adjustedWorld();
+    state.summary.adjustments_by_name = PANEL_ADJUSTMENTS;
+    await mockApi(context, state, (call, s) => newSalary(call, s) ?? adjustmentsOverride(call, s));
+    // Centraliza antes de mover o cursor: o cabeçalho fixo cobre o topo da tela.
+    const reach = async (locator) => {
+      await locator.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await pause(300);
+      await clickAt(locator);
+    };
+    await gotoHarness(page, base, '/finance/transactions/new?kind=income');
+    await pause(800);
+    const description = page.getByRole('textbox', { name: 'Descrição' });
+    await reach(description);
+    await description.pressSequentially('Salário de novembro', { delay: 60 });
+    await reach(page.getByLabel('Conta', { exact: true }));
+    await clickAt(page.getByRole('option', { name: 'Conta principal' }));
+    const gross = page.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await reach(gross);
+    await gross.pressSequentially('8000', { delay: 120 });
+    const add = page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' });
+    await reach(add);
+    const first = page.getByRole('group', { name: 'Item 1', exact: true });
+    await first
+      .getByRole('textbox', { name: 'Nome do item' })
+      .pressSequentially('INSS', { delay: 80 });
+    await first
+      .getByRole('textbox', { name: 'Percentual (%)' })
+      .pressSequentially('11', { delay: 120 });
+    await reach(add);
+    const second = page.getByRole('group', { name: 'Item 2', exact: true });
+    await second
+      .getByRole('textbox', { name: 'Nome do item' })
+      .pressSequentially('IRPF', { delay: 80 });
+    await second
+      .getByRole('textbox', { name: 'Percentual (%)' })
+      .pressSequentially('15', { delay: 120 });
+    await reach(second.getByText('Base diferente do bruto', { exact: true }));
+    const base_field = second.getByRole('textbox', { name: 'Base de cálculo (R$)' });
+    await reach(base_field);
+    await base_field.pressSequentially('7120', { delay: 120 });
+    await page.keyboard.press('Tab');
+    const editor = page.getByRole('group', { name: 'Descontos e acréscimos', exact: true });
+    await editor.locator('dl').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(1200);
+    const live = plain(await editor.getByRole('status').textContent());
+    check('vídeo: líquido previsto ao vivo', /R\$\s6\.052,00/.test(live), live);
+
+    await reach(page.getByRole('button', { name: 'Salvar' }));
+    await page.getByRole('heading', { level: 1, name: 'Salário de novembro' }).waitFor();
+    const settlement = page.getByRole('region', { name: 'Liquidação', exact: true });
+    await settlement.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(800);
+    const settled = page.getByRole('textbox', { name: 'Valor efetivo (R$)' });
+    await settled.fill('');
+    await reach(settled);
+    await settled.pressSequentially('6500', { delay: 120 });
+    await page.keyboard.press('Tab');
+    const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+    await preview.getByText('8.592,20').first().waitFor();
+    await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(1000);
+    check(
+      'vídeo: prévia com o bruto recalculado',
+      plain(await preview.innerText()).includes('R$ 8.592,20'),
+    );
+    const toggle = page.getByRole('button', { name: 'Editar descontos e acréscimos' });
+    await reach(toggle);
+    await pause(1500);
+    await reach(toggle);
+    await reach(page.getByRole('button', { name: 'Liquidar' }));
+    const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+    await region.getByRole('heading', { name: 'Liquidado' }).waitFor();
+    await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(1500);
+    check('vídeo: liquidado no detalhe', plain(await region.innerText()).includes('R$ 8.592,20'));
+
+    await gotoHarness(page, base, '/finance');
+    const card = page.getByRole('region', { name: ADJUSTMENTS_CARD, exact: true });
+    await card.waitFor();
+    await card.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await pause(1800);
+    const text = plain(await card.innerText());
+    check('vídeo: cartão Descontos do período', text.includes('INSS') && text.includes('Juros'));
+  });
+}
+
 const EVIDENCES = {
   formulario: async (browser, base) => {
     // As checagens (dois temas, duas larguras, axe) não gravam vídeo; o vídeo é um contexto à parte.
@@ -2611,6 +3128,51 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  'descontos-form': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'descontos-form'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-07 da SPEC-004 · editor de descontos e acréscimos, líquido ao vivo e detalhamento (RF-12, RF-13, CT-10, CT-11, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-descontos-form.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'descontos-liquidacao': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'descontos-liquidacao'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-08 da SPEC-004 · liquidação pelo líquido com a prévia do servidor e a edição dos itens (RF-09, RF-10, CT-05, CT-06, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-descontos-liquidacao.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'descontos-painel': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'descontos-painel'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-09 da SPEC-004 · cartão Descontos do período (RF-14, CT-12, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-descontos-painel.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'descontos-video': async (browser, base) => {
+    await recordAdjustmentsVideo(browser, base);
+  },
   'graficos-video': async (browser, base) => {
     await recordChartsVideo(browser, base);
   },
@@ -2631,7 +3193,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video ou sinais.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video, sinais, descontos-form, descontos-liquidacao, descontos-painel ou descontos-video.`,
   );
   process.exit(2);
 }

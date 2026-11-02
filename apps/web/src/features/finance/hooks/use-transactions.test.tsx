@@ -1,21 +1,45 @@
 import { act, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearToasts, getToasts } from '../../../shared/toast/toast-store';
-import { account, item, mockApi, problem, renderFinanceHook, transaction } from '../test-utils';
+import {
+  account,
+  item,
+  mockApi,
+  problem,
+  renderFinanceHook,
+  salary,
+  transaction,
+} from '../test-utils';
 import type { Account } from './finance-cache';
 import { useAccounts } from './use-accounts';
 import {
+  amountFields,
   editableFields,
   listItemHref,
   listItemKey,
   useCreateTransaction,
   useDeleteTransaction,
+  useSettlementPreview,
   useSettleTransaction,
   useTransaction,
   useTransactions,
   useUndoSettlement,
   useUpdateTransaction,
 } from './use-transactions';
+
+const INSS_INPUT = {
+  name: 'INSS',
+  direction: 'deduction',
+  mode: 'percent',
+  rate_bp: 1100,
+} as const;
+const IRPF_INPUT = {
+  name: 'IRPF',
+  direction: 'deduction',
+  mode: 'percent',
+  rate_bp: 1500,
+  base_amount: 712000,
+} as const;
 
 const ACCOUNT = account({ id: 'a1', name: 'Conta', balance_amount: 50000 });
 const OPEN = transaction({ id: 't1', expected_amount: 10000, expected_date: '2026-11-10' });
@@ -147,6 +171,8 @@ describe('transaction mutations', () => {
       'account_id',
       'category_id',
       'visibility',
+      'gross_amount',
+      'adjustments',
     ]);
   });
 
@@ -360,5 +386,89 @@ describe('transaction mutations', () => {
     await act(() => result.current.remove.mutateAsync({ id: 't9' }));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['finance', 'recurring', 'r1'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['finance', 'summary'] });
+  });
+
+  it('rf09 asks the server for the settlement preview', async () => {
+    const preview = {
+      gross_amount: 859220,
+      net_amount: 650000,
+      adjustments: [{ ...INSS_INPUT, computed_amount: 94514 }],
+    };
+    const { calls } = mockApi({
+      'POST /transactions/settlement-preview': { body: preview },
+    });
+    const input = {
+      settled_amount: 650000,
+      adjustments: [INSS_INPUT, IRPF_INPUT],
+      expected_gross_amount: 800000,
+    };
+    const { result } = renderFinanceHook(() => useSettlementPreview(input));
+    await waitFor(() => {
+      expect(result.current.data).toEqual(preview);
+    });
+    const post = calls.find((call) => call.path === '/transactions/settlement-preview');
+    expect(post?.method).toBe('POST');
+    expect(post?.body).toEqual(input);
+  });
+
+  it('does not ask for a settlement preview without input', async () => {
+    const { calls } = mockApi({});
+    const { result } = renderFinanceHook(() => useSettlementPreview(null));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rf10 sends the edited items with the settlement', async () => {
+    const { calls } = mockApi({
+      'POST /transactions/:id/settlement': { body: { ...OPEN, status: 'settled' } },
+    });
+    const { result } = renderFinanceHook(() => useSettleTransaction());
+    await act(() =>
+      result.current.mutateAsync({
+        transaction: OPEN,
+        settled_amount: 8000,
+        settled_at: '2026-11-05',
+        adjustments: [INSS_INPUT],
+        idempotency_key: 'k',
+      }),
+    );
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
+      settled_amount: 8000,
+      settled_at: '2026-11-05',
+      adjustments: [INSS_INPUT],
+    });
+  });
+
+  it('rf13 sends gross and items only when the transaction has items', () => {
+    expect(amountFields(5000, [], false)).toEqual({ expected_amount: 5000 });
+    expect(amountFields(5000, [INSS_INPUT], false)).toEqual({
+      gross_amount: 5000,
+      adjustments: [INSS_INPUT],
+    });
+    expect(amountFields(5000, [], true)).toEqual({ gross_amount: 5000, adjustments: [] });
+  });
+
+  it('updates the cached net right away when the items change', async () => {
+    mockApi({
+      'GET /transactions/:id': { body: salary() },
+      'PATCH /transactions/:id': { hang: true },
+    });
+    const { result } = renderFinanceHook(() => ({
+      detail: useTransaction('t20'),
+      update: useUpdateTransaction('t20'),
+    }));
+    await waitFor(() => {
+      expect(result.current.detail.data).toBeDefined();
+    });
+    act(() => {
+      result.current.update.mutate({ adjustments: [INSS_INPUT] });
+    });
+    await waitFor(() => {
+      expect(result.current.detail.data?.expected_amount).toBe(712000);
+    });
+    expect(result.current.detail.data?.gross_amount).toBe(800000);
   });
 });

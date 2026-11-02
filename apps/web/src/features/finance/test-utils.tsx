@@ -6,6 +6,8 @@ import { expect, vi } from 'vitest';
 import { rootRoute } from '../../app/router';
 import { renderWithProviders } from '../../shared/test/render';
 import type { Account, Category, Transaction, TransactionItem } from './hooks/finance-cache';
+import { adjustmentInputs, type AdjustmentDto } from './hooks/use-transactions';
+import { computeNet, grossForNet, type Adjustment } from './lib/adjustments';
 import { createFinanceRoutes } from './routes';
 
 export interface ApiCall {
@@ -134,9 +136,96 @@ export function transaction(
     generated_from: null,
     recurrence_id: null,
     occurrence_date: null,
+    gross_amount: overrides.expected_amount ?? 10000,
+    adjustments: [],
+    settled_gross_amount: null,
+    settled_adjustments: [],
     ...STAMP,
     ...overrides,
   };
+}
+
+/** Salário dos casos ct02 e ct05 da tabela comum (lib/adjustments.test.ts). */
+export const SALARY_ADJUSTMENTS: AdjustmentDto[] = [
+  { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100, computed_amount: 88000 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 1500,
+    base_amount: 712000,
+    computed_amount: 106800,
+  },
+];
+
+export const SALARY_SETTLED_ADJUSTMENTS: AdjustmentDto[] = [
+  { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100, computed_amount: 94514 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 1500,
+    base_amount: 764706,
+    computed_amount: 114706,
+  },
+];
+
+export function salary(overrides: Partial<Transaction> = {}): Transaction {
+  return transaction({
+    id: 't20',
+    kind: 'income',
+    description: 'Salário',
+    category_id: 'c3',
+    gross_amount: 800000,
+    expected_amount: 605200,
+    adjustments: SALARY_ADJUSTMENTS,
+    expected_date: '2026-11-05',
+    effective_date: '2026-11-05',
+    ...overrides,
+  });
+}
+
+export function settledSalary(): Transaction {
+  return salary({
+    id: 't21',
+    status: 'settled',
+    settled_amount: 650000,
+    settled_at: '2026-11-05',
+    settled_gross_amount: 859220,
+    settled_adjustments: SALARY_SETTLED_ADJUSTMENTS,
+    difference_amount: 44800,
+    difference_kind: 'gain',
+  });
+}
+
+function refusal(issue: { field: string; code: string }): ApiReply {
+  return {
+    status: 422,
+    body: { code: 'validation_failed', title: 'validation_failed', errors: [issue] },
+  };
+}
+
+/**
+ * Bruto e itens do corpo, como o servidor: com itens, o líquido sai do `computeNet`; sem itens,
+ * o bruto é o próprio valor previsto.
+ */
+function plannedAmounts(body: Record<string, unknown>): Record<string, unknown> | ApiReply {
+  const items = (body.adjustments as Adjustment[] | undefined) ?? [];
+  if (items.length === 0) {
+    const amount = (body.expected_amount ?? body.gross_amount) as number;
+    return { expected_amount: amount, gross_amount: amount, adjustments: [] };
+  }
+  const result = computeNet(body.gross_amount as number, items);
+  if (!result.ok) return refusal(result.issue);
+  return {
+    gross_amount: result.breakdown.gross_amount,
+    expected_amount: result.breakdown.net_amount,
+    adjustments: result.breakdown.adjustments,
+  };
+}
+
+function isReply(value: Record<string, unknown> | ApiReply): value is ApiReply {
+  return 'status' in value;
 }
 
 export function item(overrides: Partial<TransactionItem>): TransactionItem {
@@ -258,9 +347,12 @@ export function financeServer(state: FinanceWorld) {
     }),
     'POST /transactions': intercept((call) => {
       const body = call.body as Record<string, unknown>;
+      const amounts = plannedAmounts(body);
+      if (isReply(amounts)) return amounts;
       const created = transaction({
         id: `t-new-${String(state.transactions.length + 1)}`,
         ...(body as Partial<Transaction>),
+        ...(amounts as Partial<Transaction>),
         effective_date: String(body.expected_date),
       });
       state.transactions.push(created);
@@ -276,13 +368,34 @@ export function financeServer(state: FinanceWorld) {
       state.transactions = state.transactions.filter((entry) => entry.id !== id);
       return { status: 204 };
     }),
+    'POST /transactions/settlement-preview': intercept((call) => {
+      const body = call.body as {
+        settled_amount: number;
+        adjustments: Adjustment[];
+        expected_gross_amount: number;
+      };
+      const result = grossForNet(body.settled_amount, body.adjustments, body.expected_gross_amount);
+      return result.ok ? { body: result.breakdown } : refusal(result.issue);
+    }),
     'POST /transactions/:id/settlement': intercept((call, { id = '' }) => {
       const found = find(state.transactions, id);
       if (!found) return problem(404, 'not_found');
-      const { settled_amount, settled_at } = call.body as {
+      const { settled_amount, settled_at, adjustments } = call.body as {
         settled_amount: number;
         settled_at: string;
+        adjustments?: Adjustment[];
       };
+      // Com itens, o bruto e os itens liquidados saem do cálculo reverso; a diferença continua
+      // sobre o líquido (RN-08).
+      const items = adjustments ?? adjustmentInputs(found.adjustments);
+      if (items.length > 0) {
+        const result = grossForNet(settled_amount, items, found.gross_amount);
+        if (!result.ok) return refusal(result.issue);
+        Object.assign(found, {
+          settled_gross_amount: result.breakdown.gross_amount,
+          settled_adjustments: result.breakdown.adjustments,
+        });
+      }
       const difference_amount = settled_amount - found.expected_amount;
       Object.assign(found, {
         status: 'settled',
@@ -347,6 +460,8 @@ export function financeServer(state: FinanceWorld) {
       return found ? { body: found } : problem(404, 'not_found');
     }),
     'POST /recurring-transactions': intercept((call) => {
+      const amounts = plannedAmounts(call.body as Record<string, unknown>);
+      if (isReply(amounts)) return amounts;
       const created = {
         id: `r${String(state.recurring.length + 1)}`,
         currency: 'BRL',
@@ -356,6 +471,7 @@ export function financeServer(state: FinanceWorld) {
         created_at: '2026-11-05T10:00:00Z',
         updated_at: '2026-11-05T10:00:00Z',
         ...(call.body as object),
+        ...amounts,
       };
       state.recurring.push(created);
       return { status: 201, body: created };
@@ -390,6 +506,23 @@ export async function pageHeading(name: string | RegExp) {
   const found = await screen.findByRole('heading', { level: 1, name });
   expect(found).toHaveAttribute('data-page-heading');
   return found;
+}
+
+/**
+ * Texto de cada linha de um detalhamento (`dl`): o nome, a dica e o valor separados por espaço,
+ * com os espaços especiais do Intl trocados por espaço comum.
+ */
+export function breakdownRows(list: Element): string[] {
+  return Array.from(list.children).map((row) =>
+    Array.from(row.children)
+      .map((cell) =>
+        Array.from(cell.childNodes)
+          .map((node) => node.textContent)
+          .join(' '),
+      )
+      .join(' ')
+      .replace(/[\u00a0\u202f]/g, ' '),
+  );
 }
 
 /** Os formulários usam os controles próprios, nunca os nativos (PD-57, PD-62). */

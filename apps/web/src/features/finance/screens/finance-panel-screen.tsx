@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useId, type ReactNode } from 'react';
 import { Button, EmptyState, ErrorState, LoadingState, SegmentedField } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -6,6 +6,7 @@ import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { useListSearch } from '../../../shared/url-state/use-list-search';
+import { adjustmentText } from '../components/adjustments-breakdown';
 import { MoneyAmount, type MoneyKind } from '../components/money-amount';
 import type { BarItem } from '../components/panel-charts';
 import { DataCard } from '../components/record-card';
@@ -316,6 +317,59 @@ function Savings({ summary }: { summary: FinancialSummary }) {
   );
 }
 
+/**
+ * Descontos e acréscimos do período por nome, como o servidor agrupou (RN-11, CB-07): o
+ * liquidado na cor do texto, com o sinal do sentido, e o previsto abaixo (RF-14).
+ */
+function Adjustments({ summary }: { summary: FinancialSummary }) {
+  const t = useT();
+  const { locale } = usePreferences();
+  const base_id = useId();
+  const rows = summary.adjustments_by_name;
+  const groups = (['deduction', 'addition'] as const)
+    .map((direction) => ({ direction, items: rows.filter((row) => row.direction === direction) }))
+    .filter((group) => group.items.length > 0);
+  return (
+    <DataCard title={t('finance.panel.adjustments.title')}>
+      {groups.length === 0 ? (
+        <p className={styles.sub}>{t('finance.panel.adjustments.empty')}</p>
+      ) : (
+        groups.map(({ direction, items }) => {
+          const title_id = `${base_id}-${direction}`;
+          return (
+            <div key={direction}>
+              <h3 id={title_id} className={styles.groupTitle}>
+                {t(
+                  direction === 'deduction'
+                    ? 'finance.panel.adjustments.deductions'
+                    : 'finance.panel.adjustments.additions',
+                )}
+              </h3>
+              <ul className={styles.about} aria-labelledby={title_id}>
+                {items.map((row) => (
+                  <li key={row.name}>
+                    <span>{row.name}</span>
+                    <div>
+                      <span className={styles.figValue}>
+                        {adjustmentText(direction, row.settled, summary.currency, locale)}
+                      </span>
+                      <p className={styles.sub}>
+                        {t('finance.panel.of_forecast', {
+                          value: formatMoney(row.expected, summary.currency, locale),
+                        })}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })
+      )}
+    </DataCard>
+  );
+}
+
 function isEmpty(summary: FinancialSummary): boolean {
   const { income, expense } = summary.totals;
   return (
@@ -404,6 +458,7 @@ export function FinancePanelScreen() {
             { id: 'balance', node: failed(t('finance.panel.balance')) },
             { id: 'upcoming', node: failed(t('finance.panel.upcoming')) },
             { id: 'savings', node: failed(t('finance.panel.savings')) },
+            { id: 'adjustments', node: failed(t('finance.panel.adjustments.title')) },
           ],
         )}
       />
@@ -438,6 +493,7 @@ export function FinancePanelScreen() {
     { id: 'balance', node: <Balance summary={summary} /> },
     { id: 'upcoming', node: <Upcoming summary={summary} /> },
     { id: 'savings', node: <Savings summary={summary} /> },
+    { id: 'adjustments', node: <Adjustments summary={summary} /> },
   ];
   return <PanelZones label={t('finance.tabs.panel')} cells={panelCells(main, side)} />;
 }

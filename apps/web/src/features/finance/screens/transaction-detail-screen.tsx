@@ -7,6 +7,7 @@ import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { pushToast } from '../../../shared/toast/toast-store';
+import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-breakdown';
 import styles from '../components/finance.module.css';
 import { DetailTabs, type FinanceExtraTab } from './account-detail-screen';
 import { MoreIcon, PencilIcon } from '../components/icons';
@@ -75,6 +76,7 @@ export function TransactionDetailScreen({
     <span className={styles.num}>{formatMoney(value, item.currency, locale)}</span>
   );
   const fallback = item.kind === 'income' ? '/finance/income' : '/finance/expenses';
+  const settled_items = item.settled_adjustments ?? [];
 
   function undoNow() {
     undo.mutate(item, {
@@ -201,10 +203,38 @@ export function TransactionDetailScreen({
                     ]}
                   />
                 </DataCard>
+                {item.adjustments.length > 0 || settled_items.length > 0 ? (
+                  <DataCard title={t('finance.adjustments.title')}>
+                    <h3 className={styles.breakdownTitle}>{t('finance.adjustments.expected')}</h3>
+                    <AdjustmentsBreakdown
+                      currency={item.currency}
+                      gross_amount={item.gross_amount}
+                      items={breakdownItems(item.adjustments)}
+                      net_amount={item.expected_amount}
+                      net_label={t('finance.adjustments.net_expected')}
+                    />
+                    {settled && settled_items.length > 0 ? (
+                      <>
+                        <h3 className={styles.breakdownTitle}>
+                          {t('finance.adjustments.settled')}
+                        </h3>
+                        <AdjustmentsBreakdown
+                          currency={item.currency}
+                          gross_amount={item.settled_gross_amount ?? item.settled_amount ?? 0}
+                          items={breakdownItems(settled_items)}
+                          net_amount={item.settled_amount ?? 0}
+                          net_label={t('finance.adjustments.net_settled')}
+                        />
+                      </>
+                    ) : null}
+                  </DataCard>
+                ) : null}
                 <SettlementCard
                   kind={item.kind}
                   currency={item.currency}
                   expected_amount={item.expected_amount}
+                  gross_amount={item.gross_amount}
+                  adjustments={item.adjustments}
                   today={today}
                   pending={settle.isPending}
                   settled={

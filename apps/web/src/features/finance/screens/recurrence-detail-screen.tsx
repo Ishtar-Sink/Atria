@@ -17,6 +17,7 @@ import { StickyPageHeader } from '../../../shared/layout/sticky-page-header';
 import { BackLink } from '../../../shared/navigation/back-link';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { pushToast } from '../../../shared/toast/toast-store';
+import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-breakdown';
 import { differenceKey } from '../components/difference-badge';
 import styles from '../components/finance.module.css';
 import { MoreIcon, PencilIcon } from '../components/icons';
@@ -246,6 +247,17 @@ export function RecurrenceDetailScreen({
               ]}
             />
           </DataCard>
+          {recurrence.adjustments.length > 0 ? (
+            <DataCard title={t('finance.adjustments.title')}>
+              <AdjustmentsBreakdown
+                currency={recurrence.currency}
+                gross_amount={recurrence.gross_amount}
+                items={breakdownItems(recurrence.adjustments)}
+                net_amount={recurrence.expected_amount}
+                net_label={t('finance.adjustments.net_expected')}
+              />
+            </DataCard>
+          ) : null}
           {notice?.kind === 'settled' ? (
             <p role="status" className={`${styles.notice ?? ''} ${styles.noticeSuccess ?? ''}`}>
               {settledText(notice.copy)}
@@ -266,6 +278,8 @@ export function RecurrenceDetailScreen({
               kind={recurrence.kind}
               currency={recurrence.currency}
               expected_amount={recurrence.expected_amount}
+              gross_amount={recurrence.gross_amount}
+              adjustments={recurrence.adjustments}
               today={todayInTimeZone(new Date(), time_zone)}
               caption={t('finance.settlement.occurrence', { date: date(open.occurrence_date) })}
               pending={settle.isPending}

@@ -1,5 +1,6 @@
 import type { Schemas } from '@atria/contracts';
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -7,11 +8,14 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { api } from '../../../shared/api/client';
+import { ApiProblem } from '../../../shared/api/problem';
+import { computeNet } from '../lib/adjustments';
 import { todayInTimeZone } from '../lib/finance-period';
 import {
   adjustBalance,
   balanceDelta,
   cancel,
+  errorMessageKey,
   financeKeys,
   mapPages,
   problemCode,
@@ -28,6 +32,39 @@ export type { Transaction, TransactionItem } from './finance-cache';
 export type CreateTransactionInput = Schemas['CreateTransactionRequest'];
 export type UpdateTransactionInput = Schemas['UpdateTransactionRequest'];
 export type Repetition = Schemas['RepetitionDto'];
+export type AdjustmentDto = Schemas['AdjustmentDto'];
+export type AdjustmentInput = NonNullable<CreateTransactionInput['adjustments']>[number];
+export type SettlementPreviewInput = Schemas['SettlementPreviewRequest'];
+export type SettlementPreview = Schemas['BreakdownDto'];
+
+/** Itens salvos de volta no formato do pedido: sem `computed_amount` e sem campos nulos. */
+export function adjustmentInputs(items: readonly AdjustmentDto[]): AdjustmentInput[] {
+  return items.map((item) =>
+    item.mode === 'fixed'
+      ? { name: item.name, direction: item.direction, mode: 'fixed', amount: item.amount }
+      : {
+          name: item.name,
+          direction: item.direction,
+          mode: 'percent',
+          rate_bp: item.rate_bp,
+          ...(item.base_amount != null ? { base_amount: item.base_amount } : {}),
+        },
+  );
+}
+
+/**
+ * Valor do pedido: sem itens agora nem antes, o `expected_amount` de hoje (RN-09); senão, o bruto
+ * e os itens. O servidor recusa `expected_amount` junto com `gross_amount` na criação e sozinho
+ * numa movimentação com itens.
+ */
+export function amountFields(
+  gross: number,
+  adjustments: readonly AdjustmentInput[],
+  had_adjustments: boolean,
+): { expected_amount: number } | { gross_amount: number; adjustments: AdjustmentInput[] } {
+  if (adjustments.length === 0 && !had_adjustments) return { expected_amount: gross };
+  return { gross_amount: gross, adjustments: [...adjustments] };
+}
 
 export const PAGE_SIZE = 50;
 export const SEARCH_MAX = 100;
@@ -242,6 +279,8 @@ export function editableFields(transaction: Pick<Transaction, 'status'>): Editab
     'account_id',
     'category_id',
     'visibility',
+    'gross_amount',
+    'adjustments',
   ];
 }
 
@@ -254,10 +293,33 @@ export function changedFields(
   const patch: Record<string, unknown> = {};
   for (const [field, value] of Object.entries(next)) {
     if (!allowed.has(field as EditableField)) continue;
+    if (field === 'adjustments') {
+      if (JSON.stringify(value) !== JSON.stringify(adjustmentInputs(original.adjustments))) {
+        patch[field] = value;
+      }
+      continue;
+    }
     const before = (original as unknown as Record<string, unknown>)[field] ?? null;
     if ((value ?? null) !== before) patch[field] = value;
   }
   return patch;
+}
+
+/**
+ * Edição otimista: com bruto ou itens, o líquido sai do mesmo cálculo do servidor; os itens só
+ * mudam com a resposta ([project/frontend-18]).
+ */
+function optimisticEdit(item: Transaction, patch: UpdateTransactionInput): Transaction {
+  const { adjustments, gross_amount, ...rest } = patch;
+  const next = { ...item, ...(rest as Partial<Transaction>) };
+  if (adjustments == null && gross_amount == null) return next;
+  const gross = gross_amount ?? item.gross_amount;
+  const result = computeNet(gross, adjustments ?? adjustmentInputs(item.adjustments));
+  return {
+    ...next,
+    gross_amount: gross,
+    expected_amount: result.ok ? result.breakdown.net_amount : item.expected_amount,
+  };
 }
 
 export function useUpdateTransaction(id: string) {
@@ -268,7 +330,7 @@ export function useUpdateTransaction(id: string) {
       const keys = [financeKeys.transactions, financeKeys.transaction(id)];
       await cancel(client, keys);
       const saved = snapshot(client, keys);
-      patchEverywhere(client, id, (item) => ({ ...item, ...(patch as Partial<Transaction>) }));
+      patchEverywhere(client, id, (item) => optimisticEdit(item, patch));
       return { saved };
     },
     onError: (error, _patch, context) => {
@@ -369,16 +431,18 @@ export interface SettleVariables {
   transaction: Transaction;
   settled_amount: number;
   settled_at: string;
+  /** Itens editados na liquidação; sem eles, o servidor reaplica os previstos (RF-10). */
+  adjustments?: AdjustmentInput[];
   idempotency_key: string;
 }
 
 export function useSettleTransaction() {
   const client = useQueryClient();
   return useMutation<Transaction, Error, SettleVariables, { saved: Snapshot }>({
-    mutationFn: ({ transaction, settled_amount, settled_at, idempotency_key }) =>
+    mutationFn: ({ transaction, settled_amount, settled_at, adjustments, idempotency_key }) =>
       api.post<Transaction>(
         `/transactions/${transaction.id}/settlement`,
-        { settled_amount, settled_at },
+        { settled_amount, settled_at, ...(adjustments ? { adjustments } : {}) },
         { idempotency_key },
       ),
     onMutate: async ({ transaction, settled_amount, settled_at }) => {
@@ -409,4 +473,27 @@ export function useSettleTransaction() {
       void client.invalidateQueries({ queryKey: financeKeys.accounts });
     },
   });
+}
+
+/** Prévia calculada pelo servidor (decisão 13): o bruto e os itens do valor efetivo. */
+export function useSettlementPreview(input: SettlementPreviewInput | null) {
+  return useQuery({
+    queryKey: [...financeKeys.all, 'settlement-preview', input],
+    queryFn: ({ signal }) =>
+      api.post<SettlementPreview>('/transactions/settlement-preview', input, { signal }),
+    enabled: input !== null,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+  });
+}
+
+/** Mensagem do erro da prévia: o líquido sem bruto possível vem como erro de campo (CB-01). */
+export function previewErrorKey(error: unknown): string {
+  if (
+    error instanceof ApiProblem &&
+    error.errors.some((item) => item.field === 'adjustments' && item.code === 'no_gross_for_net')
+  ) {
+    return 'finance.errors.no_gross_for_net';
+  }
+  return errorMessageKey(error);
 }

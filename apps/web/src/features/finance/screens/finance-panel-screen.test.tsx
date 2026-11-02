@@ -87,9 +87,27 @@ function summary(overrides: Partial<FinancialSummary> = {}): FinancialSummary {
         }),
       ),
     ],
+    adjustments_by_name: [
+      { name: 'INSS', direction: 'deduction', expected: 176000, settled: 88000 },
+      { name: 'IRPF', direction: 'deduction', expected: 213600, settled: 106800 },
+      { name: 'Juros', direction: 'addition', expected: 1200, settled: 1200 },
+    ],
     currency: 'BRL',
     ...overrides,
   };
+}
+
+/** Texto de cada item de uma lista do cartão de descontos, com espaço comum. */
+function itemsOf(list: HTMLElement): string[] {
+  return within(list)
+    .getAllByRole('listitem')
+    .map((entry) =>
+      plain(
+        Array.from(entry.querySelectorAll('span, p'))
+          .map((span) => span.textContent)
+          .join(' '),
+      ),
+    );
 }
 
 beforeEach(() => {
@@ -115,6 +133,8 @@ afterEach(() => {
 });
 
 describe('finance panel', () => {
+  // Primeiro teste do arquivo: carrega o painel a frio e roda o axe na página inteira, que
+  // passava do limite padrão de 5 s de vez em quando.
   it('shows closing with realized and forecast and the comparison with the previous period', async () => {
     const { calls } = financeServer(world({ summary: summary() }));
     const user = userEvent.setup();
@@ -132,7 +152,7 @@ describe('finance panel', () => {
     expect(params?.get('to')).toBe('2026-11-30');
     await tabsThrough(user);
     expect(await axe(container)).toHaveNoViolations();
-  });
+  }, 15_000);
 
   it('shows a negative surplus in warning tone, never danger', async () => {
     financeServer(
@@ -322,8 +342,11 @@ describe('finance panel', () => {
     mode = 'error';
     renderFinance('/finance');
     const failures = await screen.findAllByRole('alert');
-    expect(failures.length).toBe(7);
+    expect(failures.length).toBe(8);
     expect(screen.getByRole('region', { name: 'Saldo' })).toHaveTextContent('Tentar de novo');
+    expect(screen.getByRole('region', { name: 'Descontos do período' })).toHaveTextContent(
+      'Tentar de novo',
+    );
     mode = 'ok';
     await userEvent.click(
       within(failures[0] as HTMLElement).getByRole('button', { name: 'Tentar de novo' }),
@@ -401,7 +424,7 @@ describe('finance panel', () => {
     renderFinance('/finance');
     const zones = await screen.findByRole('region', { name: 'Painel' });
     const cells = cellsOf(zones);
-    expect(cells).toHaveLength(7);
+    expect(cells).toHaveLength(8);
     const at = (zone: string, row: string) =>
       cells.find((cell) => cell.zone === zone && cell.row === row);
     expect(at('main', '1')?.text).toContain('Fechamento');
@@ -411,7 +434,8 @@ describe('finance panel', () => {
     expect(at('main', '3')?.text).toContain('Para onde foi');
     expect(at('side', '3')?.text).toContain('Economias e perdas');
     expect(at('main', '4')?.text).toContain('Previsto x realizado');
-    expect(cells.filter((cell) => cell.alone).map((cell) => cell.row)).toEqual(['4']);
+    expect(at('side', '4')?.text).toContain('Descontos do período');
+    expect(cells.filter((cell) => cell.alone).map((cell) => cell.row)).toEqual([]);
   });
 
   it('rf15 shows the monthly card below the closing', async () => {
@@ -465,7 +489,7 @@ describe('finance panel', () => {
     const zones = await screen.findByRole('region', { name: 'Painel' });
     expect(zones.className).toContain('zones');
     const order = cellsOf(zones).map((cell) => cell.zone);
-    expect(order).toEqual(['main', 'main', 'main', 'main', 'side', 'side', 'side']);
+    expect(order).toEqual(['main', 'main', 'main', 'main', 'side', 'side', 'side', 'side']);
     const css = panel_css.replace(/\s+/g, ' ');
     expect(css).toContain(
       '.zones { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)',
@@ -474,5 +498,67 @@ describe('finance panel', () => {
     expect(css).toMatch(
       /@media \(max-width: 960px\) \{ \.zones \{ grid-template-columns: minmax\(0, 1fr\); \}/,
     );
+  });
+
+  it('rf14 shows the deductions and additions of the period by name', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance');
+    const card = await screen.findByRole('region', { name: 'Descontos do período' });
+    expect(within(card).getByRole('heading', { name: 'Descontos' })).toBeInTheDocument();
+    expect(within(card).getByRole('heading', { name: 'Acréscimos' })).toBeInTheDocument();
+    expect(itemsOf(within(card).getByRole('list', { name: 'Descontos' }))).toEqual([
+      'INSS −R$ 880,00 de R$ 1.760,00 previstos',
+      'IRPF −R$ 1.068,00 de R$ 2.136,00 previstos',
+    ]);
+    expect(itemsOf(within(card).getByRole('list', { name: 'Acréscimos' }))).toEqual([
+      'Juros +R$ 12,00 de R$ 12,00 previstos',
+    ]);
+  });
+
+  it('ct12 shows each name once with the total from the server', async () => {
+    financeServer(
+      world({
+        summary: summary({
+          adjustments_by_name: [
+            { name: 'INSS', direction: 'deduction', expected: 176000, settled: 176000 },
+            { name: 'Juros', direction: 'addition', expected: 1200, settled: 0 },
+          ],
+        }),
+      }),
+    );
+    renderFinance('/finance');
+    const card = await screen.findByRole('region', { name: 'Descontos do período' });
+    const deductions = itemsOf(within(card).getByRole('list', { name: 'Descontos' }));
+    expect(deductions).toHaveLength(1);
+    expect(deductions[0]).toContain('INSS');
+    expect(itemsOf(within(card).getByRole('list', { name: 'Acréscimos' }))).toEqual([
+      'Juros +R$ 0,00 de R$ 12,00 previstos',
+    ]);
+  });
+
+  it('shows the empty adjustments card', async () => {
+    financeServer(world({ summary: summary({ adjustments_by_name: [] }) }));
+    renderFinance('/finance');
+    const card = await screen.findByRole('region', { name: 'Descontos do período' });
+    expect(
+      within(card).getByText('Nenhum desconto ou acréscimo neste período.'),
+    ).toBeInTheDocument();
+    expect(within(card).queryByRole('list')).toBeNull();
+  });
+
+  it('rn07 shows the adjustments of the period without red', async () => {
+    financeServer(world({ summary: summary() }));
+    renderFinance('/finance');
+    const card = await screen.findByRole('region', { name: 'Descontos do período' });
+    expect(
+      card.querySelector('[class*="danger"], [class*="negative"], [class*="positive"]'),
+    ).toBeNull();
+  });
+
+  it('rnf04 has no axe violations with the adjustments card', async () => {
+    financeServer(world({ summary: summary() }));
+    const { container } = renderFinance('/finance');
+    await screen.findByRole('region', { name: 'Descontos do período' });
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

@@ -20,6 +20,7 @@ import {
   type Transaction,
   type TransactionItem,
 } from './finance-cache';
+import type { AdjustmentInput } from './use-transactions';
 
 export type RecurringTransaction = Schemas['RecurringTransactionResponse'];
 export type ContractRule = Schemas['RecurrenceRule'];
@@ -158,6 +159,8 @@ export interface SettleOccurrenceVariables {
   occurrence_date: string;
   settled_amount: number;
   settled_at: string;
+  /** Itens editados na liquidação; sem eles, o servidor reaplica os da recorrente (RF-10). */
+  adjustments?: AdjustmentInput[];
   idempotency_key: string;
 }
 

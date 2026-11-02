@@ -6,6 +6,7 @@ import { clearToasts } from '../../../shared/toast/toast-store';
 import type { TransactionItem } from '../hooks/finance-cache';
 import {
   account,
+  breakdownRows,
   category,
   expectNoNativeControls,
   financeServer,
@@ -13,6 +14,9 @@ import {
   pageHeading,
   problem,
   renderFinance,
+  SALARY_ADJUSTMENTS,
+  salary,
+  settledSalary,
   tabsThrough,
   transaction,
   world,
@@ -42,6 +46,8 @@ function rent(overrides: Record<string, unknown> = {}) {
     currency: 'BRL',
     description: 'Aluguel',
     expected_amount: 200000,
+    gross_amount: 200000,
+    adjustments: [],
     kind: 'expense',
     owner_id: 'u1',
     visibility: 'personal',
@@ -134,6 +140,8 @@ function seed(): FinanceWorld {
       VIRTUAL_OPEN,
       VIRTUAL_FORECAST,
       COPY,
+      salary(),
+      settledSalary(),
     ],
     recurring: [rent()],
     copies: { r1: [COPY] },
@@ -163,6 +171,59 @@ async function chooseOption(label: string, option: string) {
   const user = userEvent.setup();
   await user.click(screen.getByLabelText(label));
   await user.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Abre um item novo no editor e preenche o nome e o percentual. */
+async function addPercent(
+  user: ReturnType<typeof userEvent.setup>,
+  number: number,
+  name: string,
+  rate: string,
+) {
+  await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
+  const group = screen.getByRole('group', { name: `Item ${String(number)}` });
+  await user.type(within(group).getByRole('textbox', { name: 'Nome do item' }), name);
+  await user.type(within(group).getByRole('textbox', { name: 'Percentual (%)' }), rate);
+  return group;
+}
+
+const INSS = { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100 };
+const IRPF = {
+  name: 'IRPF',
+  direction: 'deduction',
+  mode: 'percent',
+  rate_bp: 1500,
+  base_amount: 712000,
+};
+
+/** Linhas da prévia da liquidação, depois de a resposta do servidor chegar. */
+async function previewRows(text: string) {
+  const preview = screen.getByRole('region', { name: 'Prévia da liquidação' });
+  await waitFor(() => {
+    expect(breakdownRows(preview.querySelector('dl') as Element)).toContain(text);
+  });
+  return breakdownRows(preview.querySelector('dl') as Element);
+}
+
+async function typeSettled(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const amount = screen.getByRole('textbox', { name: 'Valor efetivo (R$)' });
+  await user.clear(amount);
+  await user.type(amount, text);
+}
+
+/** Abre a edição dos itens na liquidação e troca o percentual do IRPF (Item 2). */
+async function editIrpf(user: ReturnType<typeof userEvent.setup>, rate: string) {
+  await user.click(screen.getByRole('button', { name: 'Editar descontos e acréscimos' }));
+  const field = within(screen.getByRole('group', { name: 'Item 2' })).getByRole('textbox', {
+    name: 'Percentual (%)',
+  });
+  await user.clear(field);
+  await user.type(field, rate);
+}
+
+function liveNet() {
+  const editor = screen.getByRole('group', { name: 'Descontos e acréscimos' });
+  return plain(within(editor).getByRole('status').textContent);
 }
 
 async function rowOf(name: string) {
@@ -723,9 +784,307 @@ describe('transaction forms', () => {
     });
     expectNoNativeControls(transfer.container);
   });
+
+  it('ct11 updates the expected net while editing the gross and a percent', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    const gross = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await user.type(gross, '8.000,00');
+    const group = await addPercent(user, 1, 'INSS', '11');
+    expect(liveNet()).toBe('Líquido previsto: R$ 7.120,00');
+    await user.clear(gross);
+    await user.type(gross, '9.000,00');
+    expect(liveNet()).toBe('Líquido previsto: R$ 8.010,00');
+    const rate = within(group).getByRole('textbox', { name: 'Percentual (%)' });
+    await user.clear(rate);
+    await user.type(rate, '12');
+    expect(liveNet()).toBe('Líquido previsto: R$ 7.920,00');
+  });
+
+  it('ct11 shows the same net as the shared table case ct02 and sends gross and items', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    const { router } = renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Salário');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await addPercent(user, 1, 'INSS', '11');
+    const irpf = await addPercent(user, 2, 'IRPF', '15');
+    await user.click(within(irpf).getByLabelText('Base diferente do bruto'));
+    await user.type(
+      within(irpf).getByRole('textbox', { name: 'Base de cálculo (R$)' }),
+      '7.120,00',
+    );
+    expect(liveNet()).toBe('Líquido previsto: R$ 6.052,00');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions')?.body).toEqual({
+      kind: 'income',
+      account_id: 'a1',
+      category_id: null,
+      description: 'Salário',
+      gross_amount: 800000,
+      adjustments: [
+        { name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100 },
+        {
+          name: 'IRPF',
+          direction: 'deduction',
+          mode: 'percent',
+          rate_bp: 1500,
+          base_amount: 712000,
+        },
+      ],
+      expected_date: '2026-11-05',
+      visibility: 'personal',
+    });
+    await waitFor(() => {
+      expect(router.state.location.pathname).toMatch(/^\/finance\/transactions\/t-new/);
+    });
+  });
+
+  it('cb03 refuses items that leave the expected net at zero or below', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '100,00');
+    await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
+    const group = screen.getByRole('group', { name: 'Item 1' });
+    await user.type(within(group).getByRole('textbox', { name: 'Nome do item' }), 'Cupom');
+    await user.click(within(group).getByText('Valor fixo'));
+    await user.type(within(group).getByRole('textbox', { name: 'Valor do item (R$)' }), '100,00');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    const alerts = await screen.findAllByRole('alert');
+    expect(alerts.map((alert) => alert.textContent)).toContain(
+      'Os descontos deixam o líquido previsto zerado ou negativo. Revise os itens.',
+    );
+    expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
+  });
+
+  it('cb09 refuses a different base without a value', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    const group = await addPercent(user, 1, 'IRPF', '15');
+    await user.click(within(group).getByLabelText('Base diferente do bruto'));
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await within(group).findByText('Informe uma base maior que zero.')).toBeInTheDocument();
+    expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
+  });
+
+  it('rf13 edits the items of a transaction and sends only what changed', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    const { router } = renderFinance('/finance/transactions/t20/edit');
+    await pageHeading('Editar entrada');
+    expect(
+      plain(screen.getByRole<HTMLInputElement>('textbox', { name: 'Valor previsto (R$)' }).value),
+    ).toBe('R$ 8.000,00');
+    const first = screen.getByRole('group', { name: 'Item 1' });
+    const second = screen.getByRole('group', { name: 'Item 2' });
+    expect(within(first).getByRole('textbox', { name: 'Nome do item' })).toHaveValue('INSS');
+    expect(within(first).getByRole('textbox', { name: 'Percentual (%)' })).toHaveValue('11,00');
+    expect(within(second).getByRole('textbox', { name: 'Percentual (%)' })).toHaveValue('15,00');
+    expect(
+      plain(
+        within(second).getByRole<HTMLInputElement>('textbox', { name: 'Base de cálculo (R$)' })
+          .value,
+      ),
+    ).toBe('R$ 7.120,00');
+    await user.click(screen.getByRole('button', { name: 'Remover IRPF' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/finance/transactions/t20');
+    });
+    expect(lastCall(calls, 'PATCH', '/transactions/t20')?.body).toEqual({
+      adjustments: [{ name: 'INSS', direction: 'deduction', mode: 'percent', rate_bp: 1100 }],
+    });
+  });
+
+  it('rf02 creates a recurrence with items', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Plano');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '200,00');
+    await user.click(screen.getByRole('checkbox', { name: 'Repetir' }));
+    await addPercent(user, 1, 'Desconto', '10');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/recurring-transactions')).toBeDefined();
+    });
+    const body = lastCall(calls, 'POST', '/recurring-transactions')?.body as Record<
+      string,
+      unknown
+    >;
+    expect(body.gross_amount).toBe(20000);
+    expect(body.adjustments).toEqual([
+      { name: 'Desconto', direction: 'deduction', mode: 'percent', rate_bp: 1000 },
+    ]);
+    expect(body).not.toHaveProperty('expected_amount');
+  });
 });
 
 describe('settlement and detail', () => {
+  it('ct10 shows the gross, each item and the net expected and settled', async () => {
+    financeServer(seed());
+    const { container } = renderFinance('/finance/transactions/t21');
+    await pageHeading('Salário');
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    expect(within(region).getByRole('heading', { name: 'Previsto' })).toBeInTheDocument();
+    expect(within(region).getByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
+    const [expected, settled] = Array.from(region.querySelectorAll('dl'));
+    expect(breakdownRows(expected as Element)).toEqual([
+      'Valor bruto R$ 8.000,00',
+      'INSS 11,00% do bruto −R$ 880,00',
+      'IRPF 15,00% de R$ 7.120,00 −R$ 1.068,00',
+      'Líquido previsto R$ 6.052,00',
+    ]);
+    expect(breakdownRows(settled as Element)).toEqual([
+      'Valor bruto R$ 8.592,20',
+      'INSS 11,00% do bruto −R$ 945,14',
+      'IRPF 15,00% de R$ 7.647,06 −R$ 1.147,06',
+      'Líquido liquidado R$ 6.500,00',
+    ]);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('cb06 shows a transaction without items as before', async () => {
+    financeServer(seed());
+    renderFinance('/finance/transactions/t1');
+    await pageHeading('Feira');
+    expect(screen.queryByRole('region', { name: 'Descontos e acréscimos' })).toBeNull();
+    const label = screen.getByText('Valor previsto', { selector: 'dt' });
+    expect(plain(label.nextElementSibling?.textContent)).toBe('R$ 100,00');
+  });
+
+  it('rf09 settles by the net and shows the gross recalculated by the server', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    const { container } = renderFinance('/finance/transactions/t20');
+    await pageHeading('Salário');
+    expect(
+      screen.getByText(
+        'Informe o líquido que entrou ou saiu da conta; o bruto e os percentuais são recalculados.',
+      ),
+    ).toBeInTheDocument();
+    await previewRows('Valor bruto R$ 8.000,00');
+    await typeSettled(user, '6.500,00');
+    expect(await previewRows('Valor bruto R$ 8.592,20')).toEqual([
+      'Valor bruto R$ 8.592,20',
+      'INSS 11,00% do bruto −R$ 945,14',
+      'IRPF 15,00% de R$ 7.647,06 −R$ 1.147,06',
+      'Líquido informado R$ 6.500,00',
+    ]);
+    expect(lastCall(calls, 'POST', '/transactions/settlement-preview')?.body).toEqual({
+      settled_amount: 650000,
+      adjustments: [INSS, IRPF],
+      expected_gross_amount: 800000,
+    });
+    await user.click(screen.getByRole('button', { name: 'Liquidar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions/t20/settlement')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions/t20/settlement')?.body).toEqual({
+      settled_amount: 650000,
+      settled_at: '2026-11-05',
+      adjustments: [INSS, IRPF],
+    });
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    expect(await within(region).findByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
+    expect(plain(region.textContent)).toContain('R$ 8.592,20');
+    expect(plain((await screen.findByText(/Recebeu/)).textContent)).toBe(
+      'Recebeu R$ 448,00 a mais',
+    );
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('rf10 edits an item before settling', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/t20');
+    await pageHeading('Salário');
+    const toggle = screen.getByRole('button', { name: 'Editar descontos e acréscimos' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const irpf = screen.getByRole('group', { name: 'Item 2' });
+    const rate = within(irpf).getByRole('textbox', { name: 'Percentual (%)' });
+    expect(rate).toHaveValue('15,00');
+    expect(
+      screen.getByText(
+        'A base digitada acompanha o bruto na mesma proporção. Ajuste a base prevista se o holerite trouxer outra.',
+      ),
+    ).toBeInTheDocument();
+    await user.clear(rate);
+    await user.type(rate, '22,5');
+    await typeSettled(user, '6.500,00');
+    expect(await previewRows('Valor bruto R$ 9.423,70')).toEqual([
+      'Valor bruto R$ 9.423,70',
+      'INSS 11,00% do bruto −R$ 1.036,61',
+      'IRPF 22,50% de R$ 8.387,09 −R$ 1.887,09',
+      'Líquido informado R$ 6.500,00',
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Liquidar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions/t20/settlement')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions/t20/settlement')?.body).toEqual({
+      settled_amount: 650000,
+      settled_at: '2026-11-05',
+      adjustments: [INSS, { ...IRPF, rate_bp: 2250 }],
+    });
+  });
+
+  it('cb01 shows the error when there is no gross for the net', async () => {
+    const state = seed();
+    state.override = (call) =>
+      call.method === 'POST' && call.path === '/transactions/settlement-preview'
+        ? {
+            status: 422,
+            body: {
+              code: 'validation_failed',
+              title: 'validation_failed',
+              errors: [{ field: 'adjustments', code: 'no_gross_for_net' }],
+            },
+          }
+        : undefined;
+    financeServer(state);
+    renderFinance('/finance/transactions/t20');
+    await pageHeading('Salário');
+    const preview = screen.getByRole('region', { name: 'Prévia da liquidação' });
+    expect(await within(preview).findByRole('alert')).toHaveTextContent(
+      'Não há bruto possível para este líquido com estes descontos e acréscimos.',
+    );
+  });
+
+  it('keeps the settlement of a transaction without items as before', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/t1');
+    await pageHeading('Feira');
+    await user.click(screen.getByRole('button', { name: 'Liquidar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions/t1/settlement')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/transactions/t1/settlement')?.body).toEqual({
+      settled_amount: 10000,
+      settled_at: '2026-11-05',
+    });
+    expect(lastCall(calls, 'POST', '/transactions/settlement-preview')).toBeUndefined();
+  });
+
   it('settles below expected and shows saving', async () => {
     const { calls } = financeServer(seed());
     const user = userEvent.setup();
@@ -876,6 +1235,40 @@ describe('recurrence detail', () => {
     expect(post?.headers['Idempotency-Key']).toBeDefined();
     expect(await screen.findByText('Ocorrência de 30 de nov. de 2026')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('ct06 settles the occurrence with an edited item and keeps the rule', async () => {
+    const state = seed();
+    state.recurring = [
+      rent({
+        kind: 'income',
+        description: 'Salário',
+        gross_amount: 800000,
+        expected_amount: 605200,
+        adjustments: SALARY_ADJUSTMENTS,
+      }),
+    ];
+    settleNext(state);
+    const { calls } = financeServer(state);
+    const user = userEvent.setup();
+    renderFinance('/finance/recurring-transactions/r1');
+    await pageHeading('Salário');
+    await editIrpf(user, '22,5');
+    await typeSettled(user, '6.500,00');
+    await previewRows('Valor bruto R$ 9.423,70');
+    await user.click(screen.getByRole('button', { name: 'Liquidar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/recurring-transactions/r1/settlement')).toBeDefined();
+    });
+    expect(lastCall(calls, 'POST', '/recurring-transactions/r1/settlement')?.body).toEqual({
+      occurrence_date: '2026-10-31',
+      settled_amount: 650000,
+      settled_at: '2026-11-05',
+      adjustments: [INSS, { ...IRPF, rate_bp: 2250 }],
+    });
+    expect(lastCall(calls, 'PATCH', '/recurring-transactions/r1')).toBeUndefined();
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    expect(plain(region.textContent)).toContain('15,00% de R$ 7.120,00');
   });
 
   it('keeps an overdue occurrence open until settled or skipped', async () => {

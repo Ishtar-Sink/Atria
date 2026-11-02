@@ -122,6 +122,13 @@
   gap: var(--s3);
 }
 
+.groupTitle {
+  margin: var(--s3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
 .about a {
   color: var(--primary);
 }
