@@ -21,6 +21,7 @@ import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-
 import { differenceKey } from '../components/difference-badge';
 import styles from '../components/finance.module.css';
 import { MoreIcon, PencilIcon } from '../components/icons';
+import { PayrollLoansCard } from '../components/payroll-loans-field';
 import { LoadMore } from '../components/list-toolbar';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
 import { SettlementCard, type SettlementValues } from '../components/settlement-card';
@@ -28,6 +29,7 @@ import { STATUS_TONE, TransactionRow } from '../components/transaction-row';
 import { problemCode, useIdempotencyKey, type Transaction } from '../hooks/finance-cache';
 import { useAccount } from '../hooks/use-accounts';
 import { useCategory } from '../hooks/use-categories';
+import { periodInstallments, usePayrollLoans } from '../hooks/use-payroll-loans';
 import {
   toFormRule,
   useDeleteRecurringTransaction,
@@ -40,7 +42,18 @@ import {
 import { listItemKey } from '../hooks/use-transactions';
 import { todayInTimeZone } from '../lib/finance-period';
 
-export type RecurrenceDetailTab = 'overview' | 'adjustments' | 'settlements';
+export type RecurrenceDetailTab = 'overview' | 'adjustments' | 'payroll_loans' | 'settlements';
+
+const RECURRENCE_TABS: readonly string[] = [
+  'overview',
+  'adjustments',
+  'payroll_loans',
+  'settlements',
+];
+
+function isRecurrenceTab(value: string): value is RecurrenceDetailTab {
+  return RECURRENCE_TABS.includes(value);
+}
 
 function Copies({ recurrence }: { recurrence: RecurringTransaction }) {
   const t = useT();
@@ -108,6 +121,10 @@ export function RecurrenceDetailScreen({
   const query = useRecurringTransaction(recurrence_id);
   const account = useAccount(query.data?.account_id);
   const category = useCategory(query.data?.category_id ?? undefined);
+  const loans = usePayrollLoans(
+    query.data?.kind === 'income' ? { income_recurrence_id: recurrence_id } : undefined,
+  );
+  const loan_items = loans.data ?? [];
   const settle = useSettleOccurrence(recurrence_id);
   const skip = useSkipOccurrence(recurrence_id);
   const remove = useDeleteRecurringTransaction(recurrence_id);
@@ -276,12 +293,14 @@ export function RecurrenceDetailScreen({
             </p>
           ) : (
             <SettlementCard
-              key={open.occurrence_date}
+              // Remonta quando os consignados chegam, para o valor sugerido descontar as parcelas.
+              key={`${open.occurrence_date}-${String(loan_items.length)}`}
               kind={recurrence.kind}
               currency={recurrence.currency}
               expected_amount={recurrence.expected_amount}
               gross_amount={recurrence.gross_amount}
               adjustments={recurrence.adjustments}
+              payroll_loans={periodInstallments(loan_items, open.occurrence_date)}
               today={todayInTimeZone(new Date(), time_zone)}
               caption={t('finance.settlement.occurrence', { date: date(open.occurrence_date) })}
               pending={settle.isPending}
@@ -357,9 +376,14 @@ export function RecurrenceDetailScreen({
       />
       <Tabs
         label={t('finance.recurrence_detail.tabs_label')}
-        value={tab === 'adjustments' && !has_adjustments ? 'overview' : tab}
+        value={
+          (tab === 'adjustments' && !has_adjustments) ||
+          (tab === 'payroll_loans' && loan_items.length === 0)
+            ? 'overview'
+            : tab
+        }
         onChange={(next) => {
-          on_tab_change(next === 'settlements' || next === 'adjustments' ? next : 'overview');
+          on_tab_change(isRecurrenceTab(next) ? next : 'overview');
         }}
         tabs={[
           { id: 'overview', label: t('finance.recurrence_detail.overview'), panel: overview },
@@ -369,6 +393,21 @@ export function RecurrenceDetailScreen({
                   id: 'adjustments',
                   label: t('finance.adjustments.title'),
                   panel: adjustments_panel,
+                },
+              ]
+            : []),
+          ...(loan_items.length > 0
+            ? [
+                {
+                  id: 'payroll_loans',
+                  label: t('finance.payroll_loans.title'),
+                  panel: (
+                    <PayrollLoansCard
+                      loans={loan_items}
+                      currency={recurrence.currency}
+                      settled={false}
+                    />
+                  ),
                 },
               ]
             : []),

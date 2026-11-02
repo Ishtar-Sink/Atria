@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE payroll_loans SET name = $3, contract_number = $4, installment_amount = $5, total_installments = $6, current_installment = $7, ends_on = $8, starts_on = $9, updated_at = $10 WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Date",
+        "Date",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "149a496f4da92f62fe9d01559c67cf121d712c17cb52a0ab90dfaa4e8ba891b8"
+}

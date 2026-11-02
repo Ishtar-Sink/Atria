@@ -6,6 +6,7 @@ import { expect, vi } from 'vitest';
 import { rootRoute } from '../../app/router';
 import { renderWithProviders } from '../../shared/test/render';
 import type { Account, Category, Transaction, TransactionItem } from './hooks/finance-cache';
+import type { PayrollLoan } from './hooks/use-payroll-loans';
 import { adjustmentInputs, type AdjustmentDto } from './hooks/use-transactions';
 import { computeNet, grossForNet, type Adjustment } from './lib/adjustments';
 import { createFinanceRoutes } from './routes';
@@ -235,6 +236,132 @@ export function payslip(overrides: Partial<Transaction> = {}): Transaction {
   });
 }
 
+export function payrollLoan(
+  overrides: Partial<PayrollLoan> & Pick<PayrollLoan, 'id' | 'name'>,
+): PayrollLoan {
+  return {
+    category_id: 'c6',
+    income_id: null,
+    income_recurrence_id: null,
+    contract_number: null,
+    installment_amount: 10000,
+    currency: 'BRL',
+    total_installments: 48,
+    current_installment: 12,
+    ends_on: null,
+    status: 'active',
+    starts_on: '2026-11-05',
+    next_installment_on: '2026-11-05',
+    last_installment_on: '2029-11-05',
+    remaining_installments: 37,
+    owner_id: 'u1',
+    visibility: 'personal',
+    ...STAMP,
+    ...overrides,
+  };
+}
+
+/** Os seis consignados da tabela comum do holerite (soma 374670). */
+export const PAYSLIP_LOANS: PayrollLoan[] = [
+  payrollLoan({
+    id: 'pl1',
+    name: 'Empréstimo 178176138',
+    contract_number: '178176138',
+    installment_amount: 293723,
+    total_installments: 48,
+    current_installment: 12,
+    remaining_installments: 37,
+    last_installment_on: '2029-11-05',
+  }),
+  payrollLoan({
+    id: 'pl2',
+    name: 'Empréstimo 180044512',
+    installment_amount: 26491,
+    total_installments: 60,
+    current_installment: 5,
+    remaining_installments: 56,
+    last_installment_on: '2031-06-05',
+  }),
+  payrollLoan({
+    id: 'pl3',
+    name: 'Empréstimo 181230977',
+    installment_amount: 4527,
+    total_installments: 36,
+    current_installment: 20,
+    remaining_installments: 17,
+    last_installment_on: '2028-03-05',
+  }),
+  payrollLoan({
+    id: 'pl4',
+    name: 'Empréstimo 175902331',
+    installment_amount: 16047,
+    total_installments: 72,
+    current_installment: 30,
+    remaining_installments: 43,
+    last_installment_on: '2030-05-05',
+  }),
+  payrollLoan({
+    id: 'pl5',
+    name: 'Empréstimo 183450016',
+    installment_amount: 16941,
+    total_installments: 24,
+    current_installment: 2,
+    remaining_installments: 23,
+    last_installment_on: '2028-09-05',
+  }),
+  payrollLoan({
+    id: 'pl6',
+    name: 'Empréstimo 184001209',
+    installment_amount: 16941,
+    total_installments: null,
+    current_installment: null,
+    ends_on: '2027-03-20',
+    remaining_installments: 5,
+    last_installment_on: '2027-03-05',
+  }),
+];
+
+/** Descontos fixos do holerite com consignados (INSS, IRPF e sindical). */
+export const PAYSLIP_FIXED: AdjustmentDto[] = [
+  {
+    name: 'INSS',
+    direction: 'deduction',
+    mode: 'fixed',
+    amount: 98807,
+    computed_amount: 98807,
+  },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'fixed',
+    amount: 280705,
+    computed_amount: 280705,
+  },
+  {
+    name: 'Sindical',
+    direction: 'deduction',
+    mode: 'fixed',
+    amount: 3500,
+    computed_amount: 3500,
+  },
+];
+
+/** Holerite de R$ 14.500,00 com os descontos fixos; os consignados ficam à parte (SPEC-006). */
+export function holerite(overrides: Partial<Transaction> = {}): Transaction {
+  return transaction({
+    id: 't60',
+    kind: 'income',
+    description: 'Holerite',
+    category_id: 'c3',
+    gross_amount: 1450000,
+    expected_amount: 1066988,
+    adjustments: PAYSLIP_FIXED,
+    expected_date: '2026-11-05',
+    effective_date: '2026-11-05',
+    ...overrides,
+  });
+}
+
 function refusal(issue: { field: string; code: string }): ApiReply {
   return {
     status: 422,
@@ -276,6 +403,7 @@ export interface FinanceWorld {
   transfers: Record<string, unknown>[];
   recurring: Record<string, unknown>[];
   copies: Record<string, TransactionItem[]>;
+  payroll_loans: PayrollLoan[];
   summary?: unknown;
   /** Resposta pronta para uma chamada: força recusa, atraso ou erro. */
   override?: (call: ApiCall) => ApiReply | undefined;
@@ -289,6 +417,7 @@ export function world(partial: Partial<FinanceWorld> = {}): FinanceWorld {
     transfers: [],
     recurring: [],
     copies: {},
+    payroll_loans: [],
     ...partial,
   };
 }
@@ -526,6 +655,40 @@ export function financeServer(state: FinanceWorld) {
     'GET /recurring-transactions/:id/settled-transactions': intercept((_call, { id = '' }) =>
       page(state.copies[id] ?? []),
     ),
+    'GET /payroll-loans': intercept((call) => {
+      const income_id = call.url.searchParams.get('income_id');
+      const income_recurrence_id = call.url.searchParams.get('income_recurrence_id');
+      return page(
+        state.payroll_loans.filter(
+          (entry) =>
+            (income_id === null || entry.income_id === income_id) &&
+            (income_recurrence_id === null || entry.income_recurrence_id === income_recurrence_id),
+        ),
+      );
+    }),
+    'GET /payroll-loans/:id': intercept((_call, { id = '' }) => {
+      const found = find(state.payroll_loans, id);
+      return found ? { body: found } : problem(404, 'not_found');
+    }),
+    'POST /payroll-loans': intercept((call) => {
+      const created = payrollLoan({
+        id: `pl-new-${String(state.payroll_loans.length + 1)}`,
+        name: '',
+        ...(call.body as Partial<PayrollLoan>),
+      });
+      state.payroll_loans.push(created);
+      return { status: 201, body: created };
+    }),
+    'PATCH /payroll-loans/:id': intercept((call, { id = '' }) => {
+      const found = find(state.payroll_loans, id);
+      if (!found) return problem(404, 'not_found');
+      Object.assign(found, call.body);
+      return { body: found };
+    }),
+    'DELETE /payroll-loans/:id': intercept((_call, { id = '' }) => {
+      state.payroll_loans = state.payroll_loans.filter((entry) => entry.id !== id);
+      return { status: 204 };
+    }),
     'GET /financial-summaries': intercept(() =>
       state.summary === undefined ? problem(500, 'internal_error') : { body: state.summary },
     ),

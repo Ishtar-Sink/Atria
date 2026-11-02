@@ -17,7 +17,11 @@
 // TASK-06 da SPEC-005 acrescenta descontos-abas (finance-descontos-abas.png): aba Descontos e acréscimos no formulário e nos detalhes.
 // TASK-07 da SPEC-005 acrescenta base-ligada-liquidacao (finance-base-ligada-liquidacao.png): liquidação do holerite com base ligada e parcela.
 // TASK-08 da SPEC-005 acrescenta base-ligada-painel (finance-base-ligada-painel.png) e base-ligada-video (finance-base-ligada.webm): o cartão do painel e o fluxo do holerite com base ligada.
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais|descontos-form|descontos-liquidacao|descontos-painel|descontos-video|base-ligada-form|descontos-abas|base-ligada-liquidacao|base-ligada-painel|base-ligada-video]
+// TASK-05 da SPEC-006 acrescenta consignados-form (finance-consignados-form.png): aba Consignados no formulário da entrada.
+// TASK-06 da SPEC-006 acrescenta consignados-detalhe (finance-consignados-detalhe.png): aba Consignados nos detalhes e a origem da parcela.
+// TASK-07 da SPEC-006 acrescenta consignados-liquidacao (finance-consignados-liquidacao.png): liquidação pelo valor que caiu na conta com as parcelas na prévia.
+// TASK-08 da SPEC-006 acrescenta consignados-saidas (finance-consignados-saidas.png): as parcelas dos consignados nas saídas e no painel.
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais|descontos-form|descontos-liquidacao|descontos-painel|descontos-video|base-ligada-form|descontos-abas|base-ligada-liquidacao|base-ligada-painel|base-ligada-video|consignados-form|consignados-detalhe|consignados-liquidacao|consignados-saidas]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -582,6 +586,41 @@ function financeRoutes(state) {
     },
     'GET /recurring-transactions/:id/settled-transactions': (_c, { id }) =>
       page(state.copies[id] ?? []),
+    'GET /payroll-loans': (call) => {
+      const income_id = call.url.searchParams.get('income_id');
+      const income_recurrence_id = call.url.searchParams.get('income_recurrence_id');
+      return page(
+        (state.payroll_loans ?? []).filter(
+          (e) =>
+            (income_id === null || e.income_id === income_id) &&
+            (income_recurrence_id === null || e.income_recurrence_id === income_recurrence_id),
+        ),
+      );
+    },
+    'GET /payroll-loans/:id': (_c, { id }) => {
+      const found = find(state.payroll_loans ?? [], id);
+      return found ? { body: found } : problem(404, 'not_found');
+    },
+    'POST /payroll-loans': (call) => {
+      const loans = (state.payroll_loans ??= []);
+      const created = payrollLoan({
+        id: `pl-new-${String(loans.length + 1)}`,
+        name: '',
+        ...call.body,
+      });
+      loans.push(created);
+      return { status: 201, body: created };
+    },
+    'PATCH /payroll-loans/:id': (call, { id }) => {
+      const found = find(state.payroll_loans ?? [], id);
+      if (!found) return problem(404, 'not_found');
+      Object.assign(found, call.body);
+      return { body: found };
+    },
+    'DELETE /payroll-loans/:id': (_c, { id }) => {
+      state.payroll_loans = (state.payroll_loans ?? []).filter((e) => e.id !== id);
+      return { status: 204 };
+    },
     'GET /financial-summaries': () =>
       state.summary ? { body: state.summary } : problem(500, 'internal_error'),
   };
@@ -1097,6 +1136,280 @@ function payslipWorld() {
     }),
   );
   return state;
+}
+
+// Consignados da SPEC-006: o holerite com descontos fixos e os seis empréstimos da tabela comum.
+const PAYSLIP_FIXED = [
+  { name: 'INSS', direction: 'deduction', mode: 'fixed', amount: 98807, computed_amount: 98807 },
+  { name: 'IRPF', direction: 'deduction', mode: 'fixed', amount: 280705, computed_amount: 280705 },
+  { name: 'Sindical', direction: 'deduction', mode: 'fixed', amount: 3500, computed_amount: 3500 },
+];
+
+function payrollLoan(o) {
+  return {
+    category_id: 'c6',
+    income_id: null,
+    income_recurrence_id: null,
+    contract_number: null,
+    installment_amount: 10000,
+    currency: 'BRL',
+    total_installments: 48,
+    current_installment: 12,
+    ends_on: null,
+    status: 'active',
+    starts_on: '2026-11-05',
+    next_installment_on: '2026-11-05',
+    last_installment_on: '2029-11-05',
+    remaining_installments: 37,
+    owner_id: 'u1',
+    visibility: 'personal',
+    ...STAMP,
+    ...o,
+  };
+}
+
+const PAYSLIP_LOANS = [
+  payrollLoan({
+    id: 'pl1',
+    name: 'Empréstimo 178176138',
+    contract_number: '178176138',
+    installment_amount: 293723,
+    total_installments: 48,
+    current_installment: 12,
+    remaining_installments: 37,
+    last_installment_on: '2029-11-05',
+  }),
+  payrollLoan({
+    id: 'pl2',
+    name: 'Empréstimo 180044512',
+    installment_amount: 26491,
+    total_installments: 60,
+    current_installment: 5,
+    remaining_installments: 56,
+    last_installment_on: '2031-06-05',
+  }),
+  payrollLoan({
+    id: 'pl3',
+    name: 'Empréstimo 181230977',
+    installment_amount: 4527,
+    total_installments: 36,
+    current_installment: 20,
+    remaining_installments: 17,
+    last_installment_on: '2028-03-05',
+  }),
+  payrollLoan({
+    id: 'pl4',
+    name: 'Empréstimo 175902331',
+    installment_amount: 16047,
+    total_installments: 72,
+    current_installment: 30,
+    remaining_installments: 43,
+    last_installment_on: '2030-05-05',
+  }),
+  payrollLoan({
+    id: 'pl5',
+    name: 'Empréstimo 183450016',
+    installment_amount: 16941,
+    total_installments: 24,
+    current_installment: 2,
+    remaining_installments: 23,
+    last_installment_on: '2028-09-05',
+  }),
+  payrollLoan({
+    id: 'pl6',
+    name: 'Empréstimo 184001209',
+    installment_amount: 16941,
+    total_installments: null,
+    current_installment: null,
+    ends_on: '2027-03-20',
+    remaining_installments: 5,
+    last_installment_on: '2027-03-05',
+  }),
+];
+
+/** O mundo de sempre com o holerite t60, a recorrente r6 e os consignados ligados a cada uma. */
+function loansWorld() {
+  const state = seed();
+  state.categories.push(
+    category({ id: 'c6', name: 'Empréstimo', kind: 'expense', color: 'warning' }),
+  );
+  const holerite = transaction({
+    id: 't60',
+    kind: 'income',
+    description: 'Holerite',
+    category_id: 'c3',
+    gross_amount: 1450000,
+    expected_amount: 1066988,
+    adjustments: PAYSLIP_FIXED,
+    expected_date: '2026-11-05',
+    effective_date: '2026-11-05',
+  });
+  state.transactions.push(
+    holerite,
+    // Entrada com o consignado também lançado como desconto: o aviso do desconto em dobro.
+    transaction({
+      ...holerite,
+      id: 't61',
+      description: 'Salário antigo',
+      adjustments: [
+        ...PAYSLIP_FIXED,
+        {
+          name: 'Empréstimo 178176138',
+          direction: 'deduction',
+          mode: 'fixed',
+          amount: 293723,
+          computed_amount: 293723,
+        },
+      ],
+    }),
+  );
+  state.recurring.push(
+    recurring({
+      id: 'r6',
+      kind: 'income',
+      category_id: 'c3',
+      description: 'Salário',
+      gross_amount: 1450000,
+      expected_amount: 1066988,
+      adjustments: PAYSLIP_FIXED,
+      rule: { ...RULE, month_day: 5, starts_on: '2026-01-05' },
+      open_occurrence: { occurrence_date: '2026-11-05', status: 'open' },
+    }),
+  );
+  state.payroll_loans = [
+    ...PAYSLIP_LOANS.map((loan) => ({ ...loan, income_id: 't60' })),
+    ...PAYSLIP_LOANS.map((loan, index) => ({
+      ...loan,
+      id: `pl${String(11 + index)}`,
+      income_recurrence_id: 'r6',
+    })),
+    payrollLoan({
+      id: 'pl21',
+      name: 'Empréstimo 178176138',
+      contract_number: '178176138',
+      installment_amount: 293723,
+      income_id: 't61',
+    }),
+  ];
+  // A parcela de 293.723 já liquidada junto com o holerite (RF-13).
+  state.transactions.push(
+    transaction({
+      id: 't70',
+      description: 'Empréstimo 178176138',
+      category_id: 'c6',
+      expected_amount: 293723,
+      status: 'settled',
+      settled_amount: 293723,
+      settled_at: '2026-11-05',
+      expected_date: '2026-11-05',
+      effective_date: '2026-11-05',
+      payroll_loan_id: 'pl1',
+      income_transaction_id: 't60',
+      installment_number: 12,
+    }),
+  );
+  return state;
+}
+
+/** O `loansWorld` com as seis parcelas abertas virtuais nas saídas e "Empréstimo" no painel (RF-06). */
+function loansListWorld() {
+  const state = loansWorld();
+  // As parcelas do período estão abertas: sem a t70, já liquidada, do mundo do detalhe.
+  state.transactions = state.transactions.filter((item) => item.id !== 't70');
+  state.transactions.push(
+    ...PAYSLIP_LOANS.map((loan) =>
+      transaction({
+        id: null,
+        recurrence_id: null,
+        income_transaction_id: 't60',
+        payroll_loan_id: loan.id,
+        description: loan.name,
+        category_id: 'c6',
+        expected_amount: loan.installment_amount,
+        expected_date: '2026-11-05',
+        effective_date: '2026-11-05',
+      }),
+    ),
+  );
+  state.summary.where_it_went.unshift({
+    group: 'category',
+    category_id: 'c6',
+    name: 'Empréstimo',
+    color: '#92400e',
+    amount: LOANS_TOTAL,
+  });
+  return state;
+}
+
+/** Soma das parcelas dos seis consignados e dos descontos fixos do holerite. */
+const LOANS_TOTAL = 374670;
+const PAYSLIP_FIXED_TOTAL = 383012;
+
+/**
+ * A prévia e a liquidação do holerite com consignados: o líquido da entrada é o que caiu na conta
+ * mais as parcelas (RN-02), e o bruto soma os descontos fixos.
+ */
+function loansOverride(call, state) {
+  if (call.method === 'POST' && call.path === '/transactions/settlement-preview') {
+    return {
+      body: {
+        gross_amount: call.body.settled_amount + PAYSLIP_FIXED_TOTAL,
+        net_amount: call.body.settled_amount,
+        adjustments: PAYSLIP_FIXED,
+      },
+    };
+  }
+  if (call.method === 'POST' && call.path === '/transactions/t60/settlement') {
+    const found = state.transactions.find((e) => e.id === 't60');
+    const settled_amount = call.body.account_amount + LOANS_TOTAL;
+    const difference_amount = settled_amount - found.expected_amount;
+    Object.assign(found, {
+      status: 'settled',
+      settled_amount,
+      settled_at: call.body.settled_at,
+      effective_date: call.body.settled_at,
+      difference_amount,
+      difference_kind: difference_amount === 0 ? null : difference_amount > 0 ? 'gain' : 'loss',
+    });
+    return { body: found };
+  }
+  if (call.method === 'POST' && call.path === '/recurring-transactions/r6/settlement') {
+    const t60 = state.transactions.find((e) => e.id === 't60');
+    return {
+      status: 201,
+      body: transaction({
+        ...t60,
+        id: 't81',
+        status: 'settled',
+        settled_amount: call.body.account_amount + LOANS_TOTAL,
+        generated_from: 'r6',
+      }),
+    };
+  }
+  return undefined;
+}
+
+/** Digita o valor que caiu na conta pelo foco e pelo teclado, como em `previewWith`. */
+async function accountWith(page, value) {
+  const field = page.getByRole('textbox', { name: 'Valor que caiu na conta (R$)' });
+  await field.fill('');
+  await field.focus();
+  await page.keyboard.type(value);
+  await page.keyboard.press('Tab');
+  return page.getByRole('region', { name: 'Prévia da liquidação' });
+}
+
+/** Abre um consignado novo no editor e preenche o que o cenário pede; devolve o grupo. */
+async function addLoan(page, number, { name, amount, current, total }) {
+  await pressOn(page, page.getByRole('button', { name: 'Adicionar consignado' }), 'Enter');
+  const group = page.getByRole('group', { name: `Consignado ${number}`, exact: true });
+  await group.getByRole('textbox', { name: 'Nome do consignado' }).fill(name);
+  await typeMoney(page, group.getByRole('textbox', { name: 'Valor da parcela (R$)' }), amount);
+  if (current !== undefined) {
+    await group.getByRole('textbox', { name: 'Parcela atual' }).fill(String(current));
+    await group.getByRole('textbox', { name: 'Total de parcelas' }).fill(String(total));
+  }
+  return group;
 }
 
 /** Preenche um campo de valor como o usuário: clica, digita e sai do campo. */
@@ -3051,6 +3364,388 @@ const scenarios = [
       await settle(page);
     },
   },
+  {
+    name: 'aba no formulário',
+    group: 'consignados-form',
+    path: '/finance/transactions/new?kind=income',
+    combos: ALL,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await openTab(page, 'Consignados');
+      const empty = page.getByText('Nenhum consignado.', { exact: false });
+      check(`${tag}: texto da lista vazia visível`, await empty.isVisible());
+      await addLoan(page, 1, {
+        name: 'Empréstimo 178176138',
+        amount: '2937,23',
+        current: 12,
+        total: 48,
+      });
+      await addLoan(page, 2, {
+        name: 'Empréstimo 180044512',
+        amount: '264,91',
+        current: 5,
+        total: 60,
+      });
+      const status = plain(
+        await page
+          .getByRole('group', { name: 'Consignados', exact: true })
+          .getByRole('status')
+          .textContent(),
+      );
+      check(
+        `${tag}: aba no formulário com o total das parcelas`,
+        status === 'Total das parcelas: R$ 3.202,14',
+        status,
+      );
+      await page
+        .getByRole('group', { name: 'Consignados', exact: true })
+        .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'edição com os seis',
+    group: 'consignados-form',
+    path: '/finance/transactions/t60/edit',
+    combos: PAIR,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Editar entrada' }).waitFor();
+      await openTab(page, 'Consignados');
+      const sixth = page.getByRole('group', { name: 'Consignado 6', exact: true });
+      await sixth.waitFor();
+      const groups = await page.getByRole('group', { name: /^Consignado \d$/ }).count();
+      const status = plain(
+        await page
+          .getByRole('group', { name: 'Consignados', exact: true })
+          .getByRole('status')
+          .textContent(),
+      );
+      const by_date = await sixth.getByRole('radio', { name: 'Por data final' }).isChecked();
+      check(
+        `${tag}: edição com os seis`,
+        groups === 6 && status === 'Total das parcelas: R$ 3.746,70' && by_date,
+        `${String(groups)} grupos · ${status} · data final ${String(by_date)}`,
+      );
+      await sixth.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'aviso de desconto em dobro',
+    group: 'consignados-form',
+    path: '/finance/transactions/t61/edit',
+    combos: PAIR_ALT,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Editar entrada' }).waitFor();
+      await openTab(page, 'Consignados');
+      const notice = page.getByText('também está nos descontos e acréscimos', { exact: false });
+      await notice.waitFor();
+      check(`${tag}: aviso de desconto em dobro`, await notice.isVisible());
+      await notice.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'parcela atual acima do total',
+    group: 'consignados-form',
+    path: '/finance/transactions/new?kind=income',
+    combos: PAIR,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await page.getByRole('textbox', { name: 'Descrição' }).fill('Holerite');
+      await page.getByLabel('Conta', { exact: true }).click();
+      await page.getByRole('option').first().click();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '10669,88');
+      await openTab(page, 'Consignados');
+      await addLoan(page, 1, {
+        name: 'Empréstimo 178176138',
+        amount: '2937,23',
+        current: 49,
+        total: 48,
+      });
+      await openTab(page, 'Movimentação');
+      await pressOn(page, page.getByRole('button', { name: 'Salvar' }), 'Enter');
+      const tab = page.getByRole('tab', { name: 'Consignados', exact: true });
+      await page
+        .locator('[role="tab"][aria-selected="true"]')
+        .filter({ hasText: 'Consignados' })
+        .waitFor();
+      const message = page.getByText('A parcela atual não pode passar do total de parcelas.');
+      await message.waitFor();
+      check(
+        `${tag}: parcela atual acima do total`,
+        (await tab.getAttribute('aria-selected')) === 'true' && (await message.isVisible()),
+      );
+      await message.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'aba no detalhe da entrada',
+    group: 'consignados-detalhe',
+    path: '/finance/transactions/t60',
+    combos: ALL,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      const overview = page.getByRole('tab', { name: 'Visão geral', exact: true });
+      await page.getByRole('tab', { name: 'Consignados', exact: true }).waitFor();
+      check(`${tag}: abas Visão geral e Consignados`, await overview.isVisible());
+      await openTab(page, 'Consignados');
+      const region = page.getByRole('region', { name: 'Consignados', exact: true });
+      await region.waitFor();
+      const text = plain(await region.textContent());
+      check(
+        `${tag}: aba no detalhe da entrada`,
+        [
+          'Próxima parcela 12/48',
+          'Contrato 178176138',
+          'Última parcela em 5 de nov. de 2029',
+          'R$ 3.746,70',
+        ].every((part) => text.includes(part)),
+        text.slice(0, 160),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await settle(page);
+    },
+  },
+  {
+    name: 'aba na recorrência',
+    group: 'consignados-detalhe',
+    path: '/finance/recurring-transactions/r6?tab=payroll_loans',
+    combos: PAIR,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário' }).waitFor();
+      const region = page.getByRole('region', { name: 'Consignados', exact: true });
+      await region.waitFor();
+      const items = await region
+        .getByRole('list', { name: 'Consignados desta entrada' })
+        .getByRole('listitem')
+        .count();
+      const text = plain(await region.textContent());
+      check(
+        `${tag}: aba na recorrência`,
+        items === 6 && text.includes('R$ 3.746,70'),
+        `${String(items)} itens`,
+      );
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await settle(page);
+    },
+  },
+  {
+    name: 'origem na parcela',
+    group: 'consignados-detalhe',
+    path: '/finance/transactions/t70',
+    combos: ALL,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Empréstimo 178176138' }).waitFor();
+      const data = page.getByRole('region', { name: 'Movimentação', exact: true });
+      await data.getByText('Empréstimo 178176138 · parcela 12').waitFor();
+      const link = data.getByRole('link', { name: 'Holerite' });
+      await link.waitFor();
+      const href = (await link.getAttribute('href')) ?? '';
+      const settlements = await page
+        .getByRole('region', { name: 'Liquidação', exact: true })
+        .count();
+      const notice = page.getByText('Esta parcela é liquidada junto com a entrada de origem.');
+      check(
+        `${tag}: origem na parcela`,
+        href.endsWith('/finance/transactions/t60') &&
+          settlements === 0 &&
+          (await notice.isVisible()),
+        `${href} · ${String(settlements)} liquidação`,
+      );
+      await settle(page);
+    },
+  },
+  {
+    name: 'sem consignados, sem aba',
+    group: 'consignados-detalhe',
+    path: '/finance/transactions/t1',
+    combos: PAIR_ALT,
+    world: loansWorld,
+    run: async (page, tag) => {
+      await page.locator('h1').first().waitFor();
+      await page.getByRole('region', { name: 'Movimentação', exact: true }).waitFor();
+      const tabs = await page.getByRole('tab', { name: 'Consignados', exact: true }).count();
+      check(`${tag}: sem consignados, sem aba`, tabs === 0, `${String(tabs)} abas`);
+      await settle(page);
+    },
+  },
+  {
+    name: 'prévia com os consignados',
+    group: 'consignados-liquidacao',
+    path: '/finance/transactions/t60',
+    combos: ALL,
+    world: loansWorld,
+    override: loansOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      const field = page.getByRole('textbox', { name: 'Valor que caiu na conta (R$)' });
+      const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+      await preview.getByText('R$ 14.500,00').first().waitFor();
+      const value = plain(await field.inputValue());
+      const items = await preview
+        .getByRole('list', { name: 'Parcelas dos consignados' })
+        .getByRole('listitem')
+        .count();
+      const text = plain(await preview.innerText());
+      check(
+        `${tag}: prévia com os consignados`,
+        value === 'R$ 6.923,18' &&
+          items === 6 &&
+          text.includes('R$ 10.669,88') &&
+          text.includes('R$ 14.500,00'),
+        `${value} · ${String(items)} parcelas`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'valor diferente',
+    group: 'consignados-liquidacao',
+    path: '/finance/transactions/t60',
+    combos: PAIR,
+    world: loansWorld,
+    override: loansOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      const preview = await accountWith(page, '7000');
+      await preview.getByText('R$ 10.746,70').first().waitFor();
+      check(`${tag}: valor diferente`, plain(await preview.innerText()).includes('R$ 10.746,70'));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'valor abaixo das parcelas',
+    group: 'consignados-liquidacao',
+    path: '/finance/transactions/t60',
+    combos: PAIR_ALT,
+    world: loansWorld,
+    override: loansOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      await accountWith(page, '3746,69');
+      await pressOn(page, page.getByRole('button', { name: 'Liquidar', exact: true }), 'Enter');
+      const dialog = page.getByRole('alertdialog', { name: 'Valor abaixo das parcelas' });
+      await dialog.waitFor();
+      const text = plain(await dialog.innerText());
+      const confirm = dialog.getByRole('button', { name: 'Liquidar mesmo assim' });
+      const cancel = dialog.getByRole('button', { name: 'Cancelar' });
+      check(
+        `${tag}: valor abaixo das parcelas`,
+        text.includes(
+          'O valor que caiu na conta (R$ 3.746,69) é menor que a soma das parcelas dos consignados (R$ 3.746,70). Confira se não houve erro de digitação: a entrada será liquidada com R$ 7.493,39.',
+        ) &&
+          (await confirm.isVisible()) &&
+          (await cancel.isVisible()),
+        text.slice(0, 120),
+      );
+      await settle(page);
+    },
+  },
+  {
+    name: 'liquidado pelo valor da conta',
+    group: 'consignados-liquidacao',
+    path: '/finance/transactions/t60',
+    combos: PAIR,
+    world: loansWorld,
+    override: loansOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      await accountWith(page, '6923,18');
+      await pressOn(page, page.getByRole('button', { name: 'Liquidar', exact: true }), 'Enter');
+      const region = page.getByRole('region', { name: 'Liquidação', exact: true });
+      await region.getByText('R$ 10.669,88').first().waitFor();
+      check(
+        `${tag}: liquidado pelo valor da conta`,
+        plain(await region.innerText()).includes('R$ 10.669,88'),
+      );
+      await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'ocorrência da recorrente',
+    group: 'consignados-liquidacao',
+    path: '/finance/recurring-transactions/r6',
+    combos: PAIR_ALT,
+    world: loansWorld,
+    override: loansOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário' }).waitFor();
+      const field = page.getByRole('textbox', { name: 'Valor que caiu na conta (R$)' });
+      const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+      await preview.getByText('R$ 10.669,88').first().waitFor();
+      check(
+        `${tag}: ocorrência da recorrente`,
+        (await field.isVisible()) && plain(await preview.innerText()).includes('R$ 10.669,88'),
+      );
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'parcelas nas saídas',
+    group: 'consignados-saidas',
+    path: '/finance/expenses',
+    combos: ALL,
+    world: loansListWorld,
+    run: async (page, tag) => {
+      const first = page.getByRole('link', { name: 'Empréstimo 178176138' });
+      await first.waitFor();
+      await settle(page);
+      const links = page.getByRole('link', { name: /^Empréstimo \d+$/ });
+      const visible = [];
+      for (const link of await links.all()) if (await link.isVisible()) visible.push(link);
+      const href = (await first.getAttribute('href')) ?? '';
+      const list = plain(await page.locator('main').innerText());
+      check(
+        `${tag}: parcelas nas saídas`,
+        visible.length === 6 &&
+          href.endsWith('/finance/transactions/t60?tab=payroll_loans') &&
+          list.includes(`${MINUS}R$ 2.937,23`),
+        `${visible.length} link(s), ${href}`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      // A captura mostra as parcelas, que ficam abaixo das saídas do mês.
+      await first.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page, 400);
+    },
+  },
+  {
+    name: 'Empréstimo no painel',
+    group: 'consignados-saidas',
+    path: '/finance',
+    combos: PAIR,
+    world: loansListWorld,
+    run: async (page, tag) => {
+      await page.getByRole('region', { name: /Fechamento/ }).waitFor();
+      await page.getByText('Para onde foi').first().waitFor();
+      await centerCard(page, 'Para onde foi');
+      await settle(page, 400);
+      const table = page.getByRole('table', { name: 'Saídas por categoria' });
+      const text = plain(await table.textContent());
+      check(
+        `${tag}: Empréstimo no painel`,
+        text.includes('Empréstimo') && text.includes('R$ 3.746,70'),
+        text.slice(0, 120),
+      );
+    },
+  },
 ];
 
 /** "Mais ações", "Excluir" e confirmar: a conta com movimentações abre o diálogo da conta de destino. */
@@ -3779,6 +4474,62 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  'consignados-form': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'consignados-form'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-05 da SPEC-006 · aba Consignados no formulário da entrada (RF-11, CT-08, CB-02, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-consignados-form.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'consignados-liquidacao': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'consignados-liquidacao'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-07 da SPEC-006 · liquidação pelo valor que caiu na conta com os consignados (RF-08, CT-04, CT-05, CB-04, CT-15, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-consignados-liquidacao.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'consignados-saidas': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'consignados-saidas'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-08 da SPEC-006 · parcelas dos consignados nas saídas e no painel (RF-06, CT-03, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-consignados-saidas.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'consignados-detalhe': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'consignados-detalhe'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-06 da SPEC-006 · aba Consignados nos detalhes e origem da parcela (RF-12, RF-13, CT-09, CT-10, CB-05, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-consignados-detalhe.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   'base-ligada-form': async (browser, base) => {
     const shots = await runScenarios(
       browser,
@@ -3889,7 +4640,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video, sinais, descontos-form, descontos-liquidacao, descontos-painel, descontos-video, base-ligada-form, descontos-abas, base-ligada-liquidacao, base-ligada-painel ou base-ligada-video.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video, sinais, descontos-form, descontos-liquidacao, descontos-painel, descontos-video, base-ligada-form, descontos-abas, base-ligada-liquidacao, base-ligada-painel, base-ligada-video, consignados-form, consignados-detalhe, consignados-liquidacao ou consignados-saidas.`,
   );
   process.exit(2);
 }

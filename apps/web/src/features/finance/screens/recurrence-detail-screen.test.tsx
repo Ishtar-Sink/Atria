@@ -9,6 +9,7 @@ import {
   financeServer,
   item,
   pageHeading,
+  PAYSLIP_LOANS,
   renderFinance,
   SALARY_ADJUSTMENTS,
   transaction,
@@ -318,6 +319,53 @@ describe('recurrence adjustments', () => {
     renderFinance('/finance/recurring-transactions/r1?tab=adjustments');
     await pageHeading('Aluguel');
     expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+});
+
+describe('recurrence payroll loans', () => {
+  const salary = () =>
+    rent({ id: 'r6', kind: 'income', description: 'Salário', expected_amount: 1066988 });
+
+  it('ct09 shows the payroll loans tab of the recurrence', async () => {
+    const state = seed();
+    state.recurring = [salary()];
+    state.payroll_loans = PAYSLIP_LOANS.map((entry) => ({ ...entry, income_recurrence_id: 'r6' }));
+    financeServer(state);
+    const user = userEvent.setup();
+    const first = renderFinance('/finance/recurring-transactions/r6');
+    await pageHeading('Salário');
+    const tabs = screen.getByRole('tablist', { name: 'Seções da recorrência' });
+    await waitFor(() => {
+      expect(
+        within(tabs)
+          .getAllByRole('tab')
+          .map((tab) => tab.textContent),
+      ).toEqual(['Visão geral', 'Consignados', 'Liquidações']);
+    });
+    await user.click(within(tabs).getByRole('tab', { name: 'Consignados' }));
+    const region = await screen.findByRole('region', { name: 'Consignados' });
+    const text = region.textContent.replace(/[\u00a0\u202f]/g, ' ');
+    expect(text).toContain('Próxima parcela 12/48');
+    expect(text).toContain('Total das parcelas');
+    expect(text).toContain('R$ 3.746,70');
+    first.unmount();
+
+    renderFinance('/finance/recurring-transactions/r6?tab=payroll_loans');
+    expect(await screen.findByRole('region', { name: 'Consignados' })).toBeInTheDocument();
+  });
+
+  it('ct09 hides the payroll loans tab of a recurrence without loans', async () => {
+    const state = seed();
+    state.recurring = [rent()];
+    financeServer(state);
+    renderFinance('/finance/recurring-transactions/r1?tab=payroll_loans');
+    await pageHeading('Aluguel');
+    const tabs = screen.getByRole('tablist', { name: 'Seções da recorrência' });
+    expect(within(tabs).queryByRole('tab', { name: 'Consignados' })).not.toBeInTheDocument();
+    expect(within(tabs).getByRole('tab', { name: 'Visão geral' })).toHaveAttribute(
       'aria-selected',
       'true',
     );

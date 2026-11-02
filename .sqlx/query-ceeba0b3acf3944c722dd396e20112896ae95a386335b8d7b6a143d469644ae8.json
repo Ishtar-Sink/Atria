@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE categories SET system_key = 'loan', updated_at = $2 WHERE owner_id = $1 AND kind = 'expense' AND lower(name) = lower($3) AND system_key IS NULL AND deleted_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ceeba0b3acf3944c722dd396e20112896ae95a386335b8d7b6a143d469644ae8"
+}

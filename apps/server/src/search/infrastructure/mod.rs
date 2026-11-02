@@ -16,7 +16,7 @@ use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::transaction::Transaction;
 use crate::finance::domain::transfer::Transfer;
 use crate::finance::infrastructure::{
-    PgAccounts, PgCategories, PgRecurringTransactions, PgTransactions, PgTransfers,
+    PgAccounts, PgCategories, PgPayrollLoans, PgRecurringTransactions, PgTransactions, PgTransfers,
 };
 use crate::goals::application::goals::{GoalFilter, GoalsService};
 use crate::goals::domain::goal::GoalView;
@@ -117,6 +117,7 @@ impl FinanceSearchSource {
         let recurring = PgRecurringTransactions::new(self.state.pool.clone());
         let repo = PgTransactions::new(self.state.pool.clone());
         let items = transactions::list(
+            &PgPayrollLoans::new(self.state.pool.clone()),
             &recurring,
             &repo,
             self.env(),
@@ -195,7 +196,7 @@ fn named_hit(entity_type: &'static str, id: Uuid, name: String) -> SearchHit {
 fn finance_item_hit(item: FinanceItem) -> Option<SearchHit> {
     match item {
         FinanceItem::Stored(transaction) => Some(transaction_hit(transaction)),
-        FinanceItem::Virtual(_) => None,
+        FinanceItem::Virtual(_) | FinanceItem::Installment(_) => None,
     }
 }
 

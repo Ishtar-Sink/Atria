@@ -17,18 +17,21 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::finance::application::ports::{
-    DateRange, EntityDeletedHook, IdempotencyStore, SettlementRequest, StoredResponse,
-    TransactionFilter, TransactionRepository, TransferFilter, TransferRepository, UndoneSettlement,
+    DateRange, EntityDeletedHook, IdempotencyStore, PayrollLoanFilter, SettlementRequest,
+    StoredResponse, TransactionFilter, TransactionRepository, TransferFilter, TransferRepository,
+    UndoneSettlement,
 };
 use crate::finance::application::{
-    Env, accounts, categories, recurring_transactions, summaries, transactions, transfers,
+    Env, accounts, categories, payroll_loans, recurring_transactions, summaries, transactions,
+    transfers,
 };
 use crate::finance::domain::adjustment::Adjustment;
 use crate::finance::domain::recurring_transaction::OccurrenceSettlement;
 use crate::finance::domain::summary::{MAX_PERIOD_DAYS, Period};
 use crate::finance::domain::{FieldIssue, FinanceError};
 use crate::finance::infrastructure::{
-    PgAccounts, PgCategories, PgIdempotency, PgRecurringTransactions, PgTransactions, PgTransfers,
+    PgAccounts, PgCategories, PgIdempotency, PgPayrollLoans, PgRecurringTransactions,
+    PgTransactions, PgTransfers,
 };
 use crate::finance::interface::dto::*;
 use crate::http::{AppState, CurrentUser};
@@ -138,6 +141,21 @@ fn check_adjustments(items: &[AdjustmentDto]) -> ApiResult<()> {
         for value in [item.amount, item.base_amount].into_iter().flatten() {
             check_amount("adjustments", value)?;
         }
+    }
+    Ok(())
+}
+
+/// Os valores da liquidação passam pelo limite de dinheiro; qual dos dois vale depende das
+/// parcelas de consignado do período e é decidido na transação (SPEC-006, RF-08).
+fn check_settlement_amounts(
+    settled_amount: Option<i64>,
+    account_amount: Option<i64>,
+) -> ApiResult<()> {
+    if let Some(value) = settled_amount {
+        check_amount("settled_amount", value)?;
+    }
+    if let Some(value) = account_amount {
+        check_amount("account_amount", value)?;
     }
     Ok(())
 }
@@ -551,6 +569,7 @@ pub async fn list_transactions(
     let recurring = PgRecurringTransactions::new(state.pool.clone());
     let repo = PgTransactions::new(state.pool.clone());
     let items = transactions::list(
+        &PgPayrollLoans::new(state.pool.clone()),
         &recurring,
         &repo,
         env(&state),
@@ -751,7 +770,7 @@ pub async fn settle_transaction(
     Id(id): Id,
     Body(body): Body<SettleTransactionRequest>,
 ) -> ApiResult<Response> {
-    check_amount("settled_amount", body.settled_amount)?;
+    check_settlement_amounts(body.settled_amount, body.account_amount)?;
     if let Some(items) = &body.adjustments {
         check_adjustments(items)?;
     }
@@ -759,6 +778,7 @@ pub async fn settle_transaction(
     idempotent(&state, user.user_id, &headers, scope, &body, || async {
         let request = SettlementRequest {
             settled_amount: body.settled_amount,
+            account_amount: body.account_amount,
             settled_at: body.settled_at,
             adjustments: body.adjustments.as_deref().map(adjustments),
         };
@@ -790,6 +810,154 @@ pub async fn preview_settlement(
     )
     .map_err(api_error)?;
     Ok(Json(breakdown.into()))
+}
+
+// Consignados ---------------------------------------------------------------
+
+#[utoipa::path(get, path = "/api/v1/payroll-loans", tag = "finance", params(PayrollLoanQuery),
+    responses((status = 200, body = PayrollLoanPage), (status = 422, body = ProblemDetails)))]
+pub async fn list_payroll_loans(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Params(query): Params<PayrollLoanQuery>,
+) -> ApiResult<Json<PayrollLoanPage>> {
+    let page = PageParams {
+        cursor: query.cursor,
+        limit: query.limit,
+    };
+    let limit = page_limit(&page);
+    let filter = PayrollLoanFilter {
+        income_id: query.income_id,
+        income_recurrence_id: query.income_recurrence_id,
+    };
+    let items = payroll_loans::list(
+        &PgPayrollLoans::new(state.pool.clone()),
+        &PgTransactions::new(state.pool.clone()),
+        &PgRecurringTransactions::new(state.pool.clone()),
+        user.user_id,
+        filter,
+        page_after(&page)?,
+        limit + 1,
+    )
+    .await
+    .map_err(api_error)?;
+    let (items, next_cursor) = paginate(items, limit, |view| id_cursor(view.loan.id));
+    Ok(Json(PayrollLoanPage {
+        items: items.into_iter().map(Into::into).collect(),
+        next_cursor,
+    }))
+}
+
+/// Cadastra o consignado numa entrada aberta; o primeiro da pessoa cria a categoria
+/// "Empréstimo" (RF-02 a RF-05).
+#[utoipa::path(post, path = "/api/v1/payroll-loans", tag = "finance",
+    params(("Idempotency-Key" = Option<String>, Header)),
+    request_body = CreatePayrollLoanRequest,
+    responses((status = 201, body = PayrollLoanResponse), (status = 404, body = ProblemDetails),
+        (status = 409, body = ProblemDetails), (status = 422, body = ProblemDetails)))]
+pub async fn create_payroll_loan(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    headers: HeaderMap,
+    Body(body): Body<CreatePayrollLoanRequest>,
+) -> ApiResult<Response> {
+    check_amount("installment_amount", body.installment_amount)?;
+    let scope = "POST /payroll-loans".to_owned();
+    idempotent(&state, user.user_id, &headers, scope, &body, || async {
+        let input = payroll_loans::NewPayrollLoan {
+            income_id: body.income_id,
+            income_recurrence_id: body.income_recurrence_id,
+            name: body.name.clone(),
+            contract_number: body.contract_number.clone(),
+            installment_amount: body.installment_amount,
+            total_installments: body.total_installments,
+            current_installment: body.current_installment,
+            ends_on: body.ends_on,
+        };
+        let view = payroll_loans::create(
+            &PgPayrollLoans::new(state.pool.clone()),
+            &PgTransactions::new(state.pool.clone()),
+            &PgRecurringTransactions::new(state.pool.clone()),
+            env(&state),
+            user.user_id,
+            input,
+        )
+        .await
+        .map_err(api_error)?;
+        Ok((
+            StatusCode::CREATED,
+            to_json(PayrollLoanResponse::from(view))?,
+        ))
+    })
+    .await
+}
+
+#[utoipa::path(get, path = "/api/v1/payroll-loans/{id}", tag = "finance", params(("id" = Uuid, Path)),
+    responses((status = 200, body = PayrollLoanResponse), (status = 404, body = ProblemDetails)))]
+pub async fn get_payroll_loan(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Id(id): Id,
+) -> ApiResult<Json<PayrollLoanResponse>> {
+    let view = payroll_loans::get(
+        &PgPayrollLoans::new(state.pool.clone()),
+        &PgTransactions::new(state.pool.clone()),
+        &PgRecurringTransactions::new(state.pool.clone()),
+        user.user_id,
+        id,
+    )
+    .await
+    .map_err(api_error)?;
+    Ok(Json(view.into()))
+}
+
+#[utoipa::path(patch, path = "/api/v1/payroll-loans/{id}", tag = "finance", params(("id" = Uuid, Path)),
+    request_body = UpdatePayrollLoanRequest,
+    responses((status = 200, body = PayrollLoanResponse), (status = 404, body = ProblemDetails),
+        (status = 409, body = ProblemDetails), (status = 422, body = ProblemDetails)))]
+pub async fn update_payroll_loan(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Id(id): Id,
+    Body(body): Body<UpdatePayrollLoanRequest>,
+) -> ApiResult<Json<PayrollLoanResponse>> {
+    if let Some(amount) = body.installment_amount {
+        check_amount("installment_amount", amount)?;
+    }
+    let patch = payroll_loans::PayrollLoanPatch {
+        name: body.name,
+        contract_number: body.contract_number,
+        installment_amount: body.installment_amount,
+        total_installments: body.total_installments,
+        current_installment: body.current_installment,
+        ends_on: body.ends_on,
+    };
+    let view = payroll_loans::update(
+        &PgPayrollLoans::new(state.pool.clone()),
+        &PgTransactions::new(state.pool.clone()),
+        &PgRecurringTransactions::new(state.pool.clone()),
+        env(&state),
+        user.user_id,
+        id,
+        patch,
+    )
+    .await
+    .map_err(api_error)?;
+    Ok(Json(view.into()))
+}
+
+#[utoipa::path(delete, path = "/api/v1/payroll-loans/{id}", tag = "finance", params(("id" = Uuid, Path)),
+    responses((status = 204), (status = 404, body = ProblemDetails)))]
+pub async fn delete_payroll_loan(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Id(id): Id,
+) -> ApiResult<StatusCode> {
+    let repo = PgPayrollLoans::new(state.pool.clone());
+    payroll_loans::delete(&repo, env(&state), user.user_id, id)
+        .await
+        .map_err(api_error)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // Transferências ------------------------------------------------------------
@@ -1050,7 +1218,7 @@ pub async fn settle_occurrence(
     Id(id): Id,
     Body(body): Body<SettleOccurrenceRequest>,
 ) -> ApiResult<Response> {
-    check_amount("settled_amount", body.settled_amount)?;
+    check_settlement_amounts(body.settled_amount, body.account_amount)?;
     if let Some(items) = &body.adjustments {
         check_adjustments(items)?;
     }
@@ -1059,6 +1227,7 @@ pub async fn settle_occurrence(
         let request = OccurrenceSettlement {
             occurrence_date: body.occurrence_date,
             settled_amount: body.settled_amount,
+            account_amount: body.account_amount,
             settled_at: body.settled_at,
             adjustments: body.adjustments.as_deref().map(adjustments),
         };
@@ -1169,6 +1338,7 @@ pub async fn get_financial_summary(
         transactions: &PgTransactions::new(state.pool.clone()),
         transfers: &PgTransfers::new(state.pool.clone()),
         recurring: &PgRecurringTransactions::new(state.pool.clone()),
+        loans: &PgPayrollLoans::new(state.pool.clone()),
     };
     let request = summaries::SummaryRequest {
         from: query.from,

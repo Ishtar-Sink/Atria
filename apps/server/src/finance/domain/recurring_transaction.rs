@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::finance::domain::FinanceError;
 use crate::finance::domain::adjustment::{Adjustment, ComputedAdjustment};
+use crate::finance::domain::payroll_loan::income_settled_amount;
 use crate::finance::domain::transaction::{
     ItemStatus, PlannedAmounts, Transaction, TransactionKind,
 };
@@ -54,7 +55,10 @@ pub struct RecurringTransaction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OccurrenceSettlement {
     pub occurrence_date: NaiveDate,
-    pub settled_amount: i64,
+    /// O líquido, sem parcelas de consignado na ocorrência.
+    pub settled_amount: Option<i64>,
+    /// O que caiu na conta, com parcelas de consignado na ocorrência (SPEC-006, RF-08).
+    pub account_amount: Option<i64>,
     pub settled_at: NaiveDate,
     /// Itens editados na liquidação; ausentes, os da regra (RF-10).
     pub adjustments: Option<Vec<Adjustment>>,
@@ -175,19 +179,25 @@ impl RecurringTransaction {
     /// Liquida a aberta: devolve a cópia liquidada, com o modelo, o valor e os itens
     /// previstos atuais e os itens da liquidação (os do pedido ou os da regra), e a
     /// variação do saldo; a regra não muda (RF-11) e passa para a ocorrência seguinte.
+    /// `installments_total` é a soma das parcelas de consignado da ocorrência, que entra no
+    /// líquido quando o pedido traz `account_amount` (SPEC-006, RN-02).
     pub fn settle_open(
         &mut self,
         copy_id: Uuid,
         request: OccurrenceSettlement,
+        installments_total: i64,
         now: DateTime<Utc>,
     ) -> Result<(Transaction, i64), FinanceError> {
         let OccurrenceSettlement {
             occurrence_date,
             settled_amount,
+            account_amount,
             settled_at,
             adjustments,
         } = request;
         self.ensure_open(occurrence_date)?;
+        let settled_amount =
+            income_settled_amount(settled_amount, account_amount, installments_total)?;
         let mut copy = Transaction {
             id: copy_id,
             owner_id: self.owner_id,
@@ -205,6 +215,7 @@ impl RecurringTransaction {
             settled_adjustments: Vec::new(),
             generated_from: Some(self.id),
             occurrence_date: Some(occurrence_date),
+            payroll: None,
             created_at: now,
             updated_at: now,
         };
@@ -287,7 +298,8 @@ pub(crate) mod fixtures {
     pub fn settlement(day: &str, amount: i64) -> OccurrenceSettlement {
         OccurrenceSettlement {
             occurrence_date: date(day),
-            settled_amount: amount,
+            settled_amount: Some(amount),
+            account_amount: None,
             settled_at: date(day),
             adjustments: None,
         }
@@ -347,6 +359,7 @@ mod tests {
             .settle_open(
                 Uuid::from_u128(100),
                 settlement("2027-01-31", 650_000),
+                0,
                 instant(),
             )
             .unwrap();
@@ -369,7 +382,7 @@ mod tests {
         ]);
 
         let (copy, _) = model
-            .settle_open(Uuid::from_u128(100), request, instant())
+            .settle_open(Uuid::from_u128(100), request, 0, instant())
             .unwrap();
 
         assert_eq!(copy.settlement.unwrap().gross_amount, 942_370);
@@ -427,10 +440,12 @@ mod tests {
                 Uuid::from_u128(100),
                 OccurrenceSettlement {
                     occurrence_date: date("2027-01-31"),
-                    settled_amount: 190_000,
+                    settled_amount: Some(190_000),
+                    account_amount: None,
                     settled_at: date("2027-01-30"),
                     adjustments: None,
                 },
+                0,
                 instant(),
             )
             .unwrap();
@@ -492,6 +507,7 @@ mod tests {
         rent.settle_open(
             Uuid::from_u128(100),
             settlement("2027-01-31", 200_000),
+            0,
             instant(),
         )
         .unwrap();
@@ -510,6 +526,7 @@ mod tests {
             .settle_open(
                 Uuid::from_u128(100),
                 settlement("2027-01-31", 200_000),
+                0,
                 instant(),
             )
             .unwrap();
@@ -538,18 +555,21 @@ mod tests {
             .settle_open(
                 Uuid::from_u128(100),
                 settlement("2027-01-31", 200_000),
+                0,
                 instant(),
             )
             .unwrap();
         let again = rent.settle_open(
             Uuid::from_u128(101),
             settlement("2027-01-31", 200_000),
+            0,
             instant(),
         );
         let (february, _) = rent
             .settle_open(
                 Uuid::from_u128(102),
                 settlement("2027-02-28", 205_000),
+                0,
                 instant(),
             )
             .unwrap();

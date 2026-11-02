@@ -42,6 +42,11 @@ use crate::shared::visibility::Visibility;
         handlers::skip_occurrence,
         handlers::list_settled_transactions,
         handlers::get_financial_summary,
+        handlers::list_payroll_loans,
+        handlers::create_payroll_loan,
+        handlers::get_payroll_loan,
+        handlers::update_payroll_loan,
+        handlers::delete_payroll_loan,
     ),
     components(schemas(
         TransactionKindDto, DifferenceKindDto, ItemStatusDto,
@@ -58,6 +63,8 @@ use crate::shared::visibility::Visibility;
         PeriodDto, FlowDto, PeriodTotalsDto, WhereGroupDto, WhereItemDto, PlannedDto,
         ExpectedVsSettledDto, SavingsAndLossesDto, AccountBalanceDto, BalanceDto,
         FinancialSummaryResponse, MonthlyTotalsDto, AdjustmentTotalDto,
+        PayrollLoanStatusDto, CreatePayrollLoanRequest, UpdatePayrollLoanRequest,
+        PayrollLoanResponse, PayrollLoanPage,
         RecurrenceRule, Frequency, Weekday, Visibility, ProblemDetails, FieldError,
     )),
     tags((name = "finance", description = "Financeiro: contas, movimentações, recorrências e painel"))
@@ -94,6 +101,8 @@ mod tests {
                 &["get"],
             ),
             ("/api/v1/financial-summaries", &["get"]),
+            ("/api/v1/payroll-loans", &["get", "post"]),
+            ("/api/v1/payroll-loans/{id}", &["get", "patch", "delete"]),
         ];
         let json = serde_json::to_value(&document).unwrap();
 
@@ -160,6 +169,67 @@ mod tests {
                     "{schema}.{field}"
                 );
             }
+        }
+        for (schema, fields) in [
+            (
+                "PayrollLoanResponse",
+                &[
+                    "id",
+                    "income_id",
+                    "income_recurrence_id",
+                    "category_id",
+                    "name",
+                    "contract_number",
+                    "installment_amount",
+                    "currency",
+                    "total_installments",
+                    "current_installment",
+                    "ends_on",
+                    "starts_on",
+                    "status",
+                    "next_installment_on",
+                    "last_installment_on",
+                    "remaining_installments",
+                ][..],
+            ),
+            (
+                "TransactionResponse",
+                &[
+                    "payroll_loan_id",
+                    "income_transaction_id",
+                    "installment_number",
+                ][..],
+            ),
+            (
+                "TransactionItemResponse",
+                &[
+                    "payroll_loan_id",
+                    "income_transaction_id",
+                    "installment_number",
+                ][..],
+            ),
+        ] {
+            for field in fields {
+                assert!(
+                    schemas[schema]["properties"][field].is_object(),
+                    "{schema}.{field}"
+                );
+            }
+        }
+        // A liquidação aceita `account_amount` no lugar de `settled_amount` (SPEC-006, RF-08).
+        for schema in ["SettleTransactionRequest", "SettleOccurrenceRequest"] {
+            assert!(
+                schemas[schema]["properties"]["account_amount"].is_object(),
+                "{schema}.account_amount"
+            );
+            let required = schemas[schema]["required"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                !required.iter().any(|name| name == "settled_amount"),
+                "{schema}.settled_amount deve ser opcional"
+            );
         }
         assert!(json["components"]["schemas"]["FinancialSummaryResponse"].is_object());
         assert!(json["components"]["schemas"]["MonthlyTotalsDto"].is_object());

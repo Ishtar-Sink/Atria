@@ -35,17 +35,24 @@ fn id(value: u128) -> Uuid {
     Uuid::from_u128(value)
 }
 
-async fn seed_before_migration(ctx: &TestContext) {
-    let mut before = finance::migrator();
-    before.migrations = std::borrow::Cow::Owned(
-        before
+fn migrator_through(version: i64) -> sqlx::migrate::Migrator {
+    let mut migrator = finance::migrator();
+    migrator.migrations = std::borrow::Cow::Owned(
+        migrator
             .migrations
             .iter()
-            .filter(|migration| migration.version < MIGRATION_VERSION)
+            .filter(|migration| migration.version <= version)
             .cloned()
             .collect(),
     );
-    before.run(&ctx.state.pool).await.unwrap();
+    migrator
+}
+
+async fn seed_before_migration(ctx: &TestContext) {
+    migrator_through(MIGRATION_VERSION - 1)
+        .run(&ctx.state.pool)
+        .await
+        .unwrap();
     let mut tx = begin_for_user(&ctx.state.pool, ALICE).await.unwrap();
     sqlx::query(
         "INSERT INTO accounts (id, owner_id, name, kind, is_default, balance_amount, currency, \
@@ -212,8 +219,19 @@ async fn ct06_rnf01_card_migration_keeps_counts_and_balances() {
     seed_before_migration(&ctx).await;
     let before = snapshot(&ctx).await;
 
-    finance::migrator().run(&ctx.state.pool).await.unwrap();
+    // As colunas são conferidas logo depois da migração do cartão: a SPEC-006 recria
+    // `transactions.installment_number` para as parcelas do consignado.
+    migrator_through(MIGRATION_VERSION)
+        .run(&ctx.state.pool)
+        .await
+        .unwrap();
     let after = snapshot(&ctx).await;
+    let account_columns = columns(&ctx, "accounts").await;
+    let mut table_columns = Vec::new();
+    for table in ["transactions", "transfers"] {
+        table_columns.push((table, columns(&ctx, table).await));
+    }
+    finance::migrator().run(&ctx.state.pool).await.unwrap();
     let app = ctx.app(finance::router());
     let alice = ctx.sign_in_as(ALICE).await;
     let (accounts_status, accounts) = get(&app, &alice, "/accounts").await;
@@ -226,12 +244,10 @@ async fn ct06_rnf01_card_migration_keeps_counts_and_balances() {
 
     assert_eq!(before.counts, [2, 4, 1, 1]);
     assert_eq!(after, before);
-    let account_columns = columns(&ctx, "accounts").await;
     for removed in ["kind", "credit_limit_amount", "closing_day", "due_day"] {
         assert!(!account_columns.iter().any(|c| c == removed), "{removed}");
     }
-    for table in ["transactions", "transfers"] {
-        let table_columns = columns(&ctx, table).await;
+    for (table, table_columns) in &table_columns {
         for removed in [
             "installment_number",
             "installment_total",

@@ -48,7 +48,7 @@ const kind_search = z.object({ kind: z.enum(['income', 'expense']).catch('expens
 // A aba da conta aceita também os ids das abas extras; a tela volta para a visão geral se não existir.
 const account_tab_search = z.object({ tab: z.string().catch('overview') });
 const recurrence_tab_search = z.object({
-  tab: z.enum(['overview', 'adjustments', 'settlements']).catch('overview'),
+  tab: z.enum(['overview', 'adjustments', 'payroll_loans', 'settlements']).catch('overview'),
 });
 
 function meta(title_key: string) {

@@ -107,6 +107,17 @@ describe('useTransactions', () => {
       expect(result.current.items).toHaveLength(2);
     });
     expect(listItemKey(virtual)).toBe('r1:2026-11-30');
+    // Parcelas virtuais do mesmo holerite e da mesma data: a chave vem do consignado.
+    const installment = (payroll_loan_id: string) =>
+      item({
+        id: null,
+        recurrence_id: null,
+        income_transaction_id: 't1',
+        payroll_loan_id,
+        effective_date: '2026-11-05',
+      });
+    expect(listItemKey(installment('pl1'))).toBe('pl1:2026-11-05');
+    expect(listItemKey(installment('pl2'))).toBe('pl2:2026-11-05');
     expect(listItemHref(virtual)).toBe('/finance/recurring-transactions/r1');
     expect(listItemHref(OPEN)).toBe('/finance/transactions/t1');
   });

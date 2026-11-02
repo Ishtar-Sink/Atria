@@ -12,9 +12,11 @@ use crate::finance::domain::FinanceError;
 use crate::finance::domain::account::Account;
 use crate::finance::domain::adjustment::Adjustment;
 use crate::finance::domain::category::Category;
+use crate::finance::domain::payroll_loan::PayrollLoan;
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionEdit, TransactionKind};
 use crate::finance::domain::transfer::Transfer;
+use crate::shared::ids::IdGenerator;
 
 /// Gancho chamado depois de excluir uma entidade, com `(owner_id, entity_type,
 /// entity_id)`, para o contexto `links` remover as ligações dos dois lados (CB-06).
@@ -145,10 +147,12 @@ pub enum UndoneSettlement {
     CopyDeleted(Uuid),
 }
 
-/// Pedido de liquidação.
+/// Pedido de liquidação: o líquido (`settled_amount`) ou, com parcelas de consignado no
+/// período, o que caiu na conta (`account_amount`) (SPEC-006, RF-08).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettlementRequest {
-    pub settled_amount: i64,
+    pub settled_amount: Option<i64>,
+    pub account_amount: Option<i64>,
     pub settled_at: NaiveDate,
     /// Itens editados na liquidação; ausentes, os previstos (RF-09, RF-10).
     pub adjustments: Option<Vec<Adjustment>>,
@@ -165,12 +169,15 @@ pub trait TransactionRepository: Send + Sync {
         after: Option<(NaiveDate, Uuid)>,
         limit: u32,
     ) -> impl Future<Output = Outcome<Vec<Transaction>>> + Send;
-    /// Liquida e atualiza o saldo da conta na mesma transação (RN-01).
+    /// Liquida e atualiza o saldo da conta na mesma transação (RN-01). Com consignados na
+    /// entrada, trava a entrada, os consignados e a conta, nessa ordem, e grava as parcelas
+    /// da data já liquidadas, com ids de `ids`, na mesma transação (RNF-03).
     fn settle(
         &self,
         owner_id: Uuid,
         id: Uuid,
         request: SettlementRequest,
+        ids: &dyn IdGenerator,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<Transaction>> + Send;
     /// Edita numa transação, com a movimentação e a conta travadas, sem mexer no
@@ -182,7 +189,8 @@ pub trait TransactionRepository: Send + Sync {
         edit: &TransactionEdit,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<Transaction>> + Send;
-    /// Desfaz a liquidação numa transação, revertendo o saldo (DEC-005).
+    /// Desfaz a liquidação numa transação, revertendo o saldo (DEC-005); as parcelas de
+    /// consignado liquidadas com a entrada são excluídas junto e voltam a ser virtuais (RF-09).
     fn undo_settlement(
         &self,
         owner_id: Uuid,
@@ -190,7 +198,8 @@ pub trait TransactionRepository: Send + Sync {
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<UndoneSettlement>> + Send;
     /// Exclusão lógica; uma movimentação liquidada devolve o efeito no saldo. A cópia
-    /// do último fechamento de uma recorrente reabre aquela ocorrência (DEC-004).
+    /// do último fechamento de uma recorrente reabre aquela ocorrência (DEC-004). As
+    /// parcelas liquidadas com a entrada e os consignados dela são excluídos junto (RN-09).
     fn delete(
         &self,
         owner_id: Uuid,
@@ -226,6 +235,41 @@ pub trait TransferRepository: Send + Sync {
     ) -> impl Future<Output = Outcome<()>> + Send;
 }
 
+/// Filtro da listagem de consignados pela entrada de origem.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PayrollLoanFilter {
+    pub income_id: Option<Uuid>,
+    pub income_recurrence_id: Option<Uuid>,
+}
+
+pub trait PayrollLoanRepository: Send + Sync {
+    /// Grava numa transação, resolvendo a categoria "Empréstimo" da pessoa (a dela, a de
+    /// saída com esse nome adotada ou a candidata); devolve o consignado com o
+    /// `category_id` resolvido (RF-05).
+    fn insert(
+        &self,
+        loan: &PayrollLoan,
+        candidate_category: &Category,
+    ) -> impl Future<Output = Outcome<PayrollLoan>> + Send;
+    fn get(&self, owner_id: Uuid, id: Uuid) -> impl Future<Output = Outcome<PayrollLoan>> + Send;
+    /// Consignados do filtro, pelo id, depois de `after`.
+    fn list(
+        &self,
+        owner_id: Uuid,
+        filter: PayrollLoanFilter,
+        after: Option<Uuid>,
+        limit: u32,
+    ) -> impl Future<Output = Outcome<Vec<PayrollLoan>>> + Send;
+    fn update(&self, loan: &PayrollLoan) -> impl Future<Output = Outcome<()>> + Send;
+    /// Exclusão lógica.
+    fn delete(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> impl Future<Output = Outcome<()>> + Send;
+}
+
 pub trait RecurringTransactionRepository: Send + Sync {
     fn insert(&self, recurring: &RecurringTransaction) -> impl Future<Output = Outcome<()>> + Send;
     fn get(
@@ -252,14 +296,15 @@ pub trait RecurringTransactionRepository: Send + Sync {
     ) -> impl Future<Output = Outcome<Vec<Transaction>>> + Send;
     /// Grava o modelo e a regra; vale para a aberta e as seguintes (RN-08).
     fn update(&self, recurring: &RecurringTransaction) -> impl Future<Output = Outcome<()>> + Send;
-    /// Liquida a aberta numa transação: trava a recorrente, confere a data, grava a
-    /// cópia `copy_id`, muda o saldo e avança `last_closed_on`.
+    /// Liquida a aberta numa transação: trava a recorrente, os consignados dela e a conta,
+    /// nessa ordem, confere a data, grava a cópia e as parcelas da ocorrência já liquidadas,
+    /// com ids de `ids`, muda o saldo e avança `last_closed_on` (RNF-03).
     fn settle_occurrence(
         &self,
         owner_id: Uuid,
         id: Uuid,
         request: OccurrenceSettlement,
-        copy_id: Uuid,
+        ids: &dyn IdGenerator,
         now: DateTime<Utc>,
     ) -> impl Future<Output = Outcome<Transaction>> + Send;
     /// Pula a aberta numa transação, sem cópia.
@@ -272,8 +317,8 @@ pub trait RecurringTransactionRepository: Send + Sync {
     ) -> impl Future<Output = Outcome<RecurringTransaction>> + Send;
 
     /// Exclusão lógica numa transação: trava a recorrente, solta as cópias liquidadas (sem
-    /// `generated_from` nem `occurrence_date`) e marca `deleted_at` (RN-01). Já excluída ou
-    /// de outro dono: `NotFound`.
+    /// `generated_from` nem `occurrence_date`), exclui os consignados dela (SPEC-006, RN-09)
+    /// e marca `deleted_at` (RN-01). Já excluída ou de outro dono: `NotFound`.
     fn delete(
         &self,
         owner_id: Uuid,

@@ -11,12 +11,19 @@ import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-
 import styles from '../components/finance.module.css';
 import { DetailTabs, type FinanceExtraTab } from './account-detail-screen';
 import { MoreIcon, PencilIcon } from '../components/icons';
+import { PayrollLoansCard } from '../components/payroll-loans-field';
 import { DataCard, DetailGrid, Facts, RecordCard } from '../components/record-card';
 import { SettlementCard } from '../components/settlement-card';
 import { useTransactionTitle } from '../components/transaction-row';
 import { useIdempotencyKey } from '../hooks/finance-cache';
 import { useAccount } from '../hooks/use-accounts';
 import { useCategory } from '../hooks/use-categories';
+import {
+  periodInstallments,
+  type PayrollLoanSource,
+  usePayrollLoan,
+  usePayrollLoans,
+} from '../hooks/use-payroll-loans';
 import { useRecurringTransaction } from '../hooks/use-recurring-transactions';
 import {
   useDeleteTransaction,
@@ -49,6 +56,16 @@ export function TransactionDetailScreen({
   const account = useAccount(data?.account_id);
   const category = useCategory(data?.category_id ?? undefined);
   const recurrence = useRecurringTransaction(data?.generated_from ?? undefined);
+  const loan_source: PayrollLoanSource | undefined =
+    data?.kind === 'income'
+      ? data.generated_from
+        ? { income_recurrence_id: data.generated_from }
+        : { income_id: data.id }
+      : undefined;
+  const loans = usePayrollLoans(loan_source);
+  const loan_items = loans.data ?? [];
+  const origin_loan = usePayrollLoan(data?.payroll_loan_id ?? undefined);
+  const origin_entry = useTransaction(data?.income_transaction_id ?? undefined);
   const settle = useSettleTransaction();
   const undo = useUndoSettlement(transaction_id, { time_zone });
   const remove = useDeleteTransaction();
@@ -111,6 +128,26 @@ export function TransactionDetailScreen({
         }
       : null;
 
+  const loans_tab: FinanceExtraTab<Transaction> | null =
+    loan_items.length > 0
+      ? {
+          id: 'payroll_loans',
+          label: t('finance.payroll_loans.title'),
+          render: () => (
+            <PayrollLoansCard
+              loans={loan_items}
+              currency={item.currency}
+              settled={Boolean(settled)}
+            />
+          ),
+        }
+      : null;
+  const own_tabs = [adjustments_tab, loans_tab].filter(
+    (tab): tab is FinanceExtraTab<Transaction> => tab !== null,
+  );
+  // A parcela é liquidada e desfeita só pela entrada de origem (RN-08, CB-05).
+  const installment = Boolean(item.payroll_loan_id);
+
   function undoNow() {
     undo.mutate(item, {
       onSuccess: () => {
@@ -159,7 +196,7 @@ export function TransactionDetailScreen({
               <PencilIcon />
               {t('common.edit')}
             </Button>
-            {settled ? (
+            {settled && !installment ? (
               <Button
                 variant="muted"
                 loading={undo.isPending}
@@ -195,7 +232,7 @@ export function TransactionDetailScreen({
         label={t('finance.transaction_detail.tabs_label')}
         overview_label={t('finance.account_detail.overview')}
         entity={item}
-        extra_tabs={adjustments_tab ? [adjustments_tab, ...extra_tabs] : extra_tabs}
+        extra_tabs={[...own_tabs, ...extra_tabs]}
         overview={
           <DetailGrid
             main={
@@ -225,6 +262,26 @@ export function TransactionDetailScreen({
                         label: t('finance.transaction_detail.category'),
                         value: category.data?.name ?? t('finance.transactions.no_category'),
                       },
+                      installment && {
+                        label: t('finance.payroll_loans.origin_loan'),
+                        value: t('finance.payroll_loans.origin_installment', {
+                          name: origin_loan.data?.name ?? item.description ?? '',
+                          number: item.installment_number ?? '',
+                        }),
+                      },
+                      installment &&
+                        item.income_transaction_id != null && {
+                          label: t('finance.payroll_loans.origin_entry'),
+                          value: (
+                            <Link
+                              to="/finance/transactions/$transactionId"
+                              params={{ transactionId: item.income_transaction_id }}
+                              className={styles.inlineLink}
+                            >
+                              {origin_entry.data ? title(origin_entry.data) : '–'}
+                            </Link>
+                          ),
+                        },
                       {
                         label: t('finance.transaction_detail.expected_amount'),
                         value: money(item.expected_amount),
@@ -236,35 +293,42 @@ export function TransactionDetailScreen({
                     ]}
                   />
                 </DataCard>
-                <SettlementCard
-                  kind={item.kind}
-                  currency={item.currency}
-                  expected_amount={item.expected_amount}
-                  gross_amount={item.gross_amount}
-                  adjustments={item.adjustments}
-                  today={today}
-                  pending={settle.isPending}
-                  settled={
-                    settled
-                      ? {
-                          settled_amount: item.settled_amount ?? 0,
-                          settled_at: item.settled_at ?? item.effective_date,
-                          difference_kind: item.difference_kind,
-                          difference_amount: item.difference_amount,
-                        }
-                      : null
-                  }
-                  onSettle={(values) => {
-                    settle.mutate(
-                      { transaction: item, ...values, idempotency_key: idempotency.key },
-                      {
-                        onSuccess: () => {
-                          idempotency.renew();
+                {installment ? (
+                  <p className={styles.notice}>{t('finance.payroll_loans.parcel_settlement')}</p>
+                ) : (
+                  <SettlementCard
+                    // Remonta quando os consignados chegam, para o valor sugerido descontar as parcelas.
+                    key={`settle-${String(loan_items.length)}`}
+                    kind={item.kind}
+                    currency={item.currency}
+                    expected_amount={item.expected_amount}
+                    gross_amount={item.gross_amount}
+                    adjustments={item.adjustments}
+                    payroll_loans={periodInstallments(loan_items, item.expected_date)}
+                    today={today}
+                    pending={settle.isPending}
+                    settled={
+                      settled
+                        ? {
+                            settled_amount: item.settled_amount ?? 0,
+                            settled_at: item.settled_at ?? item.effective_date,
+                            difference_kind: item.difference_kind,
+                            difference_amount: item.difference_amount,
+                          }
+                        : null
+                    }
+                    onSettle={(values) => {
+                      settle.mutate(
+                        { transaction: item, ...values, idempotency_key: idempotency.key },
+                        {
+                          onSuccess: () => {
+                            idempotency.renew();
+                          },
                         },
-                      },
-                    );
-                  }}
-                />
+                      );
+                    }}
+                  />
+                )}
               </>
             }
             aside={

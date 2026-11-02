@@ -7,14 +7,19 @@ use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::finance::application::Env;
+use crate::finance::application::payroll_loans::{loan_sources, project_loan};
 use crate::finance::application::ports::{
-    AccountRepository, CategoryRepository, Outcome, RecurringTransactionRepository, Repetition,
-    SettlementRequest, TransactionFilter, TransactionRepository, UndoneSettlement,
+    AccountRepository, CategoryRepository, Outcome, PayrollLoanRepository,
+    RecurringTransactionRepository, Repetition, SettlementRequest, TransactionFilter,
+    TransactionRepository, UndoneSettlement,
 };
 use crate::finance::domain::adjustment::{Adjustment, Breakdown, gross_for_net};
 use crate::finance::domain::category::ensure_same_kind;
-use crate::finance::domain::forecast::{FinanceItem, VirtualOccurrence, project, sort_items};
+use crate::finance::domain::forecast::{
+    FinanceItem, VirtualInstallment, VirtualOccurrence, project, sort_items,
+};
 use crate::finance::domain::optional_text;
+use crate::finance::domain::payroll_loan::IncomeSource;
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::transaction::{
     DESCRIPTION_MAX_CHARS, Transaction, TransactionEdit, TransactionKind, planned_amounts,
@@ -91,6 +96,7 @@ where
         settled_adjustments: Vec::new(),
         generated_from: None,
         occurrence_date: None,
+        payroll: None,
         created_at: env.clock.now(),
         updated_at: env.clock.now(),
     };
@@ -123,11 +129,7 @@ pub async fn virtual_items<R: RecurringTransactionRepository>(
     if filter.repetition == Repetition::OneOff || filter.settled == Some(true) {
         return Ok(Vec::new());
     }
-    // Datas antes do cursor não entram; na data dele, só chaves maiores.
-    let from = match (filter.from, after) {
-        (Some(from), Some((date, _))) => Some(from.max(date)),
-        (from, after) => from.or(after.map(|(date, _)| date)),
-    };
+    let from = cursor_start(filter, after);
     let now = env.clock.now();
     let mut items = Vec::new();
     for model in search_recurring(recurring, owner_id, filter.q.as_deref()).await? {
@@ -143,9 +145,80 @@ pub async fn virtual_items<R: RecurringTransactionRepository>(
     Ok(items)
 }
 
-/// Gravadas e virtuais do filtro, pela data efetiva e pela chave, cortadas em
-/// `limit`.
-pub async fn list<R, T>(
+/// Datas antes do cursor não entram; na data dele, só chaves maiores.
+fn cursor_start(filter: &TransactionFilter, after: Option<(NaiveDate, Uuid)>) -> Option<NaiveDate> {
+    match (filter.from, after) {
+        (Some(from), Some((date, _))) => Some(from.max(date)),
+        (from, after) => from.or(after.map(|(date, _)| date)),
+    }
+}
+
+/// A parcela entra na listagem como entraria uma saída gravada com os mesmos campos; a
+/// busca é no nome do consignado, sem diferenciar maiúsculas.
+fn installment_matches(item: &VirtualInstallment, filter: &TransactionFilter) -> bool {
+    filter.account_id.is_none_or(|id| id == item.account_id)
+        && filter.category_id.is_none_or(|id| id == item.category_id)
+        && filter.q.as_deref().is_none_or(|text| {
+            item.description
+                .to_lowercase()
+                .contains(&text.to_lowercase())
+        })
+}
+
+/// A repetição da parcela é a da entrada: a da recorrente é recorrente e a da avulsa é
+/// pontual.
+fn repetition_matches(source: &IncomeSource, repetition: Repetition) -> bool {
+    matches!(
+        (source, repetition),
+        (_, Repetition::All)
+            | (IncomeSource::Recurring(_), Repetition::Recurring)
+            | (IncomeSource::OneOff(_), Repetition::OneOff)
+    )
+}
+
+/// Parcelas abertas dos consignados no filtro, depois de `after`, até `limit` por
+/// consignado; nada é gravado (RF-06). A parcela aberta é sempre uma saída prevista.
+#[allow(clippy::too_many_arguments)]
+pub async fn installment_items<L, T, R>(
+    loans: &L,
+    transactions: &T,
+    recurring: &R,
+    env: Env<'_>,
+    owner_id: Uuid,
+    filter: &TransactionFilter,
+    after: Option<(NaiveDate, Uuid)>,
+    limit: usize,
+) -> Outcome<Vec<VirtualInstallment>>
+where
+    L: PayrollLoanRepository,
+    T: TransactionRepository,
+    R: RecurringTransactionRepository,
+{
+    if filter.settled == Some(true) || filter.kind == Some(TransactionKind::Income) {
+        return Ok(Vec::new());
+    }
+    let from = cursor_start(filter, after);
+    let now = env.clock.now();
+    let mut items = Vec::new();
+    for source in loan_sources(loans, transactions, recurring, owner_id).await? {
+        if !repetition_matches(&source.source, filter.repetition) {
+            continue;
+        }
+        // Uma a mais cobre o item da data do cursor que o filtro abaixo descarta.
+        let projected = project_loan(&source, from, filter.to, now, limit.saturating_add(1));
+        items.extend(projected.into_iter().filter(|item| {
+            installment_matches(item, filter)
+                && after.is_none_or(|position| (item.date, item.loan_id) > position)
+        }));
+    }
+    Ok(items)
+}
+
+/// Gravadas, virtuais e parcelas abertas do filtro, pela data efetiva e pela chave,
+/// cortadas em `limit`.
+#[allow(clippy::too_many_arguments)]
+pub async fn list<L, R, T>(
+    loans: &L,
     recurring: &R,
     transactions: &T,
     env: Env<'_>,
@@ -155,6 +228,7 @@ pub async fn list<R, T>(
     limit: u32,
 ) -> Outcome<Vec<FinanceItem>>
 where
+    L: PayrollLoanRepository,
     R: RecurringTransactionRepository,
     T: TransactionRepository,
 {
@@ -165,6 +239,18 @@ where
     }
     let projected = virtual_items(recurring, env, owner_id, filter, after, limit as usize).await?;
     items.extend(projected.into_iter().map(FinanceItem::Virtual));
+    let installments = installment_items(
+        loans,
+        transactions,
+        recurring,
+        env,
+        owner_id,
+        filter,
+        after,
+        limit as usize,
+    )
+    .await?;
+    items.extend(installments.into_iter().map(FinanceItem::Installment));
     sort_items(&mut items);
     items.truncate(limit as usize);
     Ok(items)
@@ -224,7 +310,7 @@ pub async fn settle<T: TransactionRepository>(
     request: SettlementRequest,
 ) -> Outcome<Transaction> {
     transactions
-        .settle(owner_id, id, request, env.clock.now())
+        .settle(owner_id, id, request, env.ids, env.clock.now())
         .await
 }
 

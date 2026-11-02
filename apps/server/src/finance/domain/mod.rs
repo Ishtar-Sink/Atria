@@ -6,6 +6,7 @@ pub mod adjustment;
 pub mod category;
 pub mod error;
 pub mod forecast;
+pub mod payroll_loan;
 pub mod recurring_transaction;
 pub mod settlement;
 pub mod summary;

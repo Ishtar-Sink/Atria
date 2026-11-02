@@ -888,6 +888,42 @@ export interface paths {
         patch: operations["update_note"];
         trace?: never;
     };
+    "/api/v1/payroll-loans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_payroll_loans"];
+        put?: never;
+        /**
+         * Cadastra o consignado numa entrada aberta; o primeiro da pessoa cria a categoria
+         *     "Empréstimo" (RF-02 a RF-05).
+         */
+        post: operations["create_payroll_loan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-loans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_payroll_loan"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_payroll_loan"];
+        options?: never;
+        head?: never;
+        patch: operations["update_payroll_loan"];
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -1952,6 +1988,26 @@ export interface components {
             title: string;
             visibility?: components["schemas"]["Visibility"] | null;
         };
+        /**
+         * @description Cadastro do consignado: uma entrada (avulsa ou recorrente) e um modo de prazo, o total
+         *     com a parcela atual ou a data final (RF-02 a RF-04).
+         */
+        CreatePayrollLoanRequest: {
+            contract_number?: string | null;
+            /** Format: int32 */
+            current_installment?: number | null;
+            /** Format: date */
+            ends_on?: string | null;
+            /** Format: uuid */
+            income_id?: string | null;
+            /** Format: uuid */
+            income_recurrence_id?: string | null;
+            /** Format: int64 */
+            installment_amount: number;
+            name: string;
+            /** Format: int32 */
+            total_installments?: number | null;
+        };
         CreateProjectRequest: {
             description?: string | null;
             name: string;
@@ -2499,6 +2555,70 @@ export interface components {
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
         };
+        PayrollLoanPage: {
+            items: components["schemas"]["PayrollLoanResponse"][];
+            next_cursor?: string | null;
+        };
+        PayrollLoanResponse: {
+            /**
+             * Format: uuid
+             * @description A categoria do sistema "Empréstimo" da pessoa (RF-05).
+             */
+            category_id: string;
+            contract_number?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @example BRL */
+            currency: string;
+            /**
+             * Format: int32
+             * @description No prazo por parcelas, o número da parcela da entrada aberta; nulo no prazo por data
+             *     e depois do fim.
+             */
+            current_installment?: number | null;
+            /** Format: date */
+            ends_on?: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            income_id?: string | null;
+            /** Format: uuid */
+            income_recurrence_id?: string | null;
+            /** Format: int64 */
+            installment_amount: number;
+            /**
+             * Format: date
+             * @description Calculado: a data da última parcela, pela regra atual da entrada.
+             */
+            last_installment_on?: string | null;
+            name: string;
+            /**
+             * Format: date
+             * @description Calculado: a data da entrada aberta, enquanto ativo.
+             */
+            next_installment_on?: string | null;
+            /** Format: uuid */
+            owner_id: string;
+            /**
+             * Format: int32
+             * @description Calculado: as parcelas da aberta em diante.
+             */
+            remaining_installments: number;
+            /**
+             * Format: date
+             * @description Data da parcela de onde a numeração parte.
+             */
+            starts_on: string;
+            /** @description Calculado: ativo enquanto a entrada aberta tem parcela (RF-10). */
+            status: components["schemas"]["PayrollLoanStatusDto"];
+            /** Format: int32 */
+            total_installments?: number | null;
+            /** Format: date-time */
+            updated_at: string;
+            visibility: components["schemas"]["Visibility"];
+        };
+        /** @enum {string} */
+        PayrollLoanStatusDto: "active" | "ended";
         PeriodDto: {
             /** Format: date */
             from: string;
@@ -2736,23 +2856,35 @@ export interface components {
         };
         /** @description Liquidação da ocorrência aberta; `occurrence_date` tem de ser a dela. */
         SettleOccurrenceRequest: {
+            /**
+             * Format: int64
+             * @description O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;
+             *     exclusivo com `settled_amount` (SPEC-006, RF-08).
+             */
+            account_amount?: number | null;
             /** @description Itens editados na liquidação; a regra não muda (RF-10). */
             adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /** Format: date */
             occurrence_date: string;
             /** Format: int64 */
-            settled_amount: number;
+            settled_amount?: number | null;
             /** Format: date */
             settled_at: string;
         };
         SettleTransactionRequest: {
+            /**
+             * Format: int64
+             * @description O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;
+             *     exclusivo com `settled_amount` (SPEC-006, RF-08).
+             */
+            account_amount?: number | null;
             /** @description Itens editados na liquidação; ausentes, os previstos (RF-10). */
             adjustments?: components["schemas"]["AdjustmentDto"][] | null;
             /**
              * Format: int64
              * @description Líquido liquidado, o valor que entra no caixa.
              */
-            settled_amount: number;
+            settled_amount?: number | null;
             /** Format: date */
             settled_at: string;
         };
@@ -2818,7 +2950,7 @@ export interface components {
          * @description Chave estável de uma categoria padrão (RF-11).
          * @enum {string}
          */
-        SystemCategoryKey: "salary" | "freelance" | "housing" | "groceries" | "transport" | "leisure" | "health";
+        SystemCategoryKey: "salary" | "freelance" | "housing" | "groceries" | "transport" | "leisure" | "health" | "loan";
         /**
          * @description Chave de uma emoção padrão; o nome exibido vem da tradução do frontend
          *     ([project/language-06]).
@@ -2928,11 +3060,21 @@ export interface components {
             gross_amount: number;
             /** Format: uuid */
             id?: string | null;
+            /** Format: uuid */
+            income_transaction_id?: string | null;
+            /** Format: int32 */
+            installment_number?: number | null;
             kind: components["schemas"]["TransactionKindDto"];
             /** Format: date */
             occurrence_date?: string | null;
             /** Format: uuid */
             owner_id: string;
+            /**
+             * Format: uuid
+             * @description Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número
+             *     (RF-13).
+             */
+            payroll_loan_id?: string | null;
             /** Format: uuid */
             recurrence_id?: string | null;
             /** @description Itens da liquidação; nulos enquanto prevista. */
@@ -2997,11 +3139,21 @@ export interface components {
             gross_amount: number;
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            income_transaction_id?: string | null;
+            /** Format: int32 */
+            installment_number?: number | null;
             kind: components["schemas"]["TransactionKindDto"];
             /** Format: date */
             occurrence_date?: string | null;
             /** Format: uuid */
             owner_id: string;
+            /**
+             * Format: uuid
+             * @description Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número
+             *     (RF-13).
+             */
+            payroll_loan_id?: string | null;
             /**
              * Format: uuid
              * @description Sempre nulo numa gravada: só as ocorrências virtuais têm recorrência.
@@ -3189,6 +3341,20 @@ export interface components {
             body?: string | null;
             title?: string | null;
             visibility?: components["schemas"]["Visibility"] | null;
+        };
+        /** @description Campos ausentes ficam como estão; mudar o prazo regrava o início na entrada aberta. */
+        UpdatePayrollLoanRequest: {
+            /** @description Vazio apaga o contrato. */
+            contract_number?: string | null;
+            /** Format: int32 */
+            current_installment?: number | null;
+            /** Format: date */
+            ends_on?: string | null;
+            /** Format: int64 */
+            installment_amount?: number | null;
+            name?: string | null;
+            /** Format: int32 */
+            total_installments?: number | null;
         };
         UpdatePreferencesRequest: {
             currency?: string | null;
@@ -7161,6 +7327,192 @@ export interface operations {
                 };
             };
             /** @description validation_failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_payroll_loans: {
+        parameters: {
+            query?: {
+                income_id?: string;
+                income_recurrence_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollLoanPage"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_payroll_loan: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePayrollLoanRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollLoanResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_payroll_loan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollLoanResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_payroll_loan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_payroll_loan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayrollLoanRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollLoanResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::finance::domain::adjustment::{
     Adjustment, Breakdown, ComputedAdjustment, compute_net, gross_for_net,
 };
+use crate::finance::domain::payroll_loan::PayrollInstallment;
 use crate::finance::domain::settlement::{self, Settlement};
 use crate::finance::domain::{FinanceError, optional_text};
 use crate::shared::money::Currency;
@@ -204,6 +205,8 @@ pub struct Transaction {
     pub generated_from: Option<Uuid>,
     /// Data da ocorrência que a cópia liquidou.
     pub occurrence_date: Option<NaiveDate>,
+    /// Só na saída de uma parcela de consignado já liquidada (SPEC-006).
+    pub payroll: Option<PayrollInstallment>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -319,6 +322,15 @@ impl Transaction {
         Ok(revert)
     }
 
+    /// A saída de uma parcela de consignado só muda junto com a entrada que a liquidou
+    /// (RN-08, CB-05).
+    pub fn ensure_not_installment(&self) -> Result<(), FinanceError> {
+        if self.payroll.is_some() {
+            return Err(FinanceError::InstallmentFollowsIncome);
+        }
+        Ok(())
+    }
+
     /// Data da liquidação, quando liquidada, e a prevista nos outros casos (PD-55).
     pub fn effective_date(&self) -> NaiveDate {
         self.settlement
@@ -370,6 +382,7 @@ pub(crate) mod fixtures {
             settled_adjustments: Vec::new(),
             generated_from: None,
             occurrence_date: None,
+            payroll: None,
             created_at: instant(),
             updated_at: instant(),
         }
@@ -685,6 +698,26 @@ mod tests {
             expense.undo_settlement(instant()),
             Err(FinanceError::TransactionNotSettled)
         ));
+    }
+
+    #[test]
+    fn pl_cb05_installment_cannot_change_alone() {
+        let mut installment = transaction(TransactionKind::Expense, 293_723);
+        installment.payroll = Some(PayrollInstallment {
+            loan_id: Uuid::from_u128(70),
+            income_transaction_id: Uuid::from_u128(11),
+            number: Some(12),
+        });
+
+        assert!(matches!(
+            installment.ensure_not_installment(),
+            Err(FinanceError::InstallmentFollowsIncome)
+        ));
+        assert!(
+            transaction(TransactionKind::Expense, 293_723)
+                .ensure_not_installment()
+                .is_ok()
+        );
     }
 
     #[test]

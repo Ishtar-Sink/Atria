@@ -10,12 +10,19 @@ use crate::finance::application::ports::{
     Outcome, SettlementRequest, TransactionFilter, TransactionRepository, UndoneSettlement,
 };
 use crate::finance::domain::FinanceError;
+use crate::finance::domain::payroll_loan::{
+    IncomeLink, PayrollLoan, income_settled_amount, settled_installment,
+};
 use crate::finance::domain::transaction::{Transaction, TransactionEdit};
+use crate::finance::infrastructure::pg_payroll_loans::{
+    delete_loans_for, lock_installments_of, lock_loans_for,
+};
 use crate::finance::infrastructure::pg_recurring_transactions::{lock_recurring, save_last_closed};
 use crate::finance::infrastructure::{
     TransactionRow, Tx, add_to_balance, adjustment_rows, begin, commit, escape_like,
     insert_transaction, lock_account, save_settlement, storage,
 };
+use crate::shared::ids::IdGenerator;
 
 #[derive(Debug, Clone)]
 pub struct PgTransactions {
@@ -33,7 +40,7 @@ async fn lock_transaction(tx: &mut Tx<'_>, owner_id: Uuid, id: Uuid) -> Outcome<
     category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
     settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
+    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions \
          WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL FOR UPDATE", id, owner_id)
     .fetch_optional(&mut **tx)
     .await
@@ -115,6 +122,33 @@ async fn reopen_occurrence(tx: &mut Tx<'_>, item: &Transaction, now: DateTime<Ut
     Ok(())
 }
 
+/// Soma das parcelas, com o mesmo limite do valor liquidado.
+pub(crate) fn installments_total<'a>(
+    mut loans: impl Iterator<Item = &'a PayrollLoan>,
+) -> Outcome<i64> {
+    loans.try_fold(0i64, |sum, loan| {
+        sum.checked_add(loan.installment_amount)
+            .ok_or_else(|| FinanceError::invalid("account_amount", "too_large"))
+    })
+}
+
+/// Exclusão lógica das parcelas liquidadas com a entrada; devolve a variação do saldo que
+/// reverte o efeito delas (RF-09).
+async fn delete_installments(
+    tx: &mut Tx<'_>,
+    income: &Transaction,
+    now: DateTime<Utc>,
+) -> Outcome<i64> {
+    let mut revert = 0i64;
+    for installment in lock_installments_of(tx, income.owner_id, income.id).await? {
+        soft_delete(tx, &installment, now).await?;
+        revert = revert
+            .checked_sub(installment.applied_balance_delta())
+            .ok_or_else(|| FinanceError::invalid("settled_amount", "too_large"))?;
+    }
+    Ok(revert)
+}
+
 impl TransactionRepository for PgTransactions {
     async fn insert_many(&self, items: &[Transaction]) -> Outcome<()> {
         let Some(first) = items.first() else {
@@ -133,7 +167,7 @@ impl TransactionRepository for PgTransactions {
     category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
     settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions \
+    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions \
              WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL", id, owner_id)
         .fetch_optional(&mut *tx)
         .await
@@ -158,7 +192,7 @@ impl TransactionRepository for PgTransactions {
     category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
     settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" \
+    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number \
              FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 \
              AND ($2::uuid IS NULL OR account_id = $2) \
              AND ($3::uuid IS NULL OR category_id = $3) \
@@ -194,18 +228,38 @@ impl TransactionRepository for PgTransactions {
         owner_id: Uuid,
         id: Uuid,
         request: SettlementRequest,
+        ids: &dyn IdGenerator,
         now: DateTime<Utc>,
     ) -> Outcome<Transaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
+        item.ensure_not_installment()?;
+        if item.is_settled() {
+            return Err(FinanceError::TransactionAlreadySettled);
+        }
+        // Ordem das travas: entrada, consignados e conta (RNF-03).
+        let dates = [item.expected_date];
+        let installments: Vec<_> = lock_loans_for(&mut tx, owner_id, IncomeLink::Transaction(id))
+            .await?
+            .into_iter()
+            .filter_map(|loan| {
+                let installment = loan.installment_on(&dates, item.expected_date)?;
+                Some((loan, installment.number))
+            })
+            .collect();
+        let total = installments_total(installments.iter().map(|(loan, _)| loan))?;
+        let settled_amount =
+            income_settled_amount(request.settled_amount, request.account_amount, total)?;
         lock_account(&mut tx, owner_id, item.account_id).await?;
-        let delta = item.settle_with(
-            request.settled_amount,
-            request.settled_at,
-            request.adjustments,
-            now,
-        )?;
+        let mut delta =
+            item.settle_with(settled_amount, request.settled_at, request.adjustments, now)?;
         save_settlement(&mut tx, &item).await?;
+        for (loan, number) in &installments {
+            let installment = settled_installment(loan, &item, *number, ids.new_id(), now)?;
+            insert_transaction(&mut tx, &installment).await?;
+            save_settlement(&mut tx, &installment).await?;
+            delta += installment.applied_balance_delta();
+        }
         add_to_balance(&mut tx, owner_id, item.account_id, delta, now).await?;
         commit(tx).await?;
         Ok(item)
@@ -220,6 +274,7 @@ impl TransactionRepository for PgTransactions {
     ) -> Outcome<Transaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
+        item.ensure_not_installment()?;
         let account_id = edit.account.map_or(item.account_id, |(account, _)| account);
         lock_account(&mut tx, owner_id, account_id).await?;
         item.apply_edit(edit, now)?;
@@ -236,13 +291,15 @@ impl TransactionRepository for PgTransactions {
     ) -> Outcome<UndoneSettlement> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut item = lock_transaction(&mut tx, owner_id, id).await?;
+        item.ensure_not_installment()?;
         if !item.is_settled() {
             return Err(FinanceError::TransactionNotSettled);
         }
-        // Mesma ordem de travas da exclusão: movimentação, recorrente e conta.
+        // Mesma ordem de travas da exclusão: movimentação, recorrente, parcelas e conta.
         reopen_occurrence(&mut tx, &item, now).await?;
+        let installments_revert = delete_installments(&mut tx, &item, now).await?;
         lock_account(&mut tx, owner_id, item.account_id).await?;
-        let revert = item.undo_settlement(now)?;
+        let revert = item.undo_settlement(now)? + installments_revert;
         // A cópia só existe como histórico da liquidação (DEC-003): desfazer a apaga.
         let outcome = if item.generated_from.is_some() {
             soft_delete(&mut tx, &item, now).await?;
@@ -259,8 +316,10 @@ impl TransactionRepository for PgTransactions {
     async fn delete(&self, owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Outcome<()> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let item = lock_transaction(&mut tx, owner_id, id).await?;
+        item.ensure_not_installment()?;
         reopen_occurrence(&mut tx, &item, now).await?;
-        let revert = -item.applied_balance_delta();
+        let revert = delete_installments(&mut tx, &item, now).await? - item.applied_balance_delta();
+        delete_loans_for(&mut tx, owner_id, IncomeLink::Transaction(id), now).await?;
         if revert != 0 {
             lock_account(&mut tx, owner_id, item.account_id).await?;
         }

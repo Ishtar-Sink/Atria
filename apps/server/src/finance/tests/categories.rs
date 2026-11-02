@@ -3,6 +3,8 @@
 //! acrescenta a coluna, sem mexer nas categorias que já existem (RNF-01). A cor é um
 //! HEX livre guardado em minúsculas, e a migração converte os tons antigos no HEX do
 //! tema claro (RF-18, RF-20, RN-09, CT-14).
+//! A categoria "Empréstimo" dos consignados não pode ser renomeada nem excluída (SPEC-006,
+//! CB-06).
 
 use axum::body::Body;
 use axum::http::{Method, StatusCode};
@@ -415,4 +417,49 @@ async fn rnf01_category_color_migration_converts_names_to_hex() {
         .map(|item| item["color"].as_str().expect("cor"))
         .collect();
     assert_eq!(listed, expected[..5]);
+}
+
+#[tokio::test]
+async fn pl_cb06_loan_category_cannot_be_renamed_or_deleted() {
+    let t = FinanceTest::new().await;
+    let (status, _) = t.get(&t.alice, "/categories").await;
+    assert_eq!(status, StatusCode::OK);
+    let id = uuid::Uuid::from_u128(0x10a1);
+    let mut tx = begin_for_user(t.pool(), ALICE).await.unwrap();
+    sqlx::query(
+        "INSERT INTO categories (id, owner_id, name, kind, color, system_key, created_at, updated_at) \
+         VALUES ($1, $2, 'Empréstimo', 'expense', '#92400e', 'loan', now(), now())",
+    )
+    .bind(id)
+    .bind(ALICE)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let uri = format!("/categories/{id}");
+
+    let (status, body) = t.get(&t.alice, &uri).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["system_key"], "loan");
+    assert_eq!(body["kind"], "expense");
+    let (status, body) = t.delete(&t.alice, &uri).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "system_category_locked");
+    let (status, body) = t.patch(&t.alice, &uri, json!({ "name": "Dívidas" })).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["code"], "system_category_locked");
+    let (status, body) = t.patch(&t.alice, &uri, json!({ "color": "#123456" })).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["color"], "#123456");
+    assert_eq!(body["system_key"], "loan");
+    let (status, body) = t.get(&t.alice, &uri).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["name"], "Empréstimo");
+
+    let (status, _) = t.get(&t.bob, &uri).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = t.patch(&t.bob, &uri, json!({ "color": "#654321" })).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = t.delete(&t.bob, &uri).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

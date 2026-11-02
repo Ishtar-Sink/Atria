@@ -79,4 +79,14 @@ pub fn routes() -> Router<AppState> {
             get(h::list_settled_transactions),
         )
         .route("/financial-summaries", get(h::get_financial_summary))
+        .route(
+            "/payroll-loans",
+            get(h::list_payroll_loans).post(h::create_payroll_loan),
+        )
+        .route(
+            "/payroll-loans/{id}",
+            get(h::get_payroll_loan)
+                .patch(h::update_payroll_loan)
+                .delete(h::delete_payroll_loan),
+        )
 }

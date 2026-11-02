@@ -5114,6 +5114,273 @@
         }
       }
     },
+    "/api/v1/payroll-loans": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "operationId": "list_payroll_loans",
+        "parameters": [
+          {
+            "name": "income_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "income_recurrence_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollLoanPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Cadastra o consignado numa entrada aberta; o primeiro da pessoa cria a categoria\n\"Empréstimo\" (RF-02 a RF-05).",
+        "operationId": "create_payroll_loan",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayrollLoanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollLoanResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payroll-loans/{id}": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "operationId": "get_payroll_loan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollLoanResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "finance"
+        ],
+        "operationId": "delete_payroll_loan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "finance"
+        ],
+        "operationId": "update_payroll_loan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePayrollLoanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollLoanResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "tags": [
@@ -10539,6 +10806,65 @@
         },
         "additionalProperties": false
       },
+      "CreatePayrollLoanRequest": {
+        "type": "object",
+        "description": "Cadastro do consignado: uma entrada (avulsa ou recorrente) e um modo de prazo, o total\ncom a parcela atual ou a data final (RF-02 a RF-04).",
+        "required": [
+          "name",
+          "installment_amount"
+        ],
+        "properties": {
+          "contract_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current_installment": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "income_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "income_recurrence_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "installment_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "total_installments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateProjectRequest": {
         "type": "object",
         "required": [
@@ -12357,6 +12683,160 @@
         },
         "additionalProperties": false
       },
+      "PayrollLoanPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayrollLoanResponse"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PayrollLoanResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_id",
+          "visibility",
+          "created_at",
+          "updated_at",
+          "category_id",
+          "name",
+          "installment_amount",
+          "currency",
+          "starts_on",
+          "status",
+          "remaining_installments"
+        ],
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A categoria do sistema \"Empréstimo\" da pessoa (RF-05)."
+          },
+          "contract_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "example": "BRL"
+          },
+          "current_installment": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "No prazo por parcelas, o número da parcela da entrada aberta; nulo no prazo por data\ne depois do fim."
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "income_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "income_recurrence_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "installment_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_installment_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Calculado: a data da última parcela, pela regra atual da entrada."
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_installment_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Calculado: a data da entrada aberta, enquanto ativo."
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "remaining_installments": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Calculado: as parcelas da aberta em diante.",
+            "minimum": 0
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date",
+            "description": "Data da parcela de onde a numeração parte."
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayrollLoanStatusDto",
+            "description": "Calculado: ativo enquanto a entrada aberta tem parcela (RF-10)."
+          },
+          "total_installments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        }
+      },
+      "PayrollLoanStatusDto": {
+        "type": "string",
+        "enum": [
+          "active",
+          "ended"
+        ]
+      },
       "PeriodDto": {
         "type": "object",
         "required": [
@@ -13124,10 +13604,17 @@
         "description": "Liquidação da ocorrência aberta; `occurrence_date` tem de ser a dela.",
         "required": [
           "occurrence_date",
-          "settled_amount",
           "settled_at"
         ],
         "properties": {
+          "account_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;\nexclusivo com `settled_amount` (SPEC-006, RF-08)."
+          },
           "adjustments": {
             "type": [
               "array",
@@ -13143,7 +13630,10 @@
             "format": "date"
           },
           "settled_amount": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64"
           },
           "settled_at": {
@@ -13156,10 +13646,17 @@
       "SettleTransactionRequest": {
         "type": "object",
         "required": [
-          "settled_amount",
           "settled_at"
         ],
         "properties": {
+          "account_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;\nexclusivo com `settled_amount` (SPEC-006, RF-08)."
+          },
           "adjustments": {
             "type": [
               "array",
@@ -13171,7 +13668,10 @@
             "description": "Itens editados na liquidação; ausentes, os previstos (RF-10)."
           },
           "settled_amount": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64",
             "description": "Líquido liquidado, o valor que entra no caixa."
           },
@@ -13366,7 +13866,8 @@
           "groceries",
           "transport",
           "leisure",
-          "health"
+          "health",
+          "loan"
         ]
       },
       "SystemEmotionKey": {
@@ -13687,6 +14188,20 @@
             ],
             "format": "uuid"
           },
+          "income_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "installment_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
           },
@@ -13700,6 +14215,14 @@
           "owner_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "payroll_loan_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número\n(RF-13)."
           },
           "recurrence_id": {
             "type": [
@@ -13882,6 +14405,20 @@
             "type": "string",
             "format": "uuid"
           },
+          "income_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "installment_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
           "kind": {
             "$ref": "#/components/schemas/TransactionKindDto"
           },
@@ -13895,6 +14432,14 @@
           "owner_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "payroll_loan_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número\n(RF-13)."
           },
           "recurrence_id": {
             "type": [
@@ -14609,6 +15154,54 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdatePayrollLoanRequest": {
+        "type": "object",
+        "description": "Campos ausentes ficam como estão; mudar o prazo regrava o início na entrada aberta.",
+        "properties": {
+          "contract_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Vazio apaga o contrato."
+          },
+          "current_installment": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "installment_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total_installments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         },
         "additionalProperties": false

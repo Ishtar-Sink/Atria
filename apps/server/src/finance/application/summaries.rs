@@ -8,9 +8,10 @@ use std::collections::HashMap;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
+use crate::finance::application::payroll_loans::{LoanSource, loan_sources, project_loan};
 use crate::finance::application::ports::{
-    AccountRepository, CategoryRepository, Outcome, RecurringTransactionRepository,
-    TransactionFilter, TransactionRepository, TransferRepository,
+    AccountRepository, CategoryRepository, Outcome, PayrollLoanRepository,
+    RecurringTransactionRepository, TransactionFilter, TransactionRepository, TransferRepository,
 };
 use crate::finance::application::{Env, accounts, categories, transactions};
 use crate::finance::domain::account::Account;
@@ -62,29 +63,44 @@ pub struct PeriodSummaryView {
 }
 
 /// Repositórios que o resumo lê.
-pub struct SummarySources<'a, A, C, T, X, R> {
+pub struct SummarySources<'a, A, C, T, X, R, L> {
     pub accounts: &'a A,
     pub categories: &'a C,
     pub transactions: &'a T,
     pub transfers: &'a X,
     pub recurring: &'a R,
+    pub loans: &'a L,
 }
 
+/// As recorrentes e os consignados que o resumo projeta, lidos uma vez.
+struct Projections {
+    models: Vec<RecurringTransaction>,
+    loans: Vec<LoanSource>,
+}
+
+/// As ocorrências virtuais e as parcelas abertas dos consignados, que entram nos totais
+/// como saídas (RF-06).
 fn projected<'m>(
-    models: &'m [RecurringTransaction],
+    projections: &'m Projections,
     from: Option<NaiveDate>,
     to: NaiveDate,
     now: DateTime<Utc>,
 ) -> impl Iterator<Item = FinanceItem> + 'm {
-    models.iter().flat_map(move |model| {
+    let occurrences = projections.models.iter().flat_map(move |model| {
         project(model, from, Some(to), now, usize::MAX)
             .into_iter()
             .map(FinanceItem::Virtual)
-    })
+    });
+    let installments = projections.loans.iter().flat_map(move |loan| {
+        project_loan(loan, from, Some(to), now, usize::MAX)
+            .into_iter()
+            .map(FinanceItem::Installment)
+    });
+    occurrences.chain(installments)
 }
 
-pub async fn period<A, C, T, X, R>(
-    sources: SummarySources<'_, A, C, T, X, R>,
+pub async fn period<A, C, T, X, R, L>(
+    sources: SummarySources<'_, A, C, T, X, R, L>,
     env: Env<'_>,
     owner_id: Uuid,
     request: SummaryRequest,
@@ -95,13 +111,23 @@ where
     T: TransactionRepository,
     X: TransferRepository,
     R: RecurringTransactionRepository,
+    L: PayrollLoanRepository,
 {
     let now = env.clock.now();
     let today = now.date_naive();
     let all_accounts = accounts::list_all(sources.accounts, env, owner_id).await?;
     let period = resolve_period(sources.transactions, owner_id, request, today).await?;
-    let models = transactions::list_all_recurring(sources.recurring, owner_id).await?;
-    let entries = period_entries(&sources, &models, owner_id, period, now).await?;
+    let projections = Projections {
+        models: transactions::list_all_recurring(sources.recurring, owner_id).await?,
+        loans: loan_sources(
+            sources.loans,
+            sources.transactions,
+            sources.recurring,
+            owner_id,
+        )
+        .await?,
+    };
+    let entries = period_entries(&sources, &projections, owner_id, period, now).await?;
     let previous_period = match (request.from, request.to) {
         (Some(_), Some(_)) => Some(period.previous()),
         _ => None,
@@ -109,7 +135,7 @@ where
     let previous_totals = match previous_period {
         Some(previous) => {
             let previous_entries =
-                period_entries(&sources, &models, owner_id, previous, now).await?;
+                period_entries(&sources, &projections, owner_id, previous, now).await?;
             Some(period_totals(&previous_entries))
         }
         None => None,
@@ -121,19 +147,19 @@ where
         None
     } else {
         let pending =
-            pending_until(sources.transactions, &models, owner_id, period.to, now).await?;
+            pending_until(sources.transactions, &projections, owner_id, period.to, now).await?;
         forecast_balance(current_balance, &pending, period.to, today)
     };
     let monthly = monthly(
         sources.transactions,
-        &models,
+        &projections,
         owner_id,
         current_balance,
         now,
     )
     .await?;
     let category_list = categories::list_all(sources.categories, owner_id).await?;
-    let bills = upcoming(sources.transactions, &models, owner_id, now).await?;
+    let bills = upcoming(sources.transactions, &projections, owner_id, now).await?;
     Ok(PeriodSummaryView {
         today,
         currency: all_accounts
@@ -182,9 +208,9 @@ async fn resolve_period<T: TransactionRepository>(
     })
 }
 
-async fn period_entries<A, C, T, X, R>(
-    sources: &SummarySources<'_, A, C, T, X, R>,
-    models: &[RecurringTransaction],
+async fn period_entries<A, C, T, X, R, L>(
+    sources: &SummarySources<'_, A, C, T, X, R, L>,
+    projections: &Projections,
     owner_id: Uuid,
     period: Period,
     now: DateTime<Utc>,
@@ -206,7 +232,7 @@ where
     Ok(stored
         .into_iter()
         .map(FinanceItem::Stored)
-        .chain(projected(models, Some(period.from), period.to, now))
+        .chain(projected(projections, Some(period.from), period.to, now))
         .map(|item| Entry::Item(Box::new(item)))
         .chain(transfers.iter().map(|transfer| Entry::Transfer {
             amount: transfer.amount,
@@ -217,7 +243,7 @@ where
 /// Não liquidadas até `to`, inclusive as atrasadas e as virtuais.
 async fn pending_until<T: TransactionRepository>(
     transactions: &T,
-    models: &[RecurringTransaction],
+    projections: &Projections,
     owner_id: Uuid,
     to: NaiveDate,
     now: DateTime<Utc>,
@@ -231,7 +257,7 @@ async fn pending_until<T: TransactionRepository>(
     Ok(stored
         .into_iter()
         .map(FinanceItem::Stored)
-        .chain(projected(models, None, to, now))
+        .chain(projected(projections, None, to, now))
         .collect())
 }
 
@@ -239,7 +265,7 @@ async fn pending_until<T: TransactionRepository>(
 /// (DEC-003).
 async fn monthly<T: TransactionRepository>(
     transactions: &T,
-    models: &[RecurringTransaction],
+    projections: &Projections,
     owner_id: Uuid,
     current_balance: i64,
     now: DateTime<Utc>,
@@ -256,13 +282,13 @@ async fn monthly<T: TransactionRepository>(
         .into_iter()
         .map(FinanceItem::Stored)
         .collect();
-    let pending = pending_until(transactions, models, owner_id, window.to, now).await?;
+    let pending = pending_until(transactions, projections, owner_id, window.to, now).await?;
     Ok(monthly_series(&settled, &pending, current_balance, today))
 }
 
 async fn upcoming<T: TransactionRepository>(
     transactions: &T,
-    models: &[RecurringTransaction],
+    projections: &Projections,
     owner_id: Uuid,
     now: DateTime<Utc>,
 ) -> Outcome<Vec<FinanceItem>> {
@@ -277,7 +303,7 @@ async fn upcoming<T: TransactionRepository>(
     let items = stored
         .into_iter()
         .map(FinanceItem::Stored)
-        .chain(projected(models, None, until, now))
+        .chain(projected(projections, None, until, now))
         .collect();
     Ok(upcoming_movements(items, today))
 }

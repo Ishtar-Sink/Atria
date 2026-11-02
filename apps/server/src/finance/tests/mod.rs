@@ -7,6 +7,7 @@ mod categories;
 mod credit_card_migration;
 mod deletion_hook;
 mod listings;
+mod payroll_loans;
 mod recurring_transactions;
 mod summaries;
 mod transactions;

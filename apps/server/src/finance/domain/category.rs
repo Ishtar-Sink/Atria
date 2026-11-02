@@ -1,5 +1,7 @@
 //! Categoria de movimentação: tipo (entrada ou saída), cor HEX livre e a regra de
 //! substituição ao excluir uma em uso (RF-30, CB-15, PD-49, PD-58).
+//! A categoria do sistema "Empréstimo" (SPEC-006) fica fora das padrão, é criada com o primeiro
+//! consignado e não pode ser renomeada nem excluída (RN-04, CB-06).
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -53,6 +55,9 @@ pub enum SystemCategory {
     Transport,
     Leisure,
     Health,
+    /// Categoria das parcelas dos consignados; fora de `ALL`, porque quem já recebeu as padrão
+    /// nunca a receberia (SPEC-006).
+    Loan,
 }
 
 impl SystemCategory {
@@ -75,11 +80,15 @@ impl SystemCategory {
             Self::Transport => "transport",
             Self::Leisure => "leisure",
             Self::Health => "health",
+            Self::Loan => "loan",
         }
     }
 
     pub fn from_key(key: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|category| category.key() == key)
+        Self::ALL
+            .into_iter()
+            .find(|category| category.key() == key)
+            .or((key == Self::Loan.key()).then_some(Self::Loan))
     }
 
     pub fn kind(self) -> TransactionKind {
@@ -99,6 +108,7 @@ impl SystemCategory {
             Self::Transport => "#0369a1",
             Self::Leisure => "#0e7490",
             Self::Health => "#be123c",
+            Self::Loan => "#92400e",
         };
         CategoryColor(hex.to_owned())
     }
@@ -114,7 +124,41 @@ impl SystemCategory {
             Self::Transport => "Transporte",
             Self::Leisure => "Lazer",
             Self::Health => "Saúde",
+            Self::Loan => "Empréstimo",
         }
+    }
+}
+
+fn system_category(
+    system: SystemCategory,
+    owner_id: Uuid,
+    id: Uuid,
+    now: DateTime<Utc>,
+) -> Category {
+    Category {
+        id,
+        owner_id,
+        visibility: Visibility::Personal,
+        name: system.default_name().to_owned(),
+        kind: system.kind(),
+        color: system.color(),
+        system_key: Some(system),
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+/// A categoria "Empréstimo" de uma pessoa, criada com o primeiro consignado (SPEC-006).
+pub fn loan_category(owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Category {
+    system_category(SystemCategory::Loan, owner_id, id, now)
+}
+
+/// Só a "Empréstimo" é travada: as sete padrão continuam podendo ser renomeadas e excluídas
+/// (RN-01 da SPEC-001).
+pub fn ensure_unlocked(system_key: Option<SystemCategory>) -> Result<(), FinanceError> {
+    match system_key {
+        Some(SystemCategory::Loan) => Err(FinanceError::SystemCategoryLocked),
+        _ => Ok(()),
     }
 }
 
@@ -126,17 +170,7 @@ pub fn default_categories(
 ) -> Vec<Category> {
     SystemCategory::ALL
         .into_iter()
-        .map(|system| Category {
-            id: new_id(),
-            owner_id,
-            visibility: Visibility::Personal,
-            name: system.default_name().to_owned(),
-            kind: system.kind(),
-            color: system.color(),
-            system_key: Some(system),
-            created_at: now,
-            updated_at: now,
-        })
+        .map(|system| system_category(system, owner_id, new_id(), now))
         .collect()
 }
 
@@ -277,5 +311,47 @@ mod tests {
             ]
             .map(|(key, hex)| (key, hex.to_owned()))
         );
+    }
+
+    #[test]
+    fn pl_loan_category_is_expense_outside_defaults() {
+        assert_eq!(SystemCategory::Loan.key(), "loan");
+        assert_eq!(SystemCategory::from_key("loan"), Some(SystemCategory::Loan));
+        assert_eq!(SystemCategory::Loan.kind(), TransactionKind::Expense);
+        assert_eq!(SystemCategory::Loan.color().as_str(), "#92400e");
+        assert_eq!(SystemCategory::Loan.default_name(), "Empréstimo");
+        assert!(!SystemCategory::ALL.contains(&SystemCategory::Loan));
+        let mut next = 0;
+        let defaults = default_categories(Uuid::from_u128(1), DateTime::<Utc>::UNIX_EPOCH, || {
+            next += 1;
+            Uuid::from_u128(next)
+        });
+        assert_eq!(defaults.len(), 7);
+    }
+
+    #[test]
+    fn pl_loan_category_builds_system_row() {
+        let category = loan_category(
+            Uuid::from_u128(7),
+            Uuid::from_u128(8),
+            DateTime::<Utc>::UNIX_EPOCH,
+        );
+        assert_eq!(category.id, Uuid::from_u128(8));
+        assert_eq!(category.owner_id, Uuid::from_u128(7));
+        assert_eq!(category.name, "Empréstimo");
+        assert_eq!(category.kind, TransactionKind::Expense);
+        assert_eq!(category.color.as_str(), "#92400e");
+        assert_eq!(category.system_key, Some(SystemCategory::Loan));
+        assert_eq!(category.visibility, Visibility::Personal);
+    }
+
+    #[test]
+    fn pl_cb06_loan_category_is_locked() {
+        assert!(matches!(
+            ensure_unlocked(Some(SystemCategory::Loan)),
+            Err(FinanceError::SystemCategoryLocked)
+        ));
+        assert!(ensure_unlocked(Some(SystemCategory::Groceries)).is_ok());
+        assert!(ensure_unlocked(None).is_ok());
     }
 }

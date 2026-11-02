@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions WHERE owner_id = $1 AND income_transaction_id = $2 AND deleted_at IS NULL ORDER BY id FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -112,6 +112,21 @@
         "ordinal": 21,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "payroll_loan_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 23,
+        "name": "income_transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 24,
+        "name": "installment_number",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
@@ -142,8 +157,11 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "688e29c4821e07b2312679b78a0bb8165e07eae5d278c94e27901a2c7acbe7ce"
+  "hash": "7fd489a064613ba893d0e9f85860753ade634f8dee34020f2f739c4effc51014"
 }

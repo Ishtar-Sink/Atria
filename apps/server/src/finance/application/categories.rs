@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::finance::application::Env;
 use crate::finance::application::ports::{CategoryRepository, Outcome};
 use crate::finance::domain::category::{
-    Category, CategoryColor, default_categories, validate_name,
+    Category, CategoryColor, default_categories, ensure_unlocked, validate_name,
 };
 use crate::finance::domain::transaction::TransactionKind;
 use crate::shared::visibility::Visibility;
@@ -104,6 +104,9 @@ pub async fn update<R: CategoryRepository>(
         .map(CategoryColor::parse)
         .transpose()?;
     let mut category = repo.get(owner_id, id).await?;
+    if patch.name.is_some() {
+        ensure_unlocked(category.system_key)?;
+    }
     if let Some(name) = patch.name.as_deref() {
         category.name = validate_name(name)?;
         // A padrão renomeada passa a mostrar o nome da pessoa, não a tradução.
@@ -127,6 +130,9 @@ pub async fn delete<R: CategoryRepository>(
     id: Uuid,
     replacement_id: Option<Uuid>,
 ) -> Outcome<()> {
+    // O `get` mantém o 404 de outro dono antes da trava.
+    let category = repo.get(owner_id, id).await?;
+    ensure_unlocked(category.system_key)?;
     repo.delete(owner_id, id, replacement_id, env.clock.now())
         .await
 }

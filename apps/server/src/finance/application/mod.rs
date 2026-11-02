@@ -2,6 +2,7 @@
 
 pub mod accounts;
 pub mod categories;
+pub mod payroll_loans;
 pub mod ports;
 pub mod recurring_transactions;
 pub mod summaries;

@@ -152,6 +152,35 @@ async function settleNow(page: Page) {
   expect((await settled).ok()).toBe(true);
 }
 
+interface LoanStep {
+  name: string;
+  amount: string;
+  current: string;
+  total: string;
+}
+
+/** Adiciona um consignado pela aba "Consignados", com o prazo por parcelas (o padrão). */
+async function addLoan(page: Page, position: number, step: LoanStep) {
+  const add = page.getByRole('button', { name: 'Adicionar consignado' });
+  await add.focus();
+  await page.keyboard.press('Enter');
+  const loan = page.getByRole('group', { name: `Consignado ${String(position)}`, exact: true });
+  await loan.getByRole('textbox', { name: 'Nome do consignado' }).fill(step.name);
+  await loan.getByRole('textbox', { name: /^Valor da parcela/ }).fill(step.amount);
+  await loan.getByRole('textbox', { name: 'Parcela atual' }).fill(step.current);
+  await loan.getByRole('textbox', { name: 'Total de parcelas' }).fill(step.total);
+}
+
+/** Os seis consignados da tabela comum (soma R$ 3.746,70), só com o prazo por parcelas. */
+const PAYSLIP_LOANS: LoanStep[] = [
+  { name: 'Empréstimo 178176138', amount: '2.937,23', current: '12', total: '48' },
+  { name: 'Empréstimo 180044512', amount: '264,91', current: '5', total: '60' },
+  { name: 'Empréstimo 181230977', amount: '45,27', current: '20', total: '36' },
+  { name: 'Empréstimo 175902331', amount: '160,47', current: '30', total: '72' },
+  { name: 'Empréstimo 183450016', amount: '169,41', current: '2', total: '24' },
+  { name: 'Empréstimo 184001209', amount: '169,41', current: '1', total: '5' },
+];
+
 test('default account cannot be deleted', async ({ page }) => {
   await page.goto('/finance/accounts');
   await page.getByRole('link', { name: 'Conta principal' }).click();
@@ -542,5 +571,69 @@ test('ct16 payslip with a linked base and a deduction closes at the net', async 
   await expect(card).toContainText('IRPF');
   await expect(card).toContainText('2.807,05');
   await expect(card).toContainText('988,07');
+  await checkPage(page);
+});
+
+test('ct14 payslip with payroll loans settles by the amount in the account', async ({ page }) => {
+  // O painel soma tudo da pessoa: este teste entra com uma pessoa só dele.
+  await signIn(page, 'user');
+  const account = `Conta consignados ${SUFFIX()}`;
+  await createAccount(page, account);
+  await page.goto('/finance/transactions/new?kind=income');
+  await page.getByRole('textbox', { name: 'Descrição' }).fill('Holerite');
+  await choose(page, 'Conta', account);
+  await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('14.500,00');
+  await openTab(page, 'Descontos e acréscimos');
+  await addAdjustment(page, 1, { name: 'INSS', amount: '988,07' });
+  await addAdjustment(page, 2, { name: 'IRPF', amount: '2.807,05' });
+  await addAdjustment(page, 3, { name: 'Sindical', amount: '35,00' });
+  await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s10\.669,88/);
+  await openTab(page, 'Consignados');
+  for (const [index, step] of PAYSLIP_LOANS.entries()) await addLoan(page, index + 1, step);
+  await expect(page.getByText(/Total das parcelas: R\$\s3\.746,70/)).toBeVisible();
+  await checkPage(page);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Holerite' })).toBeVisible();
+
+  await openTab(page, 'Consignados');
+  const loans = page.getByRole('region', { name: 'Consignados' });
+  await expect(loans.getByRole('listitem')).toHaveCount(6);
+  await expect(loans).toContainText('Próxima parcela 12/48');
+  await expect(loans).toContainText('3.746,70');
+  await checkPage(page);
+
+  await page.goto('/finance/expenses');
+  await expect(page.getByRole('link', { name: 'Empréstimo 178176138' })).toBeVisible();
+  await expect(page.getByText('2.937,23').first()).toBeVisible();
+  await checkPage(page);
+
+  await page.goBack();
+  await openTab(page, 'Visão geral');
+  await page.getByRole('textbox', { name: /^Valor que caiu na conta/ }).fill('6.923,18');
+  const settlement = page.getByRole('region', { name: 'Liquidação', exact: true });
+  const preview = settlement.getByRole('region', { name: 'Prévia da liquidação' });
+  await expect(
+    preview.getByRole('list', { name: 'Parcelas dos consignados' }).getByRole('listitem'),
+  ).toHaveCount(6);
+  await expect(preview).toContainText('10.669,88');
+  await checkPage(page);
+  await settleNow(page);
+  await expect(settlement).toContainText('10.669,88');
+  await checkPage(page);
+
+  await expectBalance(page, account, '6.923,18');
+  await page.goto('/finance');
+  const where = page.getByRole('table', { name: 'Saídas por categoria' });
+  await expect(where).toContainText('Empréstimo');
+  await expect(where).toContainText('3.746,70');
+  await checkPage(page);
+
+  await page.goto('/finance/expenses');
+  await page.getByRole('link', { name: 'Empréstimo 178176138' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Empréstimo 178176138' })).toBeVisible();
+  await expect(
+    page.getByText('Esta parcela é liquidada junto com a entrada de origem.'),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Holerite' })).toBeVisible();
   await checkPage(page);
 });

@@ -31,6 +31,7 @@ import { AdjustmentsBreakdown, breakdownItems } from '../components/adjustments-
 import { AdjustmentsField } from '../components/adjustments-field';
 import styles from '../components/finance.module.css';
 import { MoneyField } from '../components/money-field';
+import { PayrollLoansField } from '../components/payroll-loans-field';
 import { VisibilityField } from '../components/visibility-field';
 import {
   errorMessageKey,
@@ -41,6 +42,15 @@ import {
 } from '../hooks/finance-cache';
 import { useAccounts, type Account } from '../hooks/use-accounts';
 import { useCategories, type Category } from '../hooks/use-categories';
+import {
+  endsBeforeNext,
+  fromPayrollLoans,
+  payroll_loans_schema,
+  usePayrollLoans,
+  useSavePayrollLoans,
+  type PayrollLoan,
+  type PayrollLoanSource,
+} from '../hooks/use-payroll-loans';
 import {
   toContractRule,
   toFormRule,
@@ -84,6 +94,7 @@ const form_schema = z
     rule: z.custom<RecurrenceRule>(),
     visibility: z.enum(['personal', 'shared']),
     adjustments: adjustments_schema,
+    payroll_loans: payroll_loans_schema,
   })
   .superRefine((values, context) => {
     // Os erros de valor dos itens vão para o campo do item; o do líquido, para a lista (FA-04).
@@ -93,6 +104,14 @@ const form_schema = z
         code: 'custom',
         path: ['adjustments', ...issue.path],
         message: issue.message,
+      });
+    }
+    const next_date = values.repeat ? values.rule.starts_on : values.expected_date;
+    for (const index of endsBeforeNext(values.payroll_loans, next_date)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['payroll_loans', index, 'ends_on'],
+        message: 'finance.payroll_loans.ends_before_next',
       });
     }
     if (values.expected_amount === null) {
@@ -120,7 +139,7 @@ const form_schema = z
 
 type FormValues = z.input<typeof form_schema>;
 
-type FormTab = 'data' | 'adjustments';
+type FormTab = 'data' | 'adjustments' | 'payroll_loans';
 
 type Mode =
   | { type: 'create'; kind: TransactionKind }
@@ -140,7 +159,13 @@ function titleKey(mode: Mode): string {
   return `finance.transaction_form.new_${kind}`;
 }
 
-function initialValues(mode: Mode, time_zone: string, today: string, locale: string): FormValues {
+function initialValues(
+  mode: Mode,
+  time_zone: string,
+  today: string,
+  locale: string,
+  loans: readonly PayrollLoan[],
+): FormValues {
   if (mode.type === 'edit') {
     const item = mode.transaction;
     return {
@@ -153,6 +178,7 @@ function initialValues(mode: Mode, time_zone: string, today: string, locale: str
       rule: defaultRecurrenceRule(time_zone, item.expected_date),
       visibility: item.visibility,
       adjustments: fromAdjustments(item.adjustments, locale),
+      payroll_loans: fromPayrollLoans(loans),
     };
   }
   if (mode.type === 'recurrence') {
@@ -167,6 +193,7 @@ function initialValues(mode: Mode, time_zone: string, today: string, locale: str
       rule: toFormRule(item.rule),
       visibility: item.visibility,
       adjustments: fromAdjustments(item.adjustments, locale),
+      payroll_loans: fromPayrollLoans(loans),
     };
   }
   return {
@@ -179,6 +206,7 @@ function initialValues(mode: Mode, time_zone: string, today: string, locale: str
     rule: { ...defaultRecurrenceRule(time_zone, today), frequency: 'monthly' },
     visibility: 'personal',
     adjustments: [],
+    payroll_loans: [],
   };
 }
 
@@ -221,9 +249,10 @@ interface TransactionFormProps {
   mode: Mode;
   accounts: readonly Account[];
   categories: readonly Category[];
+  loans: readonly PayrollLoan[];
 }
 
-function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
+function TransactionForm({ mode, accounts, categories, loans }: TransactionFormProps) {
   const t = useT();
   const navigate = useNavigate();
   const { locale, time_zone, currency } = usePreferences();
@@ -235,6 +264,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
   const create = useCreateTransaction();
   const create_recurring = useCreateRecurringTransaction();
   const update = useUpdateTransaction(mode.type === 'edit' ? mode.transaction.id : '');
+  const save_loans = useSavePayrollLoans();
   const update_recurring = useUpdateRecurringTransaction(
     mode.type === 'recurrence' ? mode.recurrence.id : '',
   );
@@ -252,12 +282,16 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     setError: setFieldError,
   } = useForm<FormValues>({
     resolver: zodResolver(form_schema),
-    defaultValues: initialValues(mode, time_zone, today, locale),
+    defaultValues: initialValues(mode, time_zone, today, locale, loans),
   });
   const repeat = useWatch({ control, name: 'repeat' });
   const editable: readonly EditableField[] =
     mode.type === 'edit' ? editableFields(mode.transaction) : [];
   const locked = (field: EditableField) => mode.type === 'edit' && !editable.includes(field);
+  const loans_tab = kind === 'income' && !locked('expected_amount');
+  const adjustment_names = useWatch({ control, name: 'adjustments' })
+    .map((entry) => entry.name.trim().toLocaleLowerCase())
+    .filter(Boolean);
   const lock_help =
     mode.type === 'edit' && mode.transaction.status === 'settled'
       ? t('finance.transaction_form.settled_locked')
@@ -267,13 +301,16 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
   const account_options = accounts.map((item) => ({ value: item.id, label: item.name }));
   const category_options = categories.map((item) => ({ value: item.id, label: item.name }));
 
-  // Só os itens com problema: abre a aba deles; um erro nos dados mantém a aba de dados (CT-19).
+  // Só abas com problema: abre a primeira; um erro nos dados mantém a aba de dados (CT-19, CB-02).
   function onInvalid(errors: FieldErrors<FormValues>) {
-    const keys = Object.keys(errors);
-    if (keys.length === 1 && keys[0] === 'adjustments') {
-      setTab('adjustments');
-      setFocusRequest((count) => count + 1);
-    }
+    const tabs = Object.keys(errors).map((key): FormTab => {
+      if (key === 'adjustments') return 'adjustments';
+      if (key === 'payroll_loans') return 'payroll_loans';
+      return 'data';
+    });
+    if (tabs.length === 0 || tabs.includes('data')) return;
+    setTab(tabs.includes('adjustments') ? 'adjustments' : 'payroll_loans');
+    setFocusRequest((count) => count + 1);
   }
 
   useEffect(() => {
@@ -292,6 +329,17 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
       return;
     }
     setError(errorMessageKey(failure));
+  }
+
+  /** Grava os consignados depois da entrada; numa recusa, avisa e mantém a entrada salva. */
+  async function saveLoans(source: PayrollLoanSource, values: FormValues): Promise<boolean> {
+    try {
+      await save_loans.mutateAsync({ source, before: loans, after: values.payroll_loans });
+      return true;
+    } catch {
+      pushToast({ tone: 'warning', message_key: 'finance.payroll_loans.partial_saved' });
+      return false;
+    }
   }
 
   async function submitCreate(values: FormValues) {
@@ -319,7 +367,17 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
           ),
         },
       });
-      await navigate({ to: fallback });
+      const saved =
+        values.payroll_loans.length === 0 ||
+        (await saveLoans({ income_recurrence_id: recurrence.id }, values));
+      if (saved) {
+        await navigate({ to: fallback });
+      } else {
+        await navigate({
+          to: '/finance/recurring-transactions/$recurrenceId',
+          params: { recurrenceId: recurrence.id },
+        });
+      }
       return;
     }
     const items = await create.mutateAsync({
@@ -328,6 +386,9 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     });
     idempotency.renew();
     const first = items[0];
+    if (first && values.payroll_loans.length > 0) {
+      await saveLoans({ income_id: first.id }, values);
+    }
     if (first) {
       await navigate({
         to: '/finance/transactions/$transactionId',
@@ -359,6 +420,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
           visibility: values.visibility,
         });
         if (Object.keys(patch).length > 0) await update.mutateAsync(patch);
+        if (loans_tab) await saveLoans({ income_id: mode.transaction.id }, values);
         await navigate({
           to: '/finance/transactions/$transactionId',
           params: { transactionId: mode.transaction.id },
@@ -376,6 +438,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
         ),
         rule: toContractRule({ ...values.rule, timezone: time_zone }),
       });
+      if (loans_tab) await saveLoans({ income_recurrence_id: mode.recurrence.id }, values);
       await navigate({
         to: '/finance/recurring-transactions/$recurrenceId',
         params: { recurrenceId: mode.recurrence.id },
@@ -555,6 +618,19 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
       </FormGrid>
     ) : null;
 
+  const loans_panel = loans_tab ? (
+    <FormGrid>
+      <div data-span="full">
+        <PayrollLoansField
+          control={control}
+          currency={currency}
+          adjustment_names={adjustment_names}
+        />
+      </div>
+      {actions}
+    </FormGrid>
+  ) : null;
+
   return (
     <FormScreen>
       <StickyPageHeader
@@ -584,7 +660,7 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
           )}
           value={tab}
           onChange={(next) => {
-            setTab(next === 'adjustments' ? 'adjustments' : 'data');
+            setTab(next === 'adjustments' || next === 'payroll_loans' ? next : 'data');
           }}
           tabs={[
             {
@@ -602,6 +678,15 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
                     id: 'adjustments',
                     label: t('finance.adjustments.title'),
                     panel: adjustments_panel,
+                  },
+                ]
+              : []),
+            ...(loans_panel
+              ? [
+                  {
+                    id: 'payroll_loans',
+                    label: t('finance.payroll_loans.title'),
+                    panel: loans_panel,
                   },
                 ]
               : []),
@@ -632,11 +717,20 @@ export function TransactionFormScreen(props: TransactionFormScreenProps) {
         : recurrence.data?.kind;
   const accounts = useAccounts();
   const categories = useCategories(kind);
+  const loan_source: PayrollLoanSource | undefined =
+    kind !== 'income'
+      ? undefined
+      : props.mode === 'edit'
+        ? { income_id: props.transaction_id }
+        : props.mode === 'recurrence'
+          ? { income_recurrence_id: props.recurrence_id }
+          : undefined;
+  const loans = usePayrollLoans(loan_source);
   const pending_entity =
     (props.mode === 'edit' && transaction.isError) ||
     (props.mode === 'recurrence' && recurrence.isError);
 
-  if (accounts.isError || categories.isError || pending_entity) {
+  if (accounts.isError || categories.isError || loans.isError || pending_entity) {
     return (
       <ErrorState
         title={t('finance.detail.error_title')}
@@ -645,6 +739,7 @@ export function TransactionFormScreen(props: TransactionFormScreenProps) {
         onRetry={() => {
           void accounts.refetch();
           void categories.refetch();
+          void loans.refetch();
           void transaction.refetch();
           void recurrence.refetch();
         }}
@@ -657,8 +752,21 @@ export function TransactionFormScreen(props: TransactionFormScreenProps) {
       : props.mode === 'edit'
         ? transaction.data && { type: 'edit', transaction: transaction.data }
         : recurrence.data && { type: 'recurrence', recurrence: recurrence.data };
-  if (!mode || !accounts.data || !categories.data || kind === undefined) {
+  if (
+    !mode ||
+    !accounts.data ||
+    !categories.data ||
+    kind === undefined ||
+    (loan_source !== undefined && !loans.data)
+  ) {
     return <LoadingState label={t('common.loading')} />;
   }
-  return <TransactionForm mode={mode} accounts={accounts.data} categories={categories.data} />;
+  return (
+    <TransactionForm
+      mode={mode}
+      accounts={accounts.data}
+      categories={categories.data}
+      loans={loans.data ?? []}
+    />
+  );
 }

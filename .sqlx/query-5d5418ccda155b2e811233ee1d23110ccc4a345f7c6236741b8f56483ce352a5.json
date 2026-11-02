@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 AND ($2::uuid IS NULL OR account_id = $2) AND ($3::uuid IS NULL OR category_id = $3) AND ($4::text IS NULL OR kind = $4) AND ($5::date IS NULL OR effective_date >= $5) AND ($6::date IS NULL OR effective_date <= $6) AND ($7::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($7)) || '%' ESCAPE '\\') AND ($8::boolean IS NULL OR (settled_at IS NOT NULL) = $8) AND ($9::date IS NULL OR (effective_date, id) > ($9, $10)) ORDER BY effective_date, id LIMIT $11",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions WHERE owner_id = $1 AND generated_from = $2 AND deleted_at IS NULL AND ($3::date IS NULL OR occurrence_date < $3 OR (occurrence_date = $3 AND id > $4)) ORDER BY occurrence_date DESC, id LIMIT $5",
   "describe": {
     "columns": [
       {
@@ -112,18 +112,27 @@
         "ordinal": 21,
         "name": "updated_at: _",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "payroll_loan_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 23,
+        "name": "income_transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 24,
+        "name": "installment_number",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
         "Uuid",
-        "Uuid",
-        "Text",
-        "Date",
-        "Date",
-        "Text",
-        "Bool",
         "Date",
         "Uuid",
         "Int8"
@@ -151,8 +160,11 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "5635d5c8c125eebb8e7ebb2b7094ea7c2de0c1351920534bc836354de7219a40"
+  "hash": "5d5418ccda155b2e811233ee1d23110ccc4a345f7c6236741b8f56483ce352a5"
 }

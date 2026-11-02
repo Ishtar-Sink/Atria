@@ -169,7 +169,7 @@ pub async fn settle_occurrence<R: RecurringTransactionRepository>(
     request: OccurrenceSettlement,
 ) -> Outcome<Transaction> {
     recurring
-        .settle_occurrence(owner_id, id, request, env.ids.new_id(), env.clock.now())
+        .settle_occurrence(owner_id, id, request, env.ids, env.clock.now())
         .await
 }
 

@@ -26,6 +26,7 @@ use crate::finance::application::{Env, SCAN_PAGE, accounts, categories, summarie
 use crate::finance::domain::transaction::TransactionKind;
 use crate::finance::infrastructure::pg_accounts::PgAccounts;
 use crate::finance::infrastructure::pg_categories::PgCategories;
+use crate::finance::infrastructure::pg_payroll_loans::PgPayrollLoans;
 use crate::finance::infrastructure::pg_recurring_transactions::PgRecurringTransactions;
 use crate::finance::infrastructure::pg_transactions::PgTransactions;
 use crate::finance::infrastructure::pg_transfers::PgTransfers;
@@ -174,6 +175,7 @@ impl StateReportSource {
                 transactions: &transactions_repo,
                 transfers: &transfers_repo,
                 recurring: &recurring_repo,
+                loans: &PgPayrollLoans::new(state.pool.clone()),
             },
             Self::finance_env(state),
             owner_id,

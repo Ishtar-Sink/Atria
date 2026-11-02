@@ -5,6 +5,7 @@
 pub mod pg_accounts;
 pub mod pg_categories;
 pub mod pg_idempotency;
+pub mod pg_payroll_loans;
 pub mod pg_recurring_transactions;
 pub mod pg_transactions;
 pub mod pg_transfers;
@@ -18,6 +19,7 @@ use crate::finance::domain::FinanceError;
 use crate::finance::domain::adjustment::{
     Adjustment, AdjustmentDirection, AdjustmentMode, ComputedAdjustment,
 };
+use crate::finance::domain::payroll_loan::PayrollInstallment;
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
 use crate::finance::domain::transaction::{Transaction, TransactionKind};
 use crate::shared::db::begin_for_user;
@@ -27,6 +29,7 @@ use crate::shared::visibility::Visibility;
 pub use pg_accounts::PgAccounts;
 pub use pg_categories::PgCategories;
 pub use pg_idempotency::PgIdempotency;
+pub use pg_payroll_loans::PgPayrollLoans;
 pub use pg_recurring_transactions::PgRecurringTransactions;
 pub use pg_transactions::PgTransactions;
 pub use pg_transfers::PgTransfers;
@@ -204,6 +207,9 @@ pub(crate) struct TransactionRow {
     occurrence_date: Option<NaiveDate>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    payroll_loan_id: Option<Uuid>,
+    income_transaction_id: Option<Uuid>,
+    installment_number: Option<i16>,
 }
 
 impl TransactionRow {
@@ -224,6 +230,15 @@ impl TransactionRow {
                 gross_amount: self.settled_gross_amount.unwrap_or(settled_amount),
             }),
             _ => None,
+        };
+        let payroll = match (self.payroll_loan_id, self.income_transaction_id) {
+            (Some(loan_id), Some(income_transaction_id)) => Some(PayrollInstallment {
+                loan_id,
+                income_transaction_id,
+                number: self.installment_number,
+            }),
+            (None, None) if self.installment_number.is_none() => None,
+            _ => return Err(corrupt("payroll_loan_id")),
         };
         let settled_adjustments = match self.settled_adjustments {
             Some(Json(rows)) => adjustments_from_rows(rows)?,
@@ -246,6 +261,7 @@ impl TransactionRow {
             settled_adjustments,
             generated_from: self.generated_from,
             occurrence_date: self.occurrence_date,
+            payroll,
             created_at: self.created_at,
             updated_at: self.updated_at,
         })
@@ -261,8 +277,10 @@ pub(crate) async fn insert_transaction(
     sqlx::query!(
         "INSERT INTO transactions (id, owner_id, visibility, kind, account_id, category_id, \
          description, expected_amount, gross_amount, adjustments, expected_date, currency, \
-         generated_from, occurrence_date, created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+         generated_from, occurrence_date, created_at, updated_at, payroll_loan_id, \
+         income_transaction_id, installment_number) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, \
+         $19)",
         item.id,
         item.owner_id,
         item.visibility as _,
@@ -278,7 +296,10 @@ pub(crate) async fn insert_transaction(
         item.generated_from,
         item.occurrence_date as _,
         item.created_at as _,
-        item.updated_at as _
+        item.updated_at as _,
+        item.payroll.map(|link| link.loan_id),
+        item.payroll.map(|link| link.income_transaction_id),
+        item.payroll.and_then(|link| link.number)
     )
     .execute(&mut **tx)
     .await

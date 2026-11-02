@@ -1,0 +1,176 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", kind, account_id, category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions WHERE deleted_at IS NULL AND owner_id = $1 AND ($2::uuid IS NULL OR account_id = $2) AND ($3::uuid IS NULL OR category_id = $3) AND ($4::text IS NULL OR kind = $4) AND ($5::date IS NULL OR effective_date >= $5) AND ($6::date IS NULL OR effective_date <= $6) AND ($7::text IS NULL OR finance_unaccent(lower(description)) LIKE '%' || finance_unaccent(lower($7)) || '%' ESCAPE '\\') AND ($8::boolean IS NULL OR (settled_at IS NOT NULL) = $8) AND ($9::date IS NULL OR (effective_date, id) > ($9, $10)) ORDER BY effective_date, id LIMIT $11",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "account_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "category_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "expected_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "adjustments: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "expected_date: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "settled_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "settled_at: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "settled_gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "settled_adjustments: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 15,
+        "name": "difference_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "difference_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 18,
+        "name": "generated_from",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 19,
+        "name": "occurrence_date: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 20,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "payroll_loan_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 23,
+        "name": "income_transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 24,
+        "name": "installment_number",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date",
+        "Date",
+        "Text",
+        "Bool",
+        "Date",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b0c5d4490e41dd32bab63f593f24623d5c3c4f0bc0bb335a49e261f14f6a91c9"
+}

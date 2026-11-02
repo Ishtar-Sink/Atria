@@ -158,6 +158,8 @@ function onOccurrenceError(client: QueryClient, id: string, error: unknown) {
 export interface SettleOccurrenceVariables {
   occurrence_date: string;
   settled_amount: number;
+  /** Valor que caiu na conta, com consignados no período; vai no lugar de `settled_amount` (RF-08). */
+  account_amount?: number;
   settled_at: string;
   /** Itens editados na liquidação; sem eles, o servidor reaplica os da recorrente (RF-10). */
   adjustments?: AdjustmentInput[];
@@ -168,8 +170,12 @@ export interface SettleOccurrenceVariables {
 export function useSettleOccurrence(id: string) {
   const client = useQueryClient();
   const mutation = useMutation<Transaction, Error, SettleOccurrenceVariables>({
-    mutationFn: ({ idempotency_key, ...body }) =>
-      api.post<Transaction>(`/recurring-transactions/${id}/settlement`, body, { idempotency_key }),
+    mutationFn: ({ idempotency_key, settled_amount, account_amount, ...body }) =>
+      api.post<Transaction>(
+        `/recurring-transactions/${id}/settlement`,
+        { ...body, ...(account_amount === undefined ? { settled_amount } : { account_amount }) },
+        { idempotency_key },
+      ),
     onError: (error) => {
       onOccurrenceError(client, id, error);
     },

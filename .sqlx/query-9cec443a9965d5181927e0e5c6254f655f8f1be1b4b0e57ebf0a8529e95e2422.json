@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, owner_id, visibility AS \"visibility: _\", income_id, income_recurrence_id, category_id, name, contract_number, installment_amount, currency, total_installments, current_installment, ends_on AS \"ends_on: _\", starts_on AS \"starts_on: _\", created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM payroll_loans WHERE owner_id = $1 AND deleted_at IS NULL AND (income_id = $2 OR income_recurrence_id = $3) ORDER BY id FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "visibility: _",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "income_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "income_recurrence_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "category_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "contract_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "installment_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "total_installments",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "current_installment",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 12,
+        "name": "ends_on: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "starts_on: _",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "updated_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9cec443a9965d5181927e0e5c6254f655f8f1be1b4b0e57ebf0a8529e95e2422"
+}

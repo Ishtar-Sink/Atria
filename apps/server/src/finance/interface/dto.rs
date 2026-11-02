@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
+use crate::finance::application::payroll_loans::PayrollLoanView;
 use crate::finance::application::ports::Repetition;
 use crate::finance::application::summaries::{PeriodSummaryView, WhereView};
 use crate::finance::domain::account::Account;
@@ -14,6 +15,7 @@ use crate::finance::domain::adjustment::{
 };
 use crate::finance::domain::category::{Category, SystemCategory};
 use crate::finance::domain::forecast::FinanceItem;
+use crate::finance::domain::payroll_loan::{IncomeLink, LoanTerm, PayrollLoanStatus};
 use crate::finance::domain::recurring_transaction::RecurringTransaction;
 use crate::finance::domain::settlement::{DifferenceKind, Settlement};
 use crate::finance::domain::summary::{
@@ -222,6 +224,7 @@ pub enum SystemCategoryKey {
     Transport,
     Leisure,
     Health,
+    Loan,
 }
 
 impl From<SystemCategory> for SystemCategoryKey {
@@ -234,6 +237,7 @@ impl From<SystemCategory> for SystemCategoryKey {
             SystemCategory::Transport => Self::Transport,
             SystemCategory::Leisure => Self::Leisure,
             SystemCategory::Health => Self::Health,
+            SystemCategory::Loan => Self::Loan,
         }
     }
 }
@@ -432,7 +436,12 @@ pub struct UpdateTransactionRequest {
 #[serde(deny_unknown_fields)]
 pub struct SettleTransactionRequest {
     /// Líquido liquidado, o valor que entra no caixa.
-    pub settled_amount: i64,
+    #[serde(default)]
+    pub settled_amount: Option<i64>,
+    /// O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;
+    /// exclusivo com `settled_amount` (SPEC-006, RF-08).
+    #[serde(default)]
+    pub account_amount: Option<i64>,
     pub settled_at: NaiveDate,
     /// Itens editados na liquidação; ausentes, os previstos (RF-10).
     pub adjustments: Option<Vec<AdjustmentDto>>,
@@ -526,6 +535,11 @@ pub struct TransactionResponse {
     /// Recorrente de onde veio a cópia liquidada.
     pub generated_from: Option<Uuid>,
     pub occurrence_date: Option<NaiveDate>,
+    /// Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número
+    /// (RF-13).
+    pub payroll_loan_id: Option<Uuid>,
+    pub income_transaction_id: Option<Uuid>,
+    pub installment_number: Option<i16>,
 }
 
 impl TransactionResponse {
@@ -560,6 +574,9 @@ impl TransactionResponse {
             recurrence_id: None,
             generated_from: item.generated_from,
             occurrence_date: item.occurrence_date,
+            payroll_loan_id: item.payroll.map(|link| link.loan_id),
+            income_transaction_id: item.payroll.map(|link| link.income_transaction_id),
+            installment_number: item.payroll.and_then(|link| link.number),
         }
     }
 }
@@ -605,6 +622,11 @@ pub struct TransactionItemResponse {
     pub recurrence_id: Option<Uuid>,
     pub generated_from: Option<Uuid>,
     pub occurrence_date: Option<NaiveDate>,
+    /// Só na saída de uma parcela de consignado: o consignado, a entrada de origem e o número
+    /// (RF-13).
+    pub payroll_loan_id: Option<Uuid>,
+    pub income_transaction_id: Option<Uuid>,
+    pub installment_number: Option<i16>,
 }
 
 impl TransactionItemResponse {
@@ -637,6 +659,39 @@ impl TransactionItemResponse {
                 recurrence_id: Some(projected.recurrence_id),
                 generated_from: None,
                 occurrence_date: Some(projected.occurrence_date),
+                payroll_loan_id: None,
+                income_transaction_id: None,
+                installment_number: None,
+            },
+            FinanceItem::Installment(installment) => Self {
+                id: None,
+                owner_id: installment.owner_id,
+                visibility: installment.visibility,
+                created_at: None,
+                updated_at: None,
+                kind: TransactionKind::Expense.into(),
+                account_id: installment.account_id,
+                category_id: Some(installment.category_id),
+                description: Some(installment.description),
+                expected_amount: installment.amount,
+                gross_amount: installment.amount,
+                adjustments: Vec::new(),
+                expected_date: installment.date,
+                settled_amount: None,
+                settled_at: None,
+                difference_amount: None,
+                difference_kind: None,
+                settled_gross_amount: None,
+                settled_adjustments: None,
+                currency: installment.currency.to_string(),
+                status: installment.status.into(),
+                effective_date: installment.date,
+                recurrence_id: installment.recurrence_id,
+                generated_from: None,
+                occurrence_date: installment.recurrence_id.map(|_| installment.date),
+                payroll_loan_id: Some(installment.loan_id),
+                income_transaction_id: installment.income_transaction_id,
+                installment_number: installment.number,
             },
         }
     }
@@ -670,6 +725,9 @@ impl From<TransactionResponse> for TransactionItemResponse {
             recurrence_id: item.recurrence_id,
             generated_from: item.generated_from,
             occurrence_date: item.occurrence_date,
+            payroll_loan_id: item.payroll_loan_id,
+            income_transaction_id: item.income_transaction_id,
+            installment_number: item.installment_number,
         }
     }
 }
@@ -792,7 +850,12 @@ pub struct UpdateRecurringTransactionRequest {
 #[serde(deny_unknown_fields)]
 pub struct SettleOccurrenceRequest {
     pub occurrence_date: NaiveDate,
-    pub settled_amount: i64,
+    #[serde(default)]
+    pub settled_amount: Option<i64>,
+    /// O valor que caiu na conta, quando a entrada tem parcelas de consignado no período;
+    /// exclusivo com `settled_amount` (SPEC-006, RF-08).
+    #[serde(default)]
+    pub account_amount: Option<i64>,
     pub settled_at: NaiveDate,
     /// Itens editados na liquidação; a regra não muda (RF-10).
     pub adjustments: Option<Vec<AdjustmentDto>>,
@@ -1151,4 +1214,135 @@ impl From<PeriodSummaryView> for FinancialSummaryResponse {
             currency: view.currency.to_string(),
         }
     }
+}
+
+// Consignados ---------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PayrollLoanStatusDto {
+    Active,
+    Ended,
+}
+
+impl From<PayrollLoanStatus> for PayrollLoanStatusDto {
+    fn from(value: PayrollLoanStatus) -> Self {
+        match value {
+            PayrollLoanStatus::Active => Self::Active,
+            PayrollLoanStatus::Ended => Self::Ended,
+        }
+    }
+}
+
+/// Cadastro do consignado: uma entrada (avulsa ou recorrente) e um modo de prazo, o total
+/// com a parcela atual ou a data final (RF-02 a RF-04).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CreatePayrollLoanRequest {
+    pub income_id: Option<Uuid>,
+    pub income_recurrence_id: Option<Uuid>,
+    pub name: String,
+    pub contract_number: Option<String>,
+    pub installment_amount: i64,
+    pub total_installments: Option<i16>,
+    pub current_installment: Option<i16>,
+    pub ends_on: Option<NaiveDate>,
+}
+
+/// Campos ausentes ficam como estão; mudar o prazo regrava o início na entrada aberta.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UpdatePayrollLoanRequest {
+    pub name: Option<String>,
+    /// Vazio apaga o contrato.
+    pub contract_number: Option<String>,
+    pub installment_amount: Option<i64>,
+    pub total_installments: Option<i16>,
+    pub current_installment: Option<i16>,
+    pub ends_on: Option<NaiveDate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PayrollLoanResponse {
+    pub id: Uuid,
+    pub owner_id: Uuid,
+    pub visibility: Visibility,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub income_id: Option<Uuid>,
+    pub income_recurrence_id: Option<Uuid>,
+    /// A categoria do sistema "Empréstimo" da pessoa (RF-05).
+    pub category_id: Uuid,
+    pub name: String,
+    pub contract_number: Option<String>,
+    pub installment_amount: i64,
+    #[schema(example = "BRL")]
+    pub currency: String,
+    pub total_installments: Option<i16>,
+    /// No prazo por parcelas, o número da parcela da entrada aberta; nulo no prazo por data
+    /// e depois do fim.
+    pub current_installment: Option<i16>,
+    pub ends_on: Option<NaiveDate>,
+    /// Data da parcela de onde a numeração parte.
+    pub starts_on: NaiveDate,
+    /// Calculado: ativo enquanto a entrada aberta tem parcela (RF-10).
+    pub status: PayrollLoanStatusDto,
+    /// Calculado: a data da entrada aberta, enquanto ativo.
+    pub next_installment_on: Option<NaiveDate>,
+    /// Calculado: a data da última parcela, pela regra atual da entrada.
+    pub last_installment_on: Option<NaiveDate>,
+    /// Calculado: as parcelas da aberta em diante.
+    pub remaining_installments: u32,
+}
+
+impl From<PayrollLoanView> for PayrollLoanResponse {
+    fn from(view: PayrollLoanView) -> Self {
+        let loan = view.loan;
+        let (income_id, income_recurrence_id) = match loan.income {
+            IncomeLink::Transaction(id) => (Some(id), None),
+            IncomeLink::Recurrence(id) => (None, Some(id)),
+        };
+        let (total_installments, ends_on) = match loan.term {
+            LoanTerm::Installments { total, .. } => (Some(total), None),
+            LoanTerm::EndsOn(ends_on) => (None, Some(ends_on)),
+        };
+        Self {
+            id: loan.id,
+            owner_id: loan.owner_id,
+            visibility: loan.visibility,
+            created_at: loan.created_at,
+            updated_at: loan.updated_at,
+            income_id,
+            income_recurrence_id,
+            category_id: loan.category_id,
+            name: loan.name,
+            contract_number: loan.contract_number,
+            installment_amount: loan.installment_amount,
+            currency: loan.currency.to_string(),
+            total_installments,
+            current_installment: view.current_installment,
+            ends_on,
+            starts_on: loan.starts_on,
+            status: view.status.into(),
+            next_installment_on: view.next_installment_on,
+            last_installment_on: view.last_installment_on,
+            remaining_installments: u32::try_from(view.remaining_installments).unwrap_or(u32::MAX),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PayrollLoanPage {
+    pub items: Vec<PayrollLoanResponse>,
+    pub next_cursor: Option<String>,
+}
+
+/// Consignados de uma entrada avulsa ou de uma recorrente.
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct PayrollLoanQuery {
+    pub income_id: Option<Uuid>,
+    pub income_recurrence_id: Option<Uuid>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
 }

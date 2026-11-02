@@ -967,7 +967,7 @@ describe('transaction forms', () => {
       within(tabs)
         .getAllByRole('tab')
         .map((tab) => tab.textContent),
-    ).toEqual(['Movimentação', 'Descontos e acréscimos']);
+    ).toEqual(['Movimentação', 'Descontos e acréscimos', 'Consignados']);
     expect(screen.getByRole('tab', { name: 'Movimentação' })).toHaveAttribute(
       'aria-selected',
       'true',

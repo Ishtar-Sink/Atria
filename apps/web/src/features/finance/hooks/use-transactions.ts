@@ -104,13 +104,23 @@ function normalize(filters: TransactionFilters) {
   };
 }
 
-/** Itens virtuais (ocorrência aberta e previsão) não têm `id` (PD-51). */
+/**
+ * Itens virtuais (ocorrência aberta, previsão e parcela de consignado) não têm `id` (PD-51). As
+ * parcelas do mesmo holerite caem na mesma data: a chave delas vem do consignado.
+ */
 export function listItemKey(item: TransactionItem): string {
-  return item.id ?? `${item.recurrence_id ?? ''}:${item.occurrence_date ?? item.effective_date}`;
+  const source = item.payroll_loan_id ?? item.recurrence_id ?? '';
+  return item.id ?? `${source}:${item.occurrence_date ?? item.effective_date}`;
 }
 
 export function listItemHref(item: TransactionItem): string {
   if (item.id) return `/finance/transactions/${item.id}`;
+  // A parcela aberta leva à entrada de origem, na aba dos consignados (RF-13, CT-10).
+  if (item.payroll_loan_id) {
+    return item.income_transaction_id
+      ? `/finance/transactions/${item.income_transaction_id}?tab=payroll_loans`
+      : `/finance/recurring-transactions/${item.recurrence_id ?? ''}?tab=payroll_loans`;
+  }
   return `/finance/recurring-transactions/${item.recurrence_id ?? ''}`;
 }
 
@@ -432,6 +442,8 @@ export function optimisticDifference(
 export interface SettleVariables {
   transaction: Transaction;
   settled_amount: number;
+  /** Valor que caiu na conta, com consignados no período; vai no lugar de `settled_amount` (RF-08). */
+  account_amount?: number;
   settled_at: string;
   /** Itens editados na liquidação; sem eles, o servidor reaplica os previstos (RF-10). */
   adjustments?: AdjustmentInput[];
@@ -441,13 +453,24 @@ export interface SettleVariables {
 export function useSettleTransaction() {
   const client = useQueryClient();
   return useMutation<Transaction, Error, SettleVariables, { saved: Snapshot }>({
-    mutationFn: ({ transaction, settled_amount, settled_at, adjustments, idempotency_key }) =>
+    mutationFn: ({
+      transaction,
+      settled_amount,
+      account_amount,
+      settled_at,
+      adjustments,
+      idempotency_key,
+    }) =>
       api.post<Transaction>(
         `/transactions/${transaction.id}/settlement`,
-        { settled_amount, settled_at, ...(adjustments ? { adjustments } : {}) },
+        {
+          ...(account_amount === undefined ? { settled_amount } : { account_amount }),
+          settled_at,
+          ...(adjustments ? { adjustments } : {}),
+        },
         { idempotency_key },
       ),
-    onMutate: async ({ transaction, settled_amount, settled_at }) => {
+    onMutate: async ({ transaction, settled_amount, account_amount, settled_at }) => {
       const keys = [...TRANSACTION_CACHES, financeKeys.transaction(transaction.id)];
       await cancel(client, keys);
       const saved = snapshot(client, keys);
@@ -459,7 +482,12 @@ export function useSettleTransaction() {
         effective_date: settled_at,
         ...optimisticDifference(item.kind, item.expected_amount, settled_amount),
       }));
-      adjustBalance(client, transaction.account_id, balanceDelta(transaction.kind, settled_amount));
+      // O saldo sobe o que caiu na conta; as parcelas descontam o resto.
+      adjustBalance(
+        client,
+        transaction.account_id,
+        balanceDelta(transaction.kind, account_amount ?? settled_amount),
+      );
       return { saved };
     },
     onError: (error, _variables, context) => {

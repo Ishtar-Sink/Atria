@@ -9,13 +9,19 @@ use uuid::Uuid;
 
 use crate::finance::application::ports::{Outcome, RecurringTransactionRepository};
 use crate::finance::domain::FinanceError;
+use crate::finance::domain::payroll_loan::{
+    IncomeLink, IncomeSource, income_dates, settled_installment,
+};
 use crate::finance::domain::recurring_transaction::{OccurrenceSettlement, RecurringTransaction};
 use crate::finance::domain::transaction::{Transaction, TransactionKind};
+use crate::finance::infrastructure::pg_payroll_loans::{delete_loans_for, lock_loans_for};
+use crate::finance::infrastructure::pg_transactions::installments_total;
 use crate::finance::infrastructure::{
     AdjustmentRow, TransactionRow, Tx, add_to_balance, adjustment_rows, adjustments_from_rows,
     begin, commit, corrupt, currency, escape_like, insert_transaction, lock_account,
     save_settlement, storage,
 };
+use crate::shared::ids::IdGenerator;
 use crate::shared::recurrence::RecurrenceRule;
 use crate::shared::visibility::Visibility;
 
@@ -173,7 +179,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
     category_id, description, expected_amount, gross_amount, adjustments AS \"adjustments: _\", expected_date AS \"expected_date: _\", \
     settled_amount, settled_at AS \"settled_at: _\", settled_gross_amount, settled_adjustments AS \"settled_adjustments: _\", \
     difference_amount, difference_kind, currency, generated_from, occurrence_date AS \"occurrence_date: _\", \
-    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\" FROM transactions WHERE owner_id = $1 \
+    created_at AS \"created_at: _\", updated_at AS \"updated_at: _\", payroll_loan_id, income_transaction_id, installment_number FROM transactions WHERE owner_id = $1 \
              AND generated_from = $2 AND deleted_at IS NULL \
              AND ($3::date IS NULL OR occurrence_date < $3 \
                   OR (occurrence_date = $3 AND id > $4)) \
@@ -217,15 +223,33 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
         owner_id: Uuid,
         id: Uuid,
         request: OccurrenceSettlement,
-        copy_id: Uuid,
+        ids: &dyn IdGenerator,
         now: DateTime<Utc>,
     ) -> Outcome<Transaction> {
         let mut tx = begin(&self.pool, owner_id).await?;
         let mut recurring = lock_recurring(&mut tx, owner_id, id).await?;
-        let (copy, delta) = recurring.settle_open(copy_id, request, now)?;
+        // Ordem das travas: recorrente, consignados e conta (RNF-03).
+        let source = IncomeSource::Recurring(recurring.clone());
+        let installments: Vec<_> = lock_loans_for(&mut tx, owner_id, IncomeLink::Recurrence(id))
+            .await?
+            .into_iter()
+            .filter_map(|loan| {
+                let dates = income_dates(&loan, &source);
+                let installment = loan.installment_on(&dates, request.occurrence_date)?;
+                Some((loan, installment.number))
+            })
+            .collect();
+        let total = installments_total(installments.iter().map(|(loan, _)| loan))?;
+        let (copy, mut delta) = recurring.settle_open(ids.new_id(), request, total, now)?;
         lock_account(&mut tx, owner_id, copy.account_id).await?;
         insert_transaction(&mut tx, &copy).await?;
         save_settlement(&mut tx, &copy).await?;
+        for (loan, number) in &installments {
+            let installment = settled_installment(loan, &copy, *number, ids.new_id(), now)?;
+            insert_transaction(&mut tx, &installment).await?;
+            save_settlement(&mut tx, &installment).await?;
+            delta += installment.applied_balance_delta();
+        }
         add_to_balance(&mut tx, owner_id, copy.account_id, delta, now).await?;
         save_last_closed(&mut tx, &recurring).await?;
         commit(tx).await?;
@@ -250,6 +274,7 @@ impl RecurringTransactionRepository for PgRecurringTransactions {
     async fn delete(&self, owner_id: Uuid, id: Uuid, now: DateTime<Utc>) -> Outcome<()> {
         let mut tx = begin(&self.pool, owner_id).await?;
         lock_recurring(&mut tx, owner_id, id).await?;
+        delete_loans_for(&mut tx, owner_id, IncomeLink::Recurrence(id), now).await?;
         // Todas as cópias, inclusive as já excluídas: nenhuma linha aponta para a
         // recorrente excluída. Nenhum saldo muda, então nenhuma conta é travada.
         sqlx::query!(

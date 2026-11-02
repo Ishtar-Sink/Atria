@@ -22,10 +22,14 @@ pub enum FinanceError {
     CategoryReplacementRequired,
     #[error("a categoria é de outro tipo")]
     CategoryKindMismatch,
+    #[error("a categoria do sistema não pode ser renomeada nem excluída")]
+    SystemCategoryLocked,
     #[error("a data não é a da ocorrência aberta")]
     OccurrenceNotOpen,
     #[error("a recorrência terminou e não tem ocorrência aberta")]
     RecurrenceEnded,
+    #[error("a parcela do consignado só muda junto com a entrada")]
+    InstallmentFollowsIncome,
     #[error("a conta tem movimentações e precisa de uma conta de destino")]
     AccountHasTransactions,
     #[error("a conta de destino é de outra moeda")]
@@ -55,8 +59,10 @@ impl FinanceError {
             Self::TransactionNotSettled => "transaction_not_settled",
             Self::CategoryReplacementRequired => "category_replacement_required",
             Self::CategoryKindMismatch => "category_kind_mismatch",
+            Self::SystemCategoryLocked => "system_category_locked",
             Self::OccurrenceNotOpen => "occurrence_not_open",
             Self::RecurrenceEnded => "recurrence_ended",
+            Self::InstallmentFollowsIncome => "installment_follows_income",
             Self::AccountHasTransactions => "account_has_transactions",
             Self::CurrencyMismatch => "currency_mismatch",
             Self::IdempotencyKeyReused => "idempotency_key_reused",
@@ -73,6 +79,10 @@ mod tests {
     #[test]
     fn codes_are_stable() {
         assert_eq!(FinanceError::NotFound.code(), "not_found");
+        assert_eq!(
+            FinanceError::SystemCategoryLocked.code(),
+            "system_category_locked"
+        );
         assert_eq!(FinanceError::CurrencyMismatch.code(), "currency_mismatch");
         assert_eq!(
             FinanceError::invalid("name", "required").code(),
@@ -94,6 +104,10 @@ mod tests {
         assert_eq!(
             FinanceError::CategoryKindMismatch.code(),
             "category_kind_mismatch"
+        );
+        assert_eq!(
+            FinanceError::InstallmentFollowsIncome.code(),
+            "installment_follows_income"
         );
     }
 }
