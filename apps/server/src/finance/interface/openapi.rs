@@ -117,6 +117,21 @@ mod tests {
         assert!(json["components"]["schemas"]["TransactionResponse"].is_object());
         assert!(json["components"]["schemas"]["TransactionItemResponse"].is_object());
         assert!(json["components"]["schemas"]["AdjustmentDto"].is_object());
+        let adjustment = &json["components"]["schemas"]["AdjustmentDto"];
+        let required = adjustment["required"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        for field in ["base_items", "deduction_amount"] {
+            assert!(
+                adjustment["properties"][field].is_object(),
+                "AdjustmentDto.{field}"
+            );
+            assert!(
+                !required.iter().any(|name| name == field),
+                "AdjustmentDto.{field} deve ser opcional"
+            );
+        }
         assert!(json["components"]["schemas"]["BreakdownDto"].is_object());
         let response = &json["components"]["schemas"]["TransactionResponse"]["properties"];
         for field in [

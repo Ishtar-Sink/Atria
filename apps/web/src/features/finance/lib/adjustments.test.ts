@@ -42,6 +42,24 @@ function issueOf(result: AdjustmentResult): [string, string] {
   return [result.issue.field, result.issue.code];
 }
 
+function linked(
+  name: string,
+  rate_bp: number,
+  base_items: number[],
+  deduction_amount?: number,
+): Adjustment {
+  return { name, direction: 'deduction', mode: 'percent', rate_bp, base_items, deduction_amount };
+}
+
+function payslip(): Adjustment[] {
+  return [
+    fixed('INSS', 'deduction', 98_807),
+    linked('IRPF', 2750, [0], 90_873),
+    fixed('Sindical', 'deduction', 3_500),
+    fixed('Consignados', 'deduction', 374_670),
+  ];
+}
+
 describe('adjustments', () => {
   it('ct01 percent on gross and fixed deduction', () => {
     const result = computeNet(800_000, [inss(), sindical()]);
@@ -231,5 +249,150 @@ describe('adjustments', () => {
 
   it('max adjustments matches the server', () => {
     expect(MAX_ADJUSTMENTS).toBe(20);
+  });
+});
+
+describe('linked base and deduction', () => {
+  it('ct01 payslip with linked base and deduction', () => {
+    const result = computeNet(1_450_000, payslip());
+    expect(amountsOf(result)).toEqual([98_807, 280_705, 3_500, 374_670]);
+    expect(breakdownOf(result).net_amount).toBe(692_318);
+    const swapped = computeNet(1_450_000, [
+      linked('IRPF', 2750, [1], 90_873),
+      fixed('INSS', 'deduction', 98_807),
+      fixed('Sindical', 'deduction', 3_500),
+      fixed('Consignados', 'deduction', 374_670),
+    ]);
+    expect(amountsOf(swapped)).toEqual([280_705, 98_807, 3_500, 374_670]);
+    expect(breakdownOf(swapped).net_amount).toBe(692_318);
+  });
+
+  it('ct02 reverse of payslip keeps deduction', () => {
+    const result = grossForNet(692_318, payslip(), 1_450_000);
+    const data = breakdownOf(result);
+    expect(data.gross_amount).toBe(1_450_000);
+    expect(amountsOf(result)).toEqual([98_807, 280_705, 3_500, 374_670]);
+    expect(data.net_amount).toBe(692_318);
+    expect(data.adjustments[1]?.deduction_amount).toBe(90_873);
+    expect(data.adjustments[1]?.base_items).toEqual([0]);
+  });
+
+  it('ct03 linked to a percent item', () => {
+    const items = [percent('INSS', 'deduction', 681), linked('IRPF', 2750, [0], 90_873)];
+    const result = computeNet(1_450_000, items);
+    expect(amountsOf(result)).toEqual([98_745, 280_722]);
+    expect(breakdownOf(result).net_amount).toBe(1_070_533);
+    const reverse = grossForNet(1_070_533, items, 1_450_000);
+    expect(breakdownOf(reverse).gross_amount).toBe(1_450_000);
+    expect(amountsOf(reverse)).toEqual([98_745, 280_722]);
+  });
+
+  it('ct04 linked to two items', () => {
+    const result = computeNet(1_450_000, [
+      fixed('INSS', 'deduction', 98_807),
+      fixed('Pensão', 'deduction', 100_000),
+      linked('IRPF', 2750, [0, 1], 90_873),
+    ]);
+    expect(amountsOf(result)).toEqual([98_807, 100_000, 253_205]);
+    expect(breakdownOf(result).net_amount).toBe(997_988);
+  });
+
+  it('cb06 chain follows dependencies', () => {
+    const result = computeNet(100_000, [
+      linked('A', 1000, [1]),
+      linked('B', 1000, [2]),
+      percent('C', 'deduction', 1000),
+    ]);
+    expect(amountsOf(result)).toEqual([9_100, 9_000, 10_000]);
+    expect(breakdownOf(result).net_amount).toBe(71_900);
+  });
+
+  it('rn09 residual goes to the percent nobody depends on', () => {
+    const result = grossForNet(
+      1_070_557,
+      [linked('IRPF', 2750, [1], 90_873), percent('INSS', 'deduction', 681)],
+      1_450_000,
+    );
+    const data = breakdownOf(result);
+    expect(data.gross_amount).toBe(1_450_036);
+    expect(amountsOf(result)).toEqual([280_732, 98_747]);
+    expect(data.net_amount).toBe(1_070_557);
+    expect(1_450_036 - 280_732 - 98_747).toBe(1_070_557);
+  });
+
+  it('ct05 self reference and cycle are refused', () => {
+    expect(issueOf(computeNet(10_000, [linked('A', 1000, [0])]))).toEqual([
+      'adjustments.base_items',
+      'self_reference',
+    ]);
+    const loop = [linked('A', 1000, [1]), linked('B', 1000, [0])];
+    expect(issueOf(computeNet(10_000, loop))).toEqual(['adjustments.base_items', 'cycle']);
+    expect(validateAdjustments(loop)).toEqual({ field: 'adjustments.base_items', code: 'cycle' });
+  });
+
+  it('base items out of range or mismatched are refused', () => {
+    const other = fixed('X', 'deduction', 100);
+    const baseItems = (code: string) => ({ field: 'adjustments.base_items', code });
+    expect(validateAdjustments([other, linked('A', 1000, [2])])).toEqual(baseItems('out_of_range'));
+    expect(validateAdjustments([other, linked('A', 1000, [-1])])).toEqual(
+      baseItems('out_of_range'),
+    );
+    expect(validateAdjustments([other, linked('A', 1000, [0.5])])).toEqual(
+      baseItems('out_of_range'),
+    );
+    expect(validateAdjustments([other, linked('A', 1000, [])])).toBeNull();
+    expect(validateAdjustments([other, linked('A', 1000, [0, 0])])).toEqual(
+      baseItems('fields_mismatch'),
+    );
+    const chain = (size: number): Adjustment[] =>
+      Array.from({ length: size }, (_, index) =>
+        index === 0
+          ? percent('N0', 'deduction', 1000)
+          : linked('N' + String(index), 1000, [index - 1]),
+      );
+    expect(validateAdjustments(chain(5))).toEqual(baseItems('too_deep'));
+    expect(validateAdjustments(chain(4))).toBeNull();
+    expect(validateAdjustments([other, { ...linked('A', 1000, [0]), base_amount: 5_000 }])).toEqual(
+      baseItems('fields_mismatch'),
+    );
+    expect(validateAdjustments([{ ...other, base_items: [0] }, other])).toEqual(
+      baseItems('fields_mismatch'),
+    );
+  });
+
+  it('cb03 linked base not positive is refused', () => {
+    const result = computeNet(100_000, [fixed('X', 'deduction', 150_000), linked('A', 1000, [0])]);
+    expect(issueOf(result)).toEqual(['adjustments.base_items', 'not_positive']);
+  });
+
+  it('ct06 deduction above percent is refused', () => {
+    const above = { ...percent('IRPF', 'deduction', 2750), deduction_amount: 90_873 };
+    expect(issueOf(computeNet(100_000, [above]))).toEqual([
+      'adjustments.deduction_amount',
+      'exceeds_amount',
+    ]);
+    const equal = { ...percent('IRPF', 'deduction', 2750), deduction_amount: 27_500 };
+    const result = computeNet(100_000, [equal]);
+    expect(amountsOf(result)).toEqual([0]);
+    expect(breakdownOf(result).net_amount).toBe(100_000);
+  });
+
+  it('cb05 deduction must be positive and only in percent', () => {
+    expect(
+      validateAdjustments([{ ...fixed('X', 'deduction', 100), deduction_amount: 10 }]),
+    ).toEqual({ field: 'adjustments.deduction_amount', code: 'fields_mismatch' });
+    for (const value of [0, -1, 1.5]) {
+      expect(
+        validateAdjustments([{ ...percent('X', 'deduction', 1000), deduction_amount: value }]),
+      ).toEqual({ field: 'adjustments.deduction_amount', code: 'must_be_positive' });
+    }
+  });
+
+  it('cb08 reverse refuses a deduction that leaves the item negative', () => {
+    const item = { ...percent('IRPF', 'deduction', 2750), deduction_amount: 90_873 };
+    expect(issueOf(grossForNet(50_000, [item], 1_450_000))).toEqual([
+      'adjustments',
+      'no_gross_for_net',
+    ]);
   });
 });

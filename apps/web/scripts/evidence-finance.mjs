@@ -13,7 +13,11 @@
 // TASK-08 da SPEC-004 acrescenta descontos-liquidacao (finance-descontos-liquidacao.png): liquidação pelo líquido com a prévia e a edição dos itens.
 // TASK-09 da SPEC-004 acrescenta descontos-painel (finance-descontos-painel.png): cartão Descontos do período.
 // TASK-10 da SPEC-004 acrescenta descontos-video (finance-descontos.webm): o fluxo dos descontos do formulário ao painel.
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais|descontos-form|descontos-liquidacao|descontos-painel|descontos-video]
+// TASK-05 da SPEC-005 acrescenta base-ligada-form (finance-base-ligada-form.png): base ligada e parcela no editor e no detalhamento.
+// TASK-06 da SPEC-005 acrescenta descontos-abas (finance-descontos-abas.png): aba Descontos e acréscimos no formulário e nos detalhes.
+// TASK-07 da SPEC-005 acrescenta base-ligada-liquidacao (finance-base-ligada-liquidacao.png): liquidação do holerite com base ligada e parcela.
+// TASK-08 da SPEC-005 acrescenta base-ligada-painel (finance-base-ligada-painel.png) e base-ligada-video (finance-base-ligada.webm): o cartão do painel e o fluxo do holerite com base ligada.
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais|descontos-form|descontos-liquidacao|descontos-painel|descontos-video|base-ligada-form|descontos-abas|base-ligada-liquidacao|base-ligada-painel|base-ligada-video]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -1011,6 +1015,28 @@ const SALARY_SETTLED_ADJUSTMENTS = [
   },
 ];
 
+// Holerite do CT-01 da SPEC-005: o IRPF incide sobre o bruto menos o INSS, com a parcela.
+const PAYSLIP_ADJUSTMENTS = [
+  { name: 'INSS', direction: 'deduction', mode: 'fixed', amount: 98807, computed_amount: 98807 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 2750,
+    base_items: [0],
+    deduction_amount: 90873,
+    computed_amount: 280705,
+  },
+  { name: 'Sindical', direction: 'deduction', mode: 'fixed', amount: 3500, computed_amount: 3500 },
+  {
+    name: 'Consignados',
+    direction: 'deduction',
+    mode: 'fixed',
+    amount: 374670,
+    computed_amount: 374670,
+  },
+];
+
 /** O mundo de sempre com o salário previsto (t20), o liquidado (t21) e a recorrente r5. */
 function adjustedWorld() {
   const state = seed();
@@ -1054,6 +1080,25 @@ function adjustedWorld() {
   return state;
 }
 
+/** O mundo dos descontos com o holerite previsto (t40) do CT-01 da SPEC-005. */
+function payslipWorld() {
+  const state = adjustedWorld();
+  state.transactions.push(
+    transaction({
+      id: 't40',
+      kind: 'income',
+      description: 'Holerite',
+      category_id: null,
+      gross_amount: 1450000,
+      expected_amount: 692318,
+      adjustments: PAYSLIP_ADJUSTMENTS,
+      expected_date: '2026-11-05',
+      effective_date: '2026-11-05',
+    }),
+  );
+  return state;
+}
+
 /** Preenche um campo de valor como o usuário: clica, digita e sai do campo. */
 async function typeMoney(page, field, text) {
   await field.click();
@@ -1061,9 +1106,34 @@ async function typeMoney(page, field, text) {
   await page.keyboard.press('Tab');
 }
 
+/**
+ * Abre uma aba pelo teclado: no desktop o cabeçalho fixo recolhe ao rolar, e o clique pegaria o
+ * botão em movimento.
+ */
+async function openTab(page, name) {
+  const tab = page.getByRole('tab', { name, exact: true });
+  await tab.focus();
+  await page.keyboard.press('Enter');
+  await page
+    .locator('[role="tab"][aria-selected="true"]')
+    .filter({ hasText: name })
+    .first()
+    .waitFor();
+}
+
+/** Marca uma caixa ou um rádio pelo teclado, pelo mesmo motivo de `openTab`. */
+async function pressOn(page, locator, key = ' ') {
+  await locator.focus();
+  await page.keyboard.press(key);
+}
+
 /** Abre um item novo no editor e preenche o nome; devolve o grupo do item. */
 async function addItem(page, number, name) {
-  await page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }).click();
+  await pressOn(
+    page,
+    page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }),
+    'Enter',
+  );
   const group = page.getByRole('group', { name: `Item ${number}`, exact: true });
   await group.getByRole('textbox', { name: 'Nome do item' }).fill(name);
   return group;
@@ -1142,6 +1212,54 @@ function adjustmentsOverride(call, state) {
 }
 
 /** Troca o valor efetivo e espera a prévia mostrar `expected`. */
+// Respostas da prévia do holerite: o CT-02 (líquido 6.923,18) e o CT-11 (parcela de R$ 875,00).
+const PREVIEW_CT02_PAYSLIP = {
+  gross_amount: 1450000,
+  net_amount: 692318,
+  adjustments: PAYSLIP_ADJUSTMENTS,
+};
+const PREVIEW_CT11 = {
+  gross_amount: 1454653,
+  net_amount: 692318,
+  adjustments: PAYSLIP_ADJUSTMENTS.map((item, index) =>
+    index === 1 ? { ...item, deduction_amount: 87500, computed_amount: 285358 } : item,
+  ),
+};
+
+function payslipPreview(body) {
+  const items = body?.adjustments ?? [];
+  if (items.some((item) => item.deduction_amount === 87500)) return PREVIEW_CT11;
+  if (items.some((item) => item.base_items?.length) && body.settled_amount === 692318) {
+    return PREVIEW_CT02_PAYSLIP;
+  }
+  return null;
+}
+
+/** Prévia e liquidação do holerite t40; o resto segue o `adjustmentsOverride`. */
+function payslipOverride(call, state) {
+  if (call.method === 'POST' && call.path === '/transactions/settlement-preview') {
+    const preview = payslipPreview(call.body);
+    if (preview) return { body: preview };
+  }
+  const settling = /^\/transactions\/(t4[01])\/settlement$/.exec(call.path);
+  if (call.method === 'POST' && settling) {
+    const found = state.transactions.find((e) => e.id === settling[1]);
+    const preview = payslipPreview(call.body) ?? PREVIEW_CT02_PAYSLIP;
+    Object.assign(found, {
+      status: 'settled',
+      settled_amount: call.body.settled_amount,
+      settled_at: call.body.settled_at,
+      effective_date: call.body.settled_at,
+      difference_amount: 0,
+      difference_kind: null,
+      settled_gross_amount: preview.gross_amount,
+      settled_adjustments: preview.adjustments,
+    });
+    return { body: found };
+  }
+  return adjustmentsOverride(call, state);
+}
+
 async function previewWith(page, value, expected) {
   // Foco em vez de clique: no desktop, rolar até o campo recolhe o cabeçalho fixo e o campo
   // não fica parado para o clique do Playwright.
@@ -1162,6 +1280,20 @@ const PANEL_ADJUSTMENTS = [
   { name: 'IRPF', direction: 'deduction', expected: 213600, settled: 106800 },
   { name: 'Juros', direction: 'addition', expected: 1200, settled: 1200 },
 ];
+
+// O cartão do painel com o holerite do CT-13 da SPEC-005: o IRPF já com a parcela.
+const PANEL_PAYSLIP = [
+  { name: 'INSS', direction: 'deduction', expected: 98807, settled: 98807 },
+  { name: 'IRPF', direction: 'deduction', expected: 280705, settled: 280705 },
+  { name: 'Sindical', direction: 'deduction', expected: 3500, settled: 3500 },
+  { name: 'Consignados', direction: 'deduction', expected: 374670, settled: 374670 },
+];
+
+function panelPayslipWorld() {
+  const state = seed();
+  state.summary = { ...state.summary, adjustments_by_name: PANEL_PAYSLIP };
+  return state;
+}
 
 function panelAdjustmentsWorld() {
   const state = seed();
@@ -2339,11 +2471,12 @@ const scenarios = [
     run: async (page, tag) => {
       await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
       await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '8000');
+      await openTab(page, 'Descontos e acréscimos');
       const inss = await addItem(page, 1, 'INSS');
       await inss.getByRole('textbox', { name: 'Percentual (%)' }).fill('11');
       const irpf = await addItem(page, 2, 'IRPF');
       await irpf.getByRole('textbox', { name: 'Percentual (%)' }).fill('15');
-      await irpf.getByText('Base diferente do bruto').click();
+      await pressOn(page, irpf.getByRole('checkbox', { name: 'Base diferente do bruto' }));
       const base = irpf.getByRole('textbox', { name: 'Base de cálculo (R$)' });
       await typeMoney(page, base, '7120');
       const sindical = await addItem(page, 3, 'Sindical');
@@ -2363,7 +2496,7 @@ const scenarios = [
   {
     name: 'detalhe previsto e liquidado',
     group: 'descontos-form',
-    path: '/finance/transactions/t21',
+    path: '/finance/transactions/t21?tab=adjustments',
     combos: ALL,
     world: adjustedWorld,
     run: async (page, tag) => {
@@ -2385,7 +2518,7 @@ const scenarios = [
   {
     name: 'recorrente com descontos',
     group: 'descontos-form',
-    path: '/finance/recurring-transactions/r5',
+    path: '/finance/recurring-transactions/r5?tab=adjustments',
     combos: ALL,
     world: adjustedWorld,
     run: async (page, tag) => {
@@ -2397,6 +2530,352 @@ const scenarios = [
         text.includes('Líquido previsto') && text.includes('R$ 6.052,00'),
         text.replace(/\s+/g, ' ').slice(0, 120),
       );
+      await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'editor com base ligada e parcela',
+    group: 'base-ligada-form',
+    path: '/finance/transactions/new?kind=income',
+    combos: ALL,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '14500');
+      await openTab(page, 'Descontos e acréscimos');
+      const inss = await addItem(page, 1, 'INSS');
+      await inss.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, inss.getByRole('textbox', { name: 'Valor do item (R$)' }), '988,07');
+      const irpf = await addItem(page, 2, 'IRPF');
+      await irpf.getByRole('textbox', { name: 'Percentual (%)' }).fill('27,5');
+      await pressOn(page, irpf.getByRole('checkbox', { name: 'Base diferente do bruto' }));
+      await irpf.getByRole('radio', { name: 'Valor digitado' }).focus();
+      await page.keyboard.press('ArrowRight');
+      await pressOn(
+        page,
+        irpf.getByRole('group', { name: 'Itens da base' }).getByRole('checkbox', { name: 'INSS' }),
+      );
+      await typeMoney(
+        page,
+        irpf.getByRole('textbox', { name: 'Parcela a deduzir (R$)' }),
+        '908,73',
+      );
+      const sindical = await addItem(page, 3, 'Sindical');
+      await sindical.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, sindical.getByRole('textbox', { name: 'Valor do item (R$)' }), '35');
+      const loans = await addItem(page, 4, 'Consignados');
+      await loans.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, loans.getByRole('textbox', { name: 'Valor do item (R$)' }), '3746,70');
+      const editor = page.getByRole('group', { name: 'Descontos e acréscimos', exact: true });
+      const status = plain(await editor.getByRole('status').textContent());
+      const list = plain(await editor.locator('dl').innerText());
+      check(
+        `${tag}: editor com base ligada e parcela`,
+        status === 'Líquido previsto: R$ 6.923,18' &&
+          list.includes('27,50% de R$ 13.511,93 menos R$ 908,73'),
+        `${status} · ${list.replace(/\s+/g, ' ').slice(0, 160)}`,
+      );
+      await irpf.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'remover item usado como base',
+    group: 'base-ligada-form',
+    path: '/finance/transactions/new?kind=income',
+    combos: ALL,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '14500');
+      await openTab(page, 'Descontos e acréscimos');
+      const inss = await addItem(page, 1, 'INSS');
+      await inss.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, inss.getByRole('textbox', { name: 'Valor do item (R$)' }), '988,07');
+      const irpf = await addItem(page, 2, 'IRPF');
+      await irpf.getByRole('textbox', { name: 'Percentual (%)' }).fill('27,5');
+      await pressOn(page, irpf.getByRole('checkbox', { name: 'Base diferente do bruto' }));
+      await irpf.getByRole('radio', { name: 'Valor digitado' }).focus();
+      await page.keyboard.press('ArrowRight');
+      await pressOn(
+        page,
+        irpf.getByRole('group', { name: 'Itens da base' }).getByRole('checkbox', { name: 'INSS' }),
+      );
+      await typeMoney(
+        page,
+        irpf.getByRole('textbox', { name: 'Parcela a deduzir (R$)' }),
+        '908,73',
+      );
+      // O cabeçalho fixo recolhe ao rolar no desktop: foco e teclado em vez do clique.
+      await page.getByRole('button', { name: 'Remover INSS' }).focus();
+      await page.keyboard.press('Enter');
+      const alert = page
+        .getByRole('alert')
+        .filter({ hasText: 'INSS é base de IRPF. Desmarque o vínculo antes de remover.' });
+      const groups = await page.getByRole('group', { name: /^Item \d+$/ }).count();
+      check(
+        `${tag}: remover item usado como base`,
+        (await alert.isVisible()) && groups === 2,
+        `alerta ${String(await alert.isVisible())} · ${String(groups)} item(ns)`,
+      );
+      await alert.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'detalhe com base ligada e parcela',
+    group: 'base-ligada-form',
+    path: '/finance/transactions/t40?tab=adjustments',
+    combos: ALL,
+    world: payslipWorld,
+    // O cartão de liquidação do holerite aberto pede a prévia do previsto.
+    override: (call) =>
+      call.method === 'POST' && call.path === '/transactions/settlement-preview'
+        ? {
+            body: { gross_amount: 1450000, net_amount: 692318, adjustments: PAYSLIP_ADJUSTMENTS },
+          }
+        : undefined,
+    run: async (page, tag) => {
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      const text = plain(await region.innerText());
+      const values = ['27,50% de R$ 13.511,93 menos R$ 908,73', 'R$ 2.807,05', 'R$ 6.923,18'];
+      check(
+        `${tag}: detalhe com base ligada e parcela`,
+        values.every((v) => text.includes(v)),
+        values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores',
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await region.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'aba no formulário',
+    group: 'descontos-abas',
+    path: '/finance/transactions/new?kind=income',
+    combos: ALL,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '14500');
+      await openTab(page, 'Descontos e acréscimos');
+      const inss = await addItem(page, 1, 'INSS');
+      await inss.getByRole('radio', { name: 'Valor fixo' }).check();
+      await typeMoney(page, inss.getByRole('textbox', { name: 'Valor do item (R$)' }), '988,07');
+      await openTab(page, 'Movimentação');
+      const gross = await page.getByRole('textbox', { name: /Valor previsto/ }).isVisible();
+      const buttons = await page
+        .getByRole('button', { name: 'Adicionar desconto ou acréscimo' })
+        .count();
+      await openTab(page, 'Descontos e acréscimos');
+      const name = await page
+        .getByRole('group', { name: 'Item 1', exact: true })
+        .getByRole('textbox', { name: 'Nome do item' })
+        .inputValue();
+      check(
+        `${tag}: aba no formulário`,
+        gross && buttons === 0 && name === 'INSS',
+        `bruto ${String(gross)} · ${String(buttons)} botão(ões) · item ${name}`,
+      );
+      await settle(page);
+    },
+  },
+  {
+    name: 'erro abre a aba',
+    group: 'descontos-abas',
+    path: '/finance/transactions/new?kind=income',
+    combos: PAIR,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Nova entrada' }).waitFor();
+      await page.getByRole('textbox', { name: 'Descrição' }).fill('Holerite');
+      await page.getByLabel('Conta', { exact: true }).click();
+      await page.getByRole('option').first().click();
+      await typeMoney(page, page.getByRole('textbox', { name: /Valor previsto/ }), '14500');
+      await openTab(page, 'Descontos e acréscimos');
+      await page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }).click();
+      await page
+        .getByRole('group', { name: 'Item 1', exact: true })
+        .getByRole('textbox', { name: 'Percentual (%)' })
+        .fill('11');
+      await openTab(page, 'Movimentação');
+      await page.getByRole('button', { name: 'Salvar' }).focus();
+      await page.keyboard.press('Enter');
+      await page
+        .locator('[role="tab"][aria-selected="true"]')
+        .filter({ hasText: 'Descontos e acréscimos' })
+        .waitFor();
+      await page.waitForFunction(
+        () => document.activeElement?.getAttribute('name') === 'adjustments.0.name',
+      );
+      const focused = await page.evaluate(() => document.activeElement?.getAttribute('name'));
+      check(`${tag}: erro abre a aba`, focused === 'adjustments.0.name', String(focused));
+      await settle(page);
+    },
+  },
+  {
+    name: 'aba no detalhe',
+    group: 'descontos-abas',
+    path: '/finance/transactions/t40',
+    combos: ALL,
+    world: payslipWorld,
+    // O cartão de liquidação do holerite aberto pede a prévia do previsto.
+    override: (call) =>
+      call.method === 'POST' && call.path === '/transactions/settlement-preview'
+        ? {
+            body: { gross_amount: 1450000, net_amount: 692318, adjustments: PAYSLIP_ADJUSTMENTS },
+          }
+        : undefined,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      const tabs =
+        (await page.getByRole('tab', { name: 'Visão geral', exact: true }).count()) === 1 &&
+        (await page.getByRole('tab', { name: 'Descontos e acréscimos', exact: true }).count()) ===
+          1;
+      const settlement = await page
+        .getByRole('region', { name: 'Liquidação', exact: true })
+        .isVisible();
+      await openTab(page, 'Descontos e acréscimos');
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      const text = plain(await region.innerText());
+      const values = ['27,50% de R$ 13.511,93 menos R$ 908,73', 'R$ 6.923,18'];
+      check(
+        `${tag}: aba no detalhe`,
+        tabs && settlement && values.every((v) => text.includes(v)),
+        `abas ${String(tabs)} · liquidação ${String(settlement)} · ${
+          values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores'
+        }`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await settle(page);
+    },
+  },
+  {
+    name: 'sem itens, sem aba',
+    group: 'descontos-abas',
+    path: '/finance/transactions/t1',
+    combos: PAIR,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1 }).first().waitFor();
+      await page.locator('main').getByText('Valor previsto').first().waitFor();
+      const count = await page.getByRole('tab', { name: 'Descontos e acréscimos' }).count();
+      check(`${tag}: sem itens, sem aba`, count === 0, `${String(count)} aba(s)`);
+      await settle(page);
+    },
+  },
+  {
+    name: 'aba na recorrência',
+    group: 'descontos-abas',
+    path: '/finance/recurring-transactions/r5',
+    combos: PAIR_ALT,
+    world: payslipWorld,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Salário mensal' }).waitFor();
+      await openTab(page, 'Descontos e acréscimos');
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      const text = plain(await region.innerText());
+      check(
+        `${tag}: aba na recorrência`,
+        text.includes('Líquido previsto') && text.includes('R$ 6.052,00'),
+        text.replace(/\s+/g, ' ').slice(0, 120),
+      );
+      await settle(page);
+    },
+  },
+  {
+    name: 'prévia do holerite pelo líquido',
+    group: 'base-ligada-liquidacao',
+    path: '/finance/transactions/t40',
+    combos: ALL,
+    world: payslipWorld,
+    override: payslipOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      const preview = await previewWith(page, '6923,18', 'R$ 14.500,00');
+      const text = plain(await preview.innerText());
+      const values = ['27,50% de R$ 13.511,93 menos R$ 908,73', 'R$ 2.807,05'];
+      check(
+        `${tag}: prévia do holerite pelo líquido`,
+        values.every((v) => text.includes(v)),
+        values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores',
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'parcela editada antes de confirmar',
+    group: 'base-ligada-liquidacao',
+    path: '/finance/transactions/t40',
+    combos: ALL,
+    world: payslipWorld,
+    override: payslipOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      await pressOn(
+        page,
+        page.getByRole('button', { name: 'Editar descontos e acréscimos' }),
+        'Enter',
+      );
+      const irpf = page.getByRole('group', { name: 'Item 2', exact: true });
+      const deduction = irpf.getByRole('textbox', { name: 'Parcela a deduzir (R$)' });
+      await deduction.fill('');
+      await deduction.focus();
+      await page.keyboard.type('875');
+      await page.keyboard.press('Tab');
+      const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+      await preview.getByText('R$ 14.546,53').first().waitFor();
+      const text = plain(await preview.innerText());
+      const help = await irpf
+        .getByText('Na liquidação, a base ligada é recalculada', { exact: false })
+        .isVisible();
+      const values = ['R$ 13.558,46', 'menos R$ 875,00'];
+      check(
+        `${tag}: parcela editada antes de confirmar`,
+        help && values.every((v) => text.includes(v)),
+        `ajuda ${String(help)} · ${
+          values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores'
+        }`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await settle(page);
+    },
+  },
+  {
+    name: 'liquidado com base ligada',
+    group: 'base-ligada-liquidacao',
+    path: '/finance/transactions/t40',
+    combos: ALL,
+    world: payslipWorld,
+    override: payslipOverride,
+    run: async (page, tag) => {
+      await page.getByRole('heading', { level: 1, name: 'Holerite' }).waitFor();
+      await previewWith(page, '6923,18', 'R$ 14.500,00');
+      await pressOn(page, page.getByRole('button', { name: 'Liquidar' }), 'Enter');
+      await page.getByRole('button', { name: 'Desfazer liquidação' }).waitFor();
+      await openTab(page, 'Descontos e acréscimos');
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.getByRole('heading', { name: 'Liquidado' }).waitFor();
+      const text = plain(await region.innerText());
+      const values = ['Liquidado', 'R$ 14.500,00', 'menos R$ 908,73'];
+      check(
+        `${tag}: liquidado com base ligada`,
+        values.every((v) => text.includes(v)),
+        values.filter((v) => !text.includes(v)).join(' · ') || 'todos os valores',
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
       await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
       await settle(page);
     },
@@ -2464,6 +2943,11 @@ const scenarios = [
       // Pelo teclado, pelo mesmo motivo do campo em `previewWith`.
       await page.getByRole('button', { name: 'Liquidar' }).focus();
       await page.keyboard.press('Enter');
+      await page
+        .getByText(/Recebeu/)
+        .first()
+        .waitFor();
+      await openTab(page, 'Descontos e acréscimos');
       const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
       await region.getByRole('heading', { name: 'Liquidado' }).waitFor();
       const text = plain(await region.innerText());
@@ -2526,6 +3010,31 @@ const scenarios = [
     },
   },
   {
+    name: 'Descontos do período com o holerite',
+    group: 'base-ligada-painel',
+    path: '/finance',
+    combos: ALL,
+    world: panelPayslipWorld,
+    run: async (page, tag) => {
+      const card = page.getByRole('region', { name: ADJUSTMENTS_CARD, exact: true });
+      await card.waitFor();
+      await settle(page, 400);
+      await centerCard(page, ADJUSTMENTS_CARD);
+      const deductions = plain(await card.getByRole('list', { name: 'Descontos' }).innerText());
+      check(
+        `${tag}: Descontos do período com o holerite`,
+        deductions.includes('IRPF') &&
+          deductions.includes(`${MINUS}R$ 2.807,05`) &&
+          deductions.includes('INSS') &&
+          deductions.includes(`${MINUS}R$ 988,07`),
+        deductions.replace(/\s+/g, ' '),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+      await settle(page);
+    },
+  },
+  {
     name: 'cartão sem descontos',
     group: 'descontos-painel',
     path: '/finance',
@@ -2574,7 +3083,11 @@ async function runScenarios(
         await baseChecks(page, errors, tag, theme);
         shots.push({ size, label: tag, png: await page.screenshot() });
       } catch (e) {
-        check(`${tag}: cenário executou`, false, String(e.message).split('\n')[0]);
+        check(
+          `${tag}: cenário executou`,
+          false,
+          String(e.message).split('\n').slice(0, 3).join(' / '),
+        );
       } finally {
         await context.close();
       }
@@ -2963,6 +3476,7 @@ async function recordAdjustmentsVideo(browser, base) {
     const gross = page.getByRole('textbox', { name: 'Valor previsto (R$)' });
     await reach(gross);
     await gross.pressSequentially('8000', { delay: 120 });
+    await openTab(page, 'Descontos e acréscimos');
     const add = page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' });
     await reach(add);
     const first = page.getByRole('group', { name: 'Item 1', exact: true });
@@ -3014,6 +3528,8 @@ async function recordAdjustmentsVideo(browser, base) {
     await pause(1500);
     await reach(toggle);
     await reach(page.getByRole('button', { name: 'Liquidar' }));
+    await page.getByRole('button', { name: 'Desfazer liquidação' }).waitFor();
+    await openTab(page, 'Descontos e acréscimos');
     const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
     await region.getByRole('heading', { name: 'Liquidado' }).waitFor();
     await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -3028,6 +3544,127 @@ async function recordAdjustmentsVideo(browser, base) {
     const text = plain(await card.innerText());
     check('vídeo: cartão Descontos do período', text.includes('INSS') && text.includes('Juros'));
   });
+}
+
+/** Cria o holerite novo (t41) a partir do t40, como `newSalary`. */
+function newPayslip(call, state) {
+  if (call.method !== 'POST' || call.path !== '/transactions') return undefined;
+  const template = state.transactions.find((e) => e.id === 't40');
+  const created = {
+    ...template,
+    id: 't41',
+    description: call.body.description,
+    status: 'open',
+    settled_amount: null,
+    settled_at: null,
+    settled_gross_amount: null,
+    settled_adjustments: [],
+    difference_amount: null,
+    difference_kind: null,
+  };
+  state.transactions.push(created);
+  return { status: 201, body: { items: [created] } };
+}
+
+async function recordPayslipVideo(browser, base) {
+  await withVideo(
+    browser,
+    'finance-base-ligada.webm',
+    async ({ page, context, pause, clickAt }) => {
+      const state = payslipWorld();
+      state.summary.adjustments_by_name = PANEL_PAYSLIP;
+      await mockApi(context, state, (call, s) => newPayslip(call, s) ?? payslipOverride(call, s));
+      // Centraliza antes de mover o cursor: o cabeçalho fixo cobre o topo da tela.
+      const reach = async (locator) => {
+        await locator.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await pause(300);
+        await clickAt(locator);
+      };
+      const type = async (locator, text, delay = 120) => {
+        await reach(locator);
+        await locator.pressSequentially(text, { delay });
+      };
+      await gotoHarness(page, base, '/finance/transactions/new?kind=income');
+      await pause(800);
+      await type(page.getByRole('textbox', { name: 'Descrição' }), 'Holerite de novembro', 60);
+      await reach(page.getByLabel('Conta', { exact: true }));
+      await clickAt(page.getByRole('option', { name: 'Conta principal' }));
+      await type(page.getByRole('textbox', { name: 'Valor previsto (R$)' }), '14500');
+      await openTab(page, 'Descontos e acréscimos');
+      await pause(600);
+      const add = page.getByRole('button', { name: 'Adicionar desconto ou acréscimo' });
+      const item = (number) => page.getByRole('group', { name: `Item ${number}`, exact: true });
+      const fixedItem = async (number, name, amount) => {
+        await reach(add);
+        await item(number).getByRole('textbox', { name: 'Nome do item' }).pressSequentially(name, {
+          delay: 80,
+        });
+        await reach(item(number).getByText('Valor fixo', { exact: true }));
+        await type(item(number).getByRole('textbox', { name: 'Valor do item (R$)' }), amount);
+      };
+      await fixedItem(1, 'INSS', '988,07');
+      await reach(add);
+      const irpf = item(2);
+      await irpf.getByRole('textbox', { name: 'Nome do item' }).pressSequentially('IRPF', {
+        delay: 80,
+      });
+      await type(irpf.getByRole('textbox', { name: 'Percentual (%)' }), '27,5');
+      await reach(irpf.getByText('Base diferente do bruto', { exact: true }));
+      await reach(irpf.getByText('Itens da lista', { exact: true }));
+      await reach(
+        irpf.getByRole('group', { name: 'Itens da base' }).getByText('INSS', { exact: true }),
+      );
+      await type(irpf.getByRole('textbox', { name: 'Parcela a deduzir (R$)' }), '908,73');
+      await fixedItem(3, 'Sindical', '35');
+      await fixedItem(4, 'Consignados', '3746,70');
+      await page.keyboard.press('Tab');
+      const editor = page.getByRole('group', { name: 'Descontos e acréscimos', exact: true });
+      await editor.locator('dl').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await pause(1200);
+      const live = plain(await editor.getByRole('status').textContent());
+      check('vídeo: líquido do holerite ao vivo', /R\$\s6\.923,18/.test(live), live);
+
+      await reach(page.getByRole('button', { name: 'Salvar' }));
+      await page.getByRole('heading', { level: 1, name: 'Holerite de novembro' }).waitFor();
+      await openTab(page, 'Descontos e acréscimos');
+      const region = page.getByRole('region', { name: 'Descontos e acréscimos' });
+      await region.waitFor();
+      await region.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await pause(1500);
+      check(
+        'vídeo: aba com a base ligada e a parcela',
+        plain(await region.innerText()).includes('27,50% de R$ 13.511,93 menos R$ 908,73'),
+      );
+      await openTab(page, 'Visão geral');
+      const settled = page.getByRole('textbox', { name: 'Valor efetivo (R$)' });
+      await settled.fill('');
+      await settled.focus();
+      await page.keyboard.type('6923,18', { delay: 120 });
+      await page.keyboard.press('Tab');
+      const preview = page.getByRole('region', { name: 'Prévia da liquidação' });
+      await preview.getByText('R$ 14.500,00').first().waitFor();
+      await preview.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await pause(1200);
+      check(
+        'vídeo: prévia volta ao bruto',
+        plain(await preview.innerText()).includes('R$ 14.500,00'),
+      );
+      await page.getByRole('button', { name: 'Liquidar' }).focus();
+      await page.keyboard.press('Enter');
+      await page.getByRole('button', { name: 'Desfazer liquidação' }).waitFor();
+      await pause(800);
+
+      await gotoHarness(page, base, '/finance');
+      const card = page.getByRole('region', { name: ADJUSTMENTS_CARD, exact: true });
+      await card.waitFor();
+      await centerCard(page, ADJUSTMENTS_CARD);
+      await pause(1800);
+      check(
+        'vídeo: cartão com o IRPF de R$ 2.807,05',
+        plain(await card.innerText()).includes(`${MINUS}R$ 2.807,05`),
+      );
+    },
+  );
 }
 
 const EVIDENCES = {
@@ -3142,6 +3779,48 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  'base-ligada-form': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'base-ligada-form'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-05 da SPEC-005 · base ligada e parcela no editor e no detalhamento (RF-03, RF-07, CT-09, CT-10, CT-14, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-base-ligada-form.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'descontos-abas': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'descontos-abas'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-06 da SPEC-005 · aba Descontos e acréscimos no formulário e nos detalhes (RF-11, RF-12, RN-11, CT-17, CT-18, CT-19, CB-10, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-descontos-abas.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
+  'base-ligada-liquidacao': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'base-ligada-liquidacao'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-07 da SPEC-005 · liquidação do holerite com base ligada e parcela (RF-08, CT-02, CT-11, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-base-ligada-liquidacao.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   'descontos-liquidacao': async (browser, base) => {
     const shots = await runScenarios(
       browser,
@@ -3173,6 +3852,23 @@ const EVIDENCES = {
   'descontos-video': async (browser, base) => {
     await recordAdjustmentsVideo(browser, base);
   },
+  'base-ligada-video': async (browser, base) => {
+    await recordPayslipVideo(browser, base);
+  },
+  'base-ligada-painel': async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'base-ligada-painel'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-08 da SPEC-005 · cartão Descontos do período com o IRPF já com a parcela (RF-10, CT-13, RNF-04, RNF-05) · API simulada, relógio em 05/11/2026',
+      file: 'finance-base-ligada-painel.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   'graficos-video': async (browser, base) => {
     await recordChartsVideo(browser, base);
   },
@@ -3193,7 +3889,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video, sinais, descontos-form, descontos-liquidacao, descontos-painel ou descontos-video.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video, sinais, descontos-form, descontos-liquidacao, descontos-painel, descontos-video, base-ligada-form, descontos-abas, base-ligada-liquidacao, base-ligada-painel ou base-ligada-video.`,
   );
   process.exit(2);
 }

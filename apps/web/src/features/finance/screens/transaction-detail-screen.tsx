@@ -78,6 +78,39 @@ export function TransactionDetailScreen({
   const fallback = item.kind === 'income' ? '/finance/income' : '/finance/expenses';
   const settled_items = item.settled_adjustments ?? [];
 
+  // A aba só existe com itens; a liquidação continua na visão geral (RN-11, decisão 16).
+  const adjustments_tab: FinanceExtraTab<Transaction> | null =
+    item.adjustments.length > 0 || settled_items.length > 0
+      ? {
+          id: 'adjustments',
+          label: t('finance.adjustments.title'),
+          render: () => (
+            <DataCard title={t('finance.adjustments.title')}>
+              <h3 className={styles.breakdownTitle}>{t('finance.adjustments.expected')}</h3>
+              <AdjustmentsBreakdown
+                currency={item.currency}
+                gross_amount={item.gross_amount}
+                items={breakdownItems(item.adjustments)}
+                net_amount={item.expected_amount}
+                net_label={t('finance.adjustments.net_expected')}
+              />
+              {settled && settled_items.length > 0 ? (
+                <>
+                  <h3 className={styles.breakdownTitle}>{t('finance.adjustments.settled')}</h3>
+                  <AdjustmentsBreakdown
+                    currency={item.currency}
+                    gross_amount={item.settled_gross_amount ?? item.settled_amount ?? 0}
+                    items={breakdownItems(settled_items)}
+                    net_amount={item.settled_amount ?? 0}
+                    net_label={t('finance.adjustments.net_settled')}
+                  />
+                </>
+              ) : null}
+            </DataCard>
+          ),
+        }
+      : null;
+
   function undoNow() {
     undo.mutate(item, {
       onSuccess: () => {
@@ -162,7 +195,7 @@ export function TransactionDetailScreen({
         label={t('finance.transaction_detail.tabs_label')}
         overview_label={t('finance.account_detail.overview')}
         entity={item}
-        extra_tabs={extra_tabs}
+        extra_tabs={adjustments_tab ? [adjustments_tab, ...extra_tabs] : extra_tabs}
         overview={
           <DetailGrid
             main={
@@ -203,32 +236,6 @@ export function TransactionDetailScreen({
                     ]}
                   />
                 </DataCard>
-                {item.adjustments.length > 0 || settled_items.length > 0 ? (
-                  <DataCard title={t('finance.adjustments.title')}>
-                    <h3 className={styles.breakdownTitle}>{t('finance.adjustments.expected')}</h3>
-                    <AdjustmentsBreakdown
-                      currency={item.currency}
-                      gross_amount={item.gross_amount}
-                      items={breakdownItems(item.adjustments)}
-                      net_amount={item.expected_amount}
-                      net_label={t('finance.adjustments.net_expected')}
-                    />
-                    {settled && settled_items.length > 0 ? (
-                      <>
-                        <h3 className={styles.breakdownTitle}>
-                          {t('finance.adjustments.settled')}
-                        </h3>
-                        <AdjustmentsBreakdown
-                          currency={item.currency}
-                          gross_amount={item.settled_gross_amount ?? item.settled_amount ?? 0}
-                          items={breakdownItems(settled_items)}
-                          net_amount={item.settled_amount ?? 0}
-                          net_label={t('finance.adjustments.net_settled')}
-                        />
-                      </>
-                    ) : null}
-                  </DataCard>
-                ) : null}
                 <SettlementCard
                   kind={item.kind}
                   currency={item.currency}

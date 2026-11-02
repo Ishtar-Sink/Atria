@@ -4,6 +4,7 @@
 //! Bruto, descontos e acréscimos na regra (SPEC-004: RF-02, RF-08, RF-10, RF-11, RN-10,
 //! CT-04, CT-05 e CT-06): as virtuais levam os itens da regra, e a cópia liquidada guarda
 //! os previstos e os da liquidação, sem mudar a regra.
+//! Base ligada e parcela na regra e na liquidação da ocorrência (SPEC-005: RF-09, CT-12).
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
@@ -983,4 +984,116 @@ async fn adj_undo_settlement_of_copy_reopens_occurrence_with_rule_items() {
         .await;
     assert_eq!(items[0]["expected_amount"], 605_200);
     assert_eq!(computed(&items[0]["adjustments"]), [88_000, 106_800]);
+}
+
+fn linked(name: &str, rate_bp: i64, base_items: Value, deduction_amount: Option<i64>) -> Value {
+    let mut item = percent(name, "deduction", rate_bp, None);
+    item["base_items"] = base_items;
+    if let Some(deduction) = deduction_amount {
+        item["deduction_amount"] = json!(deduction);
+    }
+    item
+}
+
+/// Holerite de outubro de 2026: o IRPF incide sobre o bruto menos o INSS, com a parcela.
+fn payroll_2026_10() -> Value {
+    json!([
+        fixed("INSS", "deduction", 98_807),
+        linked("IRPF", 2750, json!([0]), Some(90_873)),
+        fixed("Sindical", "deduction", 3_500),
+        fixed("Consignados", "deduction", 374_670),
+    ])
+}
+
+async fn payroll_rule(t: &FinanceTest, account: &str) -> Value {
+    let body = json!({
+        "kind": "income",
+        "account_id": account,
+        "gross_amount": 1_450_000,
+        "adjustments": payroll_2026_10(),
+        "description": "Salário",
+        "rule": monthly_rule("2026-11-05", 5),
+    });
+    let (status, body) = t.post(&t.alice, "/recurring-transactions", body).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    body
+}
+
+#[tokio::test]
+async fn s5_ct12_recurring_with_linked_base_projects_and_settles_keeping_rule() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+
+    let rule = payroll_rule(&t, &account).await;
+    let id = id_of(&rule);
+
+    assert_eq!(rule["expected_amount"], 692_318, "{rule}");
+    assert_eq!(rule["adjustments"][1]["base_items"], json!([0]));
+    assert_eq!(rule["adjustments"][1]["deduction_amount"], 90_873);
+    let projected = t
+        .items(&t.alice, "/transactions?from=2026-11-01&to=2027-01-31")
+        .await;
+    assert!(!projected.is_empty());
+    for item in &projected {
+        assert_eq!(item["expected_amount"], 692_318, "{item}");
+        assert_eq!(
+            computed(&item["adjustments"]),
+            [98_807, 280_705, 3_500, 374_670]
+        );
+    }
+    let (status, copy) = t
+        .settle_occurrence(&t.alice, &id, "2026-11-05", 692_318, "2026-11-05")
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    assert_eq!(copy["settled_gross_amount"], 1_450_000);
+    assert_eq!(
+        computed(&copy["settled_adjustments"]),
+        [98_807, 280_705, 3_500, 374_670]
+    );
+    let (_, rule) = t
+        .get(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(rule["gross_amount"], 1_450_000);
+    assert_eq!(rule["adjustments"][1]["base_items"], json!([0]));
+    assert_eq!(rule["adjustments"][1]["deduction_amount"], 90_873);
+    let december = t
+        .items(&t.alice, "/transactions?from=2026-12-01&to=2026-12-31")
+        .await;
+    assert_eq!(december[0]["expected_amount"], 692_318, "{december:?}");
+}
+
+#[tokio::test]
+async fn s5_rf09_occurrence_settlement_with_edited_deduction_keeps_rule() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let id = id_of(&payroll_rule(&t, &account).await);
+    let mut adjustments = payroll_2026_10();
+    adjustments[1]["deduction_amount"] = json!(87_500);
+    let body = json!({
+        "occurrence_date": "2026-11-05",
+        "settled_at": "2026-11-05",
+        "settled_amount": 692_318,
+        "adjustments": adjustments,
+    });
+
+    let (status, copy) = t
+        .post(
+            &t.alice,
+            &format!("/recurring-transactions/{id}/settlement"),
+            body,
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::CREATED, "{copy}");
+    assert_eq!(copy["settled_gross_amount"], 1_454_653);
+    assert_eq!(
+        computed(&copy["settled_adjustments"]),
+        [98_807, 285_358, 3_500, 374_670]
+    );
+    assert_eq!(copy["settled_adjustments"][1]["deduction_amount"], 87_500);
+    assert_eq!(copy["adjustments"][1]["deduction_amount"], 90_873);
+    let (_, rule) = t
+        .get(&t.alice, &format!("/recurring-transactions/{id}"))
+        .await;
+    assert_eq!(rule["adjustments"][1]["deduction_amount"], 90_873);
 }

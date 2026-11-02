@@ -328,7 +328,8 @@ impl From<AdjustmentMode> for AdjustmentModeDto {
     }
 }
 
-/// Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06).
+/// Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06), com a base
+/// ligada e a parcela (SPEC-005).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AdjustmentDto {
@@ -345,6 +346,13 @@ pub struct AdjustmentDto {
     pub rate_bp: Option<i32>,
     /// Só no percentual, opcional: base digitada em centavos; ausente, a base é o bruto.
     pub base_amount: Option<i64>,
+    /// Só no percentual, opcional: posições, a partir de 0, dos itens da mesma lista que formam a
+    /// base ligada (o bruto menos os descontos e mais os acréscimos ligados); não vem com
+    /// `base_amount`.
+    pub base_items: Option<Vec<usize>>,
+    /// Só no percentual, opcional: parcela a deduzir em centavos, maior que zero, já descontada
+    /// de `computed_amount`; não muda na liquidação.
+    pub deduction_amount: Option<i64>,
     /// Valor calculado em centavos; preenchido na resposta e ignorado no pedido.
     pub computed_amount: Option<i64>,
 }
@@ -358,6 +366,8 @@ impl From<AdjustmentDto> for Adjustment {
             amount: value.amount,
             rate_bp: value.rate_bp,
             base_amount: value.base_amount,
+            base_items: value.base_items.unwrap_or_default(),
+            deduction_amount: value.deduction_amount,
         }
     }
 }
@@ -372,6 +382,8 @@ impl From<ComputedAdjustment> for AdjustmentDto {
             amount: item.amount,
             rate_bp: item.rate_bp,
             base_amount: item.base_amount,
+            base_items: (!item.base_items.is_empty()).then_some(item.base_items),
+            deduction_amount: item.deduction_amount,
             computed_amount: Some(value.computed_amount),
         }
     }

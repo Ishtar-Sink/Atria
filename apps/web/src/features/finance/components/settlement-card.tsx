@@ -209,6 +209,7 @@ export function SettlementCard({
             <AdjustmentsField
               control={control}
               base_help={t('finance.settlement.base_scaled_help')}
+              linked_help={t('finance.settlement.base_linked_help')}
             />
           </div>
         ) : null}

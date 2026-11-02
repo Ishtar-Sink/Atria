@@ -7,11 +7,12 @@ import {
   FormGrid,
   LoadingState,
   SelectField,
+  Tabs,
   TextField,
 } from '@atria/ui';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
-import { Controller, useForm, useWatch, type Control } from 'react-hook-form';
+import { useEffect, useRef, useState } from 'react';
+import { Controller, useForm, useWatch, type Control, type FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
 import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { FormDate, FormSelect, useDateLabels } from '../../../shared/forms/form-fields';
@@ -57,7 +58,12 @@ import {
   useUpdateTransaction,
   type EditableField,
 } from '../hooks/use-transactions';
-import { adjustments_schema, fromAdjustments, toAdjustments } from '../lib/adjustment-form';
+import {
+  adjustments_schema,
+  adjustmentsIssue,
+  fromAdjustments,
+  toAdjustments,
+} from '../lib/adjustment-form';
 import { computeNet } from '../lib/adjustments';
 import { todayInTimeZone } from '../lib/finance-period';
 
@@ -80,16 +86,14 @@ const form_schema = z
     adjustments: adjustments_schema,
   })
   .superRefine((values, context) => {
-    const items = values.adjustments.length > 0 ? toAdjustments(values.adjustments) : null;
-    if (items && values.expected_amount !== null) {
-      const result = computeNet(values.expected_amount, items);
-      if (!result.ok && result.issue.code === 'net_not_positive') {
-        context.addIssue({
-          code: 'custom',
-          path: ['adjustments'],
-          message: 'finance.adjustments.net_not_positive',
-        });
-      }
+    // Os erros de valor dos itens vão para o campo do item; o do líquido, para a lista (FA-04).
+    const issue = adjustmentsIssue(values.expected_amount, values.adjustments);
+    if (issue) {
+      context.addIssue({
+        code: 'custom',
+        path: ['adjustments', ...issue.path],
+        message: issue.message,
+      });
     }
     if (values.expected_amount === null) {
       context.addIssue({
@@ -115,6 +119,8 @@ const form_schema = z
   });
 
 type FormValues = z.input<typeof form_schema>;
+
+type FormTab = 'data' | 'adjustments';
 
 type Mode =
   | { type: 'create'; kind: TransactionKind }
@@ -233,6 +239,11 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     mode.type === 'recurrence' ? mode.recurrence.id : '',
   );
   const [error, setError] = useState<string | null>(null);
+  // A aba fica no estado do formulário, não na URL: trocar de aba não perde o que foi digitado.
+  const [tab, setTab] = useState<FormTab>('data');
+  // Cada pedido de foco é um número novo, para o efeito rodar mesmo com a aba já aberta.
+  const [focus_request, setFocusRequest] = useState(0);
+  const form_ref = useRef<HTMLFormElement>(null);
   const {
     control,
     register,
@@ -255,6 +266,24 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
     formState.errors.adjustments?.message ?? formState.errors.adjustments?.root?.message;
   const account_options = accounts.map((item) => ({ value: item.id, label: item.name }));
   const category_options = categories.map((item) => ({ value: item.id, label: item.name }));
+
+  // Só os itens com problema: abre a aba deles; um erro nos dados mantém a aba de dados (CT-19).
+  function onInvalid(errors: FieldErrors<FormValues>) {
+    const keys = Object.keys(errors);
+    if (keys.length === 1 && keys[0] === 'adjustments') {
+      setTab('adjustments');
+      setFocusRequest((count) => count + 1);
+    }
+  }
+
+  useEffect(() => {
+    if (focus_request === 0) return;
+    const panel = form_ref.current?.querySelector('[role="tabpanel"]:not([hidden])');
+    const target =
+      panel?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+      panel?.querySelector<HTMLElement>('[role="alert"]');
+    target?.focus();
+  }, [focus_request]);
 
   function onRefused(failure: unknown) {
     const code = problemCode(failure);
@@ -366,6 +395,166 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
         : undefined;
   const fallback = kind === 'income' ? '/finance/income' : '/finance/expenses';
 
+  // As ações ficam no fim do cartão de cada aba, sem um cartão vazio só para elas.
+  const actions = (
+    <>
+      {error ? (
+        <p role="alert" data-span="full" className={styles.formError}>
+          {t(error)}
+        </p>
+      ) : null}
+      <FormActions
+        cancel_label={t('common.cancel')}
+        submit_label={t('common.save')}
+        loading={formState.isSubmitting}
+        onCancel={() => {
+          void navigate({ to: back_to ?? fallback });
+        }}
+      />
+    </>
+  );
+
+  const data_panel = (
+    <FormGrid>
+      {lock_help ? (
+        <p data-span="full" className={styles.notice}>
+          {lock_help}
+        </p>
+      ) : null}
+      <div data-span="full">
+        <TextField
+          label={t('finance.transaction_form.description')}
+          autoComplete="off"
+          maxLength={200}
+          {...register('description')}
+        />
+      </div>
+      {locked('account_id') ? (
+        <SelectField
+          label={t('finance.transaction_form.account')}
+          options={account_options}
+          value={mode.type === 'edit' ? mode.transaction.account_id : ''}
+          onChange={() => undefined}
+          disabled
+          {...(lock_help ? { help: lock_help } : {})}
+        />
+      ) : (
+        <FormSelect
+          control={control}
+          name="account_id"
+          label={t('finance.transaction_form.account')}
+          options={account_options}
+        />
+      )}
+      <FormSelect
+        control={control}
+        name="category_id"
+        label={t('finance.transaction_form.category')}
+        options={category_options}
+        empty_option={t('finance.transaction_form.no_category')}
+        empty_help={t('finance.transaction_form.no_categories')}
+      />
+      <div className={styles.rowText}>
+        <Link to="/finance/categories/new" search={{ kind }} className={styles.inlineLink}>
+          {t('finance.transaction_form.create_category')}
+        </Link>
+      </div>
+      {locked('expected_amount') ? (
+        <TextField
+          label={t('finance.transaction_form.expected_amount')}
+          value={formatMoney(
+            mode.type === 'edit' ? mode.transaction.gross_amount : 0,
+            mode.type === 'edit' ? mode.transaction.currency : 'BRL',
+            locale,
+          )}
+          disabled
+          readOnly
+          {...(lock_help ? { help: lock_help } : {})}
+        />
+      ) : (
+        <MoneyField
+          control={control}
+          name="expected_amount"
+          label={t(
+            mode.type === 'recurrence'
+              ? 'finance.transaction_form.amount'
+              : 'finance.transaction_form.expected_amount',
+          )}
+        />
+      )}
+      {repeat ? null : locked('expected_date') ? (
+        <Controller
+          control={control}
+          name="expected_date"
+          render={({ field }) => (
+            <DateField
+              label={t('finance.transaction_form.expected_date')}
+              value={field.value}
+              onChange={() => undefined}
+              locale={locale}
+              labels={date_labels}
+              disabled
+              {...(lock_help ? { help: lock_help } : {})}
+            />
+          )}
+        />
+      ) : (
+        <FormDate
+          control={control}
+          name="expected_date"
+          label={t('finance.transaction_form.expected_date')}
+        />
+      )}
+      {mode.type === 'create' ? (
+        <div data-span="full">
+          <Checkbox label={t('finance.transaction_form.repeat')} {...register('repeat')} />
+        </div>
+      ) : null}
+      {repeat ? (
+        <div data-span="full">
+          <FormRecurrence control={control} name="rule" with_time={false} show_summary />
+          {mode.type === 'recurrence' ? (
+            <p className={styles.cardHelp}>{t('finance.transaction_form.rule_scope')}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode.type === 'recurrence' ? null : <VisibilityField control={control} name="visibility" />}
+      {actions}
+    </FormGrid>
+  );
+
+  const adjustments_panel =
+    !locked('expected_amount') ||
+    (mode.type === 'edit' && mode.transaction.adjustments.length > 0) ? (
+      <FormGrid>
+        <div data-span="full">
+          {locked('expected_amount') ? (
+            mode.type === 'edit' && mode.transaction.adjustments.length > 0 ? (
+              <AdjustmentsBreakdown
+                currency={mode.transaction.currency}
+                gross_amount={mode.transaction.gross_amount}
+                items={breakdownItems(mode.transaction.adjustments)}
+                net_amount={mode.transaction.expected_amount}
+                net_label={t('finance.adjustments.net_expected')}
+              />
+            ) : null
+          ) : (
+            <>
+              <AdjustmentsField control={control}>
+                <LiveNet control={control} currency={currency} />
+              </AdjustmentsField>
+              {adjustments_error ? (
+                <p role="alert" tabIndex={-1} className={styles.formError}>
+                  {t(adjustments_error)}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+        {actions}
+      </FormGrid>
+    ) : null;
+
   return (
     <FormScreen>
       <StickyPageHeader
@@ -381,155 +570,43 @@ function TransactionForm({ mode, accounts, categories }: TransactionFormProps) {
         }
       />
       <form
+        ref={form_ref}
         noValidate
         onSubmit={(event) => {
-          void handleSubmit(onSubmit)(event);
+          void handleSubmit(onSubmit, onInvalid)(event);
         }}
       >
-        <FormGrid>
-          {lock_help ? (
-            <p data-span="full" className={styles.notice}>
-              {lock_help}
-            </p>
-          ) : null}
-          <div data-span="full">
-            <TextField
-              label={t('finance.transaction_form.description')}
-              autoComplete="off"
-              maxLength={200}
-              {...register('description')}
-            />
-          </div>
-          {locked('account_id') ? (
-            <SelectField
-              label={t('finance.transaction_form.account')}
-              options={account_options}
-              value={mode.type === 'edit' ? mode.transaction.account_id : ''}
-              onChange={() => undefined}
-              disabled
-              {...(lock_help ? { help: lock_help } : {})}
-            />
-          ) : (
-            <FormSelect
-              control={control}
-              name="account_id"
-              label={t('finance.transaction_form.account')}
-              options={account_options}
-            />
+        <Tabs
+          label={t(
+            mode.type === 'recurrence'
+              ? 'finance.recurrence_detail.tabs_label'
+              : 'finance.transaction_detail.tabs_label',
           )}
-          <FormSelect
-            control={control}
-            name="category_id"
-            label={t('finance.transaction_form.category')}
-            options={category_options}
-            empty_option={t('finance.transaction_form.no_category')}
-            empty_help={t('finance.transaction_form.no_categories')}
-          />
-          <div className={styles.rowText}>
-            <Link to="/finance/categories/new" search={{ kind }} className={styles.inlineLink}>
-              {t('finance.transaction_form.create_category')}
-            </Link>
-          </div>
-          {locked('expected_amount') ? (
-            <TextField
-              label={t('finance.transaction_form.expected_amount')}
-              value={formatMoney(
-                mode.type === 'edit' ? mode.transaction.gross_amount : 0,
-                mode.type === 'edit' ? mode.transaction.currency : 'BRL',
-                locale,
-              )}
-              disabled
-              readOnly
-              {...(lock_help ? { help: lock_help } : {})}
-            />
-          ) : (
-            <MoneyField
-              control={control}
-              name="expected_amount"
-              label={t(
+          value={tab}
+          onChange={(next) => {
+            setTab(next === 'adjustments' ? 'adjustments' : 'data');
+          }}
+          tabs={[
+            {
+              id: 'data',
+              label: t(
                 mode.type === 'recurrence'
-                  ? 'finance.transaction_form.amount'
-                  : 'finance.transaction_form.expected_amount',
-              )}
-            />
-          )}
-          <div data-span="full">
-            {locked('expected_amount') ? (
-              mode.type === 'edit' && mode.transaction.adjustments.length > 0 ? (
-                <AdjustmentsBreakdown
-                  currency={mode.transaction.currency}
-                  gross_amount={mode.transaction.gross_amount}
-                  items={breakdownItems(mode.transaction.adjustments)}
-                  net_amount={mode.transaction.expected_amount}
-                  net_label={t('finance.adjustments.net_expected')}
-                />
-              ) : null
-            ) : (
-              <>
-                <AdjustmentsField control={control}>
-                  <LiveNet control={control} currency={currency} />
-                </AdjustmentsField>
-                {adjustments_error ? (
-                  <p role="alert" className={styles.formError}>
-                    {t(adjustments_error)}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </div>
-          {repeat ? null : locked('expected_date') ? (
-            <Controller
-              control={control}
-              name="expected_date"
-              render={({ field }) => (
-                <DateField
-                  label={t('finance.transaction_form.expected_date')}
-                  value={field.value}
-                  onChange={() => undefined}
-                  locale={locale}
-                  labels={date_labels}
-                  disabled
-                  {...(lock_help ? { help: lock_help } : {})}
-                />
-              )}
-            />
-          ) : (
-            <FormDate
-              control={control}
-              name="expected_date"
-              label={t('finance.transaction_form.expected_date')}
-            />
-          )}
-          {mode.type === 'create' ? (
-            <div data-span="full">
-              <Checkbox label={t('finance.transaction_form.repeat')} {...register('repeat')} />
-            </div>
-          ) : null}
-          {repeat ? (
-            <div data-span="full">
-              <FormRecurrence control={control} name="rule" with_time={false} show_summary />
-              {mode.type === 'recurrence' ? (
-                <p className={styles.cardHelp}>{t('finance.transaction_form.rule_scope')}</p>
-              ) : null}
-            </div>
-          ) : null}
-          {mode.type === 'recurrence' ? null : (
-            <VisibilityField control={control} name="visibility" />
-          )}
-          {error ? (
-            <p role="alert" data-span="full" className={styles.formError}>
-              {t(error)}
-            </p>
-          ) : null}
-          <FormActions
-            cancel_label={t('common.cancel')}
-            submit_label={t('common.save')}
-            loading={formState.isSubmitting}
-            onCancel={() => {
-              void navigate({ to: back_to ?? fallback });
-            }}
-          />
-        </FormGrid>
+                  ? 'finance.recurrence_detail.data'
+                  : 'finance.transaction_detail.data',
+              ),
+              panel: data_panel,
+            },
+            ...(adjustments_panel
+              ? [
+                  {
+                    id: 'adjustments',
+                    label: t('finance.adjustments.title'),
+                    panel: adjustments_panel,
+                  },
+                ]
+              : []),
+          ]}
+        />
       </form>
     </FormScreen>
   );

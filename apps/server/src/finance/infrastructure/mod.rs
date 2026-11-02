@@ -129,6 +129,12 @@ pub(crate) struct AdjustmentRow {
     amount: Option<i64>,
     rate_bp: Option<i32>,
     base_amount: Option<i64>,
+    // As linhas da SPEC-004 não têm estas chaves e continuam iguais, sem migração: só são
+    // gravadas com vínculo ou parcela, e a leitura usa o padrão (RNF-03).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    base_items: Vec<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    deduction_amount: Option<i64>,
     computed_amount: i64,
 }
 
@@ -142,6 +148,8 @@ pub(crate) fn adjustment_rows(items: &[ComputedAdjustment]) -> Vec<AdjustmentRow
             amount: item.adjustment.amount,
             rate_bp: item.adjustment.rate_bp,
             base_amount: item.adjustment.base_amount,
+            base_items: item.adjustment.base_items.clone(),
+            deduction_amount: item.adjustment.deduction_amount,
             computed_amount: item.computed_amount,
         })
         .collect()
@@ -163,6 +171,8 @@ pub(crate) fn adjustments_from_rows(
                     amount: row.amount,
                     rate_bp: row.rate_bp,
                     base_amount: row.base_amount,
+                    base_items: row.base_items,
+                    deduction_amount: row.deduction_amount,
                 },
                 computed_amount: row.computed_amount,
             })

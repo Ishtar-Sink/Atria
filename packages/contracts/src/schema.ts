@@ -1555,7 +1555,10 @@ export interface components {
         };
         /** @enum {string} */
         AdjustmentDirectionDto: "deduction" | "addition";
-        /** @description Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06). */
+        /**
+         * @description Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06), com a base
+         *     ligada e a parcela (SPEC-005).
+         */
         AdjustmentDto: {
             /**
              * Format: int64
@@ -1568,10 +1571,22 @@ export interface components {
              */
             base_amount?: number | null;
             /**
+             * @description Só no percentual, opcional: posições, a partir de 0, dos itens da mesma lista que formam a
+             *     base ligada (o bruto menos os descontos e mais os acréscimos ligados); não vem com
+             *     `base_amount`.
+             */
+            base_items?: number[] | null;
+            /**
              * Format: int64
              * @description Valor calculado em centavos; preenchido na resposta e ignorado no pedido.
              */
             computed_amount?: number | null;
+            /**
+             * Format: int64
+             * @description Só no percentual, opcional: parcela a deduzir em centavos, maior que zero, já descontada
+             *     de `computed_amount`; não muda na liquidação.
+             */
+            deduction_amount?: number | null;
             /** @description Desconto (`deduction`) ou acréscimo (`addition`). */
             direction: components["schemas"]["AdjustmentDirectionDto"];
             /** @description Valor fixo (`fixed`) ou percentual (`percent`). */

@@ -2,7 +2,7 @@ import { formatMoney } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import type { AdjustmentDto } from '../hooks/use-transactions';
-import { formatRate } from '../lib/adjustment-form';
+import { formatRate, linkedBase } from '../lib/adjustment-form';
 import styles from './finance.module.css';
 
 export interface BreakdownItem {
@@ -11,6 +11,8 @@ export interface BreakdownItem {
   mode: 'fixed' | 'percent';
   rate_bp?: number | null;
   base_amount?: number | null;
+  base_items?: readonly number[] | null;
+  deduction_amount?: number | null;
   computed_amount: number;
 }
 
@@ -52,11 +54,21 @@ export function AdjustmentsBreakdown({
   function hint(item: BreakdownItem): string {
     if (item.mode === 'fixed' || item.rate_bp == null) return t('finance.adjustments.fixed_hint');
     const rate = formatRate(item.rate_bp, locale);
-    if (item.base_amount == null) return t('finance.adjustments.on_gross', { rate });
-    return t('finance.adjustments.on_base', {
-      rate,
-      base: formatMoney(item.base_amount, currency, locale),
-    });
+    // O valor do item já vem com a parcela; a dica mostra a base ligada calculada (RF-07).
+    const links = item.base_items ?? [];
+    const base =
+      links.length > 0 ? linkedBase(gross_amount, items, links) : (item.base_amount ?? null);
+    const deduction =
+      item.deduction_amount != null ? formatMoney(item.deduction_amount, currency, locale) : null;
+    if (base === null) {
+      return deduction === null
+        ? t('finance.adjustments.on_gross', { rate })
+        : t('finance.adjustments.on_gross_less', { rate, deduction });
+    }
+    const amount = formatMoney(base, currency, locale);
+    return deduction === null
+      ? t('finance.adjustments.on_base', { rate, base: amount })
+      : t('finance.adjustments.on_base_less', { rate, base: amount, deduction });
   }
 
   return (

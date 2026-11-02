@@ -14,6 +14,7 @@ import {
   pageHeading,
   problem,
   renderFinance,
+  payslip,
   SALARY_ADJUSTMENTS,
   salary,
   settledSalary,
@@ -142,6 +143,7 @@ function seed(): FinanceWorld {
       COPY,
       salary(),
       settledSalary(),
+      payslip(),
     ],
     recurring: [rent()],
     copies: { r1: [COPY] },
@@ -165,6 +167,16 @@ function seed(): FinanceWorld {
 
 function lastCall(calls: ApiCall[], method: string, path: string) {
   return [...calls].reverse().find((call) => call.method === method && call.path === path);
+}
+
+type User = ReturnType<typeof userEvent.setup>;
+
+async function openAdjustmentsTab(user: User) {
+  await user.click(screen.getByRole('tab', { name: 'Descontos e acréscimos' }));
+}
+
+async function openDataTab(user: User, name = 'Movimentação') {
+  await user.click(screen.getByRole('tab', { name }));
 }
 
 async function chooseOption(label: string, option: string) {
@@ -792,11 +804,16 @@ describe('transaction forms', () => {
     await pageHeading('Nova entrada');
     const gross = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
     await user.type(gross, '8.000,00');
-    const group = await addPercent(user, 1, 'INSS', '11');
+    await openAdjustmentsTab(user);
+    await addPercent(user, 1, 'INSS', '11');
     expect(liveNet()).toBe('Líquido previsto: R$ 7.120,00');
-    await user.clear(gross);
-    await user.type(gross, '9.000,00');
+    await openDataTab(user);
+    const edited = screen.getByRole('textbox', { name: 'Valor previsto (R$)' });
+    await user.clear(edited);
+    await user.type(edited, '9.000,00');
+    await openAdjustmentsTab(user);
     expect(liveNet()).toBe('Líquido previsto: R$ 8.010,00');
+    const group = screen.getByRole('group', { name: 'Item 1' });
     const rate = within(group).getByRole('textbox', { name: 'Percentual (%)' });
     await user.clear(rate);
     await user.type(rate, '12');
@@ -811,6 +828,7 @@ describe('transaction forms', () => {
     await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Salário');
     await chooseOption('Conta', 'Conta');
     await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await openAdjustmentsTab(user);
     await addPercent(user, 1, 'INSS', '11');
     const irpf = await addPercent(user, 2, 'IRPF', '15');
     await user.click(within(irpf).getByLabelText('Base diferente do bruto'));
@@ -854,6 +872,7 @@ describe('transaction forms', () => {
     await pageHeading('Nova saída');
     await chooseOption('Conta', 'Conta');
     await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '100,00');
+    await openAdjustmentsTab(user);
     await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
     const group = screen.getByRole('group', { name: 'Item 1' });
     await user.type(within(group).getByRole('textbox', { name: 'Nome do item' }), 'Cupom');
@@ -874,6 +893,7 @@ describe('transaction forms', () => {
     await pageHeading('Nova entrada');
     await chooseOption('Conta', 'Conta');
     await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await openAdjustmentsTab(user);
     const group = await addPercent(user, 1, 'IRPF', '15');
     await user.click(within(group).getByLabelText('Base diferente do bruto'));
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -889,6 +909,7 @@ describe('transaction forms', () => {
     expect(
       plain(screen.getByRole<HTMLInputElement>('textbox', { name: 'Valor previsto (R$)' }).value),
     ).toBe('R$ 8.000,00');
+    await openAdjustmentsTab(user);
     const first = screen.getByRole('group', { name: 'Item 1' });
     const second = screen.getByRole('group', { name: 'Item 2' });
     expect(within(first).getByRole('textbox', { name: 'Nome do item' })).toHaveValue('INSS');
@@ -919,6 +940,7 @@ describe('transaction forms', () => {
     await chooseOption('Conta', 'Conta');
     await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '200,00');
     await user.click(screen.getByRole('checkbox', { name: 'Repetir' }));
+    await openAdjustmentsTab(user);
     await addPercent(user, 1, 'Desconto', '10');
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => {
@@ -934,13 +956,176 @@ describe('transaction forms', () => {
     ]);
     expect(body).not.toHaveProperty('expected_amount');
   });
+
+  it('ct17 keeps the editor and the net in their own tab and the gross in the data tab', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    const { container } = renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    const tabs = screen.getByRole('tablist', { name: 'Seções da movimentação' });
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Movimentação', 'Descontos e acréscimos']);
+    expect(screen.getByRole('tab', { name: 'Movimentação' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.queryByRole('button', { name: 'Adicionar desconto ou acréscimo' })).toBeNull();
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await openAdjustmentsTab(user);
+    expect(screen.queryByRole('textbox', { name: 'Valor previsto (R$)' })).toBeNull();
+    await addPercent(user, 1, 'INSS', '11');
+    expect(liveNet()).toBe('Líquido previsto: R$ 7.120,00');
+    await openDataTab(user);
+    expect(
+      plain(screen.getByRole<HTMLInputElement>('textbox', { name: 'Valor previsto (R$)' }).value),
+    ).toBe('R$ 8.000,00');
+    await openAdjustmentsTab(user);
+    const group = screen.getByRole('group', { name: 'Item 1' });
+    expect(within(group).getByRole('textbox', { name: 'Nome do item' })).toHaveValue('INSS');
+    expect(liveNet()).toBe('Líquido previsto: R$ 7.120,00');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('ct19 opens the adjustments tab and focuses the name of the item', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Holerite');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await openAdjustmentsTab(user);
+    await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
+    const added = screen.getByRole('group', { name: 'Item 1' });
+    await user.type(within(added).getByRole('textbox', { name: 'Percentual (%)' }), '11');
+    await openDataTab(user);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Descontos e acréscimos' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+    const group = screen.getByRole('group', { name: 'Item 1' });
+    await waitFor(() => {
+      expect(within(group).getByRole('textbox', { name: 'Nome do item' })).toHaveFocus();
+    });
+    expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
+  });
+
+  it('cb10 focuses the first field with a problem in the adjustments tab', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '8.000,00');
+    await openAdjustmentsTab(user);
+    await addPercent(user, 1, 'INSS', '11');
+    await addPercent(user, 2, 'IRPF', '0');
+    await openDataTab(user);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      const group = screen.getByRole('group', { name: 'Item 2' });
+      expect(within(group).getByRole('textbox', { name: 'Percentual (%)' })).toHaveFocus();
+    });
+  });
+
+  it('keeps the data tab when a data field also has a problem', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=expense');
+    await pageHeading('Nova saída');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '100,00');
+    await openAdjustmentsTab(user);
+    await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
+    await openDataTab(user);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByText('Escolha a conta.')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Movimentação' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('fa04 shows the deduction above the percent on its field', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '1.000,00');
+    await openAdjustmentsTab(user);
+    const group = await addPercent(user, 1, 'IRPF', '27,5');
+    await user.type(
+      within(group).getByRole('textbox', { name: 'Parcela a deduzir (R$)' }),
+      '908,73',
+    );
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(
+      await within(screen.getByRole('group', { name: 'Item 1' })).findByText(
+        'A parcela é maior que o valor do percentual. Revise a parcela ou o percentual.',
+      ),
+    ).toBeInTheDocument();
+    expect(lastCall(calls, 'POST', '/transactions')).toBeUndefined();
+  });
+
+  it('ct01 sends the payslip with a linked base and a deduction', async () => {
+    const { calls } = financeServer(seed());
+    const user = userEvent.setup();
+    renderFinance('/finance/transactions/new?kind=income');
+    await pageHeading('Nova entrada');
+    await user.type(screen.getByRole('textbox', { name: 'Descrição' }), 'Holerite');
+    await chooseOption('Conta', 'Conta');
+    await user.type(screen.getByRole('textbox', { name: 'Valor previsto (R$)' }), '14.500,00');
+    await openAdjustmentsTab(user);
+    const addFixed = async (number: number, name: string, amount: string) => {
+      await user.click(screen.getByRole('button', { name: 'Adicionar desconto ou acréscimo' }));
+      const group = screen.getByRole('group', { name: `Item ${String(number)}` });
+      await user.type(within(group).getByRole('textbox', { name: 'Nome do item' }), name);
+      await user.click(within(group).getByText('Valor fixo'));
+      await user.type(within(group).getByRole('textbox', { name: 'Valor do item (R$)' }), amount);
+    };
+    await addFixed(1, 'INSS', '988,07');
+    const irpf = await addPercent(user, 2, 'IRPF', '27,5');
+    await user.click(within(irpf).getByLabelText('Base diferente do bruto'));
+    await user.click(within(irpf).getByRole('radio', { name: 'Itens da lista' }));
+    const links = within(irpf).getByRole('group', { name: 'Itens da base' });
+    await user.click(within(links).getByRole('checkbox', { name: 'INSS' }));
+    await user.type(
+      within(irpf).getByRole('textbox', { name: 'Parcela a deduzir (R$)' }),
+      '908,73',
+    );
+    await addFixed(3, 'Sindical', '35,00');
+    await addFixed(4, 'Consignados', '3.746,70');
+    expect(liveNet()).toBe('Líquido previsto: R$ 6.923,18');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(lastCall(calls, 'POST', '/transactions')).toBeDefined();
+    });
+    const body = lastCall(calls, 'POST', '/transactions')?.body as Record<string, unknown>;
+    expect(body.gross_amount).toBe(1450000);
+    expect((body.adjustments as unknown[])[1]).toEqual({
+      name: 'IRPF',
+      direction: 'deduction',
+      mode: 'percent',
+      rate_bp: 2750,
+      base_items: [0],
+      deduction_amount: 90873,
+    });
+  });
 });
 
 describe('settlement and detail', () => {
   it('ct10 shows the gross, each item and the net expected and settled', async () => {
     financeServer(seed());
+    const user = userEvent.setup();
     const { container } = renderFinance('/finance/transactions/t21');
     await pageHeading('Salário');
+    await openAdjustmentsTab(user);
     const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
     expect(within(region).getByRole('heading', { name: 'Previsto' })).toBeInTheDocument();
     expect(within(region).getByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
@@ -1001,12 +1186,13 @@ describe('settlement and detail', () => {
       settled_at: '2026-11-05',
       adjustments: [INSS, IRPF],
     });
-    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
-    expect(await within(region).findByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
-    expect(plain(region.textContent)).toContain('R$ 8.592,20');
     expect(plain((await screen.findByText(/Recebeu/)).textContent)).toBe(
       'Recebeu R$ 448,00 a mais',
     );
+    await openAdjustmentsTab(user);
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    expect(await within(region).findByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
+    expect(plain(region.textContent)).toContain('R$ 8.592,20');
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -1185,6 +1371,50 @@ describe('settlement and detail', () => {
     });
     expect(lastCall(calls, 'DELETE', '/transactions/t1')).toBeDefined();
   });
+
+  it('ct18 shows the adjustments tab next to the overview only with items', async () => {
+    financeServer(seed());
+    const user = userEvent.setup();
+    const first = renderFinance('/finance/transactions/t40');
+    await pageHeading('Holerite');
+    const tabs = screen.getByRole('tablist', { name: 'Seções da movimentação' });
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Visão geral', 'Descontos e acréscimos']);
+    expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('region', { name: 'Liquidação' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Descontos e acréscimos' })).toBeNull();
+    await openAdjustmentsTab(user);
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    const rows = breakdownRows(region.querySelector('dl') as Element);
+    expect(rows).toContain('IRPF 27,50% de R$ 13.511,93 menos R$ 908,73 −R$ 2.807,05');
+    expect(rows).toContain('Líquido previsto R$ 6.923,18');
+    expect(screen.queryByRole('region', { name: 'Liquidação' })).toBeNull();
+    expect(await axe(first.container)).toHaveNoViolations();
+    first.unmount();
+    renderFinance('/finance/transactions/t1');
+    await pageHeading('Feira');
+    expect(screen.queryByRole('tab', { name: 'Descontos e acréscimos' })).toBeNull();
+  });
+
+  it('ct18 opens the adjustments tab from the address', async () => {
+    financeServer(seed());
+    const first = renderFinance('/finance/transactions/t21?tab=adjustments');
+    await pageHeading('Salário');
+    const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
+    expect(within(region).getByRole('heading', { name: 'Previsto' })).toBeInTheDocument();
+    expect(within(region).getByRole('heading', { name: 'Liquidado' })).toBeInTheDocument();
+    first.unmount();
+    renderFinance('/finance/transactions/t1?tab=adjustments');
+    await pageHeading('Feira');
+    expect(screen.queryByRole('region', { name: 'Descontos e acréscimos' })).toBeNull();
+    expect(screen.getByText('Valor previsto', { selector: 'dt' })).toBeInTheDocument();
+  });
 });
 
 describe('recurrence detail', () => {
@@ -1267,6 +1497,7 @@ describe('recurrence detail', () => {
       adjustments: [INSS, { ...IRPF, rate_bp: 2250 }],
     });
     expect(lastCall(calls, 'PATCH', '/recurring-transactions/r1')).toBeUndefined();
+    await openAdjustmentsTab(user);
     const region = screen.getByRole('region', { name: 'Descontos e acréscimos' });
     expect(plain(region.textContent)).toContain('15,00% de R$ 7.120,00');
   });

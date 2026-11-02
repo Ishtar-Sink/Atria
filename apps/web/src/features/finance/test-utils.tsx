@@ -170,6 +170,28 @@ export const SALARY_SETTLED_ADJUSTMENTS: AdjustmentDto[] = [
   },
 ];
 
+/** Holerite do CT-01 da SPEC-005: o IRPF incide sobre o bruto menos o INSS, com a parcela. */
+export const PAYSLIP_ADJUSTMENTS: AdjustmentDto[] = [
+  { name: 'INSS', direction: 'deduction', mode: 'fixed', amount: 98807, computed_amount: 98807 },
+  {
+    name: 'IRPF',
+    direction: 'deduction',
+    mode: 'percent',
+    rate_bp: 2750,
+    base_items: [0],
+    deduction_amount: 90873,
+    computed_amount: 280705,
+  },
+  { name: 'Sindical', direction: 'deduction', mode: 'fixed', amount: 3500, computed_amount: 3500 },
+  {
+    name: 'Consignados',
+    direction: 'deduction',
+    mode: 'fixed',
+    amount: 374670,
+    computed_amount: 374670,
+  },
+];
+
 export function salary(overrides: Partial<Transaction> = {}): Transaction {
   return transaction({
     id: 't20',
@@ -195,6 +217,21 @@ export function settledSalary(): Transaction {
     settled_adjustments: SALARY_SETTLED_ADJUSTMENTS,
     difference_amount: 44800,
     difference_kind: 'gain',
+  });
+}
+
+export function payslip(overrides: Partial<Transaction> = {}): Transaction {
+  return transaction({
+    id: 't40',
+    kind: 'income',
+    description: 'Holerite',
+    category_id: null,
+    gross_amount: 1450000,
+    expected_amount: 692318,
+    adjustments: PAYSLIP_ADJUSTMENTS,
+    expected_date: '2026-11-05',
+    effective_date: '2026-11-05',
+    ...overrides,
   });
 }
 

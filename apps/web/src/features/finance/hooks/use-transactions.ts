@@ -48,6 +48,8 @@ export function adjustmentInputs(items: readonly AdjustmentDto[]): AdjustmentInp
           mode: 'percent',
           rate_bp: item.rate_bp,
           ...(item.base_amount != null ? { base_amount: item.base_amount } : {}),
+          ...(item.base_items?.length ? { base_items: [...item.base_items] } : {}),
+          ...(item.deduction_amount != null ? { deduction_amount: item.deduction_amount } : {}),
         },
   );
 }

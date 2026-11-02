@@ -561,7 +561,29 @@ a.barLabel {
 
 .adjustmentRemove {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
   justify-content: flex-end;
+}
+
+.adjustmentRemove > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.adjustmentLinks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.adjustmentLinks > legend {
+  padding: 0;
+  font-weight: 600;
 }
 
 .breakdown {
@@ -638,6 +660,10 @@ a.barLabel {
   }
 
   .adjustmentItem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adjustmentLinks {
     grid-template-columns: minmax(0, 1fr);
   }
 

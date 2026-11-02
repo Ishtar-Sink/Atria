@@ -1,6 +1,7 @@
 //! Descontos e acréscimos nominais de uma movimentação: líquido a partir do bruto e bruto
 //! equivalente a um líquido, em centavos e centésimos de ponto percentual inteiros, sem ponto
-//! flutuante (RN-01 a RN-07, RNF-01).
+//! flutuante (RN-01 a RN-07, RNF-01). Base ligada a outros itens da mesma lista e parcela a
+//! deduzir no percentual, calculadas na ordem das dependências (SPEC-005, RN-01 a RN-09).
 
 use crate::finance::domain::{FinanceError, required_name};
 
@@ -9,6 +10,8 @@ pub const NAME_MAX_CHARS: usize = 60;
 pub const RATE_BP_MIN: i32 = 1;
 pub const RATE_BP_MAX: i32 = 9_999;
 const BP_SCALE: i128 = 10_000;
+/// Níveis máximos de itens ligados em cadeia, para o cálculo exato caber em `i128`.
+pub const MAX_LINK_DEPTH: usize = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdjustmentDirection {
@@ -71,6 +74,10 @@ pub struct Adjustment {
     pub amount: Option<i64>,
     pub rate_bp: Option<i32>,
     pub base_amount: Option<i64>,
+    /// Só no percentual: posições, a partir de 0, dos itens da mesma lista que formam a base ligada; vazia, a base é o bruto ou a digitada (RN-01, RN-02).
+    pub base_items: Vec<usize>,
+    /// Só no percentual: parcela a deduzir em centavos, maior que zero, fixa na liquidação (RN-05, RN-07).
+    pub deduction_amount: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,7 +112,8 @@ pub fn validate_adjustments(items: &[Adjustment]) -> Result<(), FinanceError> {
     if items.len() > MAX_ADJUSTMENTS {
         return Err(FinanceError::invalid("adjustments", "too_many"));
     }
-    items.iter().try_for_each(validate_item)
+    items.iter().try_for_each(validate_item)?;
+    dependency_order(items).map(|_| ())
 }
 
 fn validate_item(item: &Adjustment) -> Result<(), FinanceError> {
@@ -119,6 +127,18 @@ fn validate_item(item: &Adjustment) -> Result<(), FinanceError> {
 fn validate_fixed(item: &Adjustment) -> Result<(), FinanceError> {
     if item.rate_bp.is_some() || item.base_amount.is_some() {
         return Err(FinanceError::invalid("adjustments.mode", "fields_mismatch"));
+    }
+    if !item.base_items.is_empty() {
+        return Err(FinanceError::invalid(
+            "adjustments.base_items",
+            "fields_mismatch",
+        ));
+    }
+    if item.deduction_amount.is_some() {
+        return Err(FinanceError::invalid(
+            "adjustments.deduction_amount",
+            "fields_mismatch",
+        ));
     }
     if !item.amount.is_some_and(|amount| amount > 0) {
         return Err(FinanceError::invalid(
@@ -145,38 +165,153 @@ fn validate_percent(item: &Adjustment) -> Result<(), FinanceError> {
             "must_be_positive",
         ));
     }
+    if !item.base_items.is_empty() && item.base_amount.is_some() {
+        return Err(FinanceError::invalid(
+            "adjustments.base_items",
+            "fields_mismatch",
+        ));
+    }
+    if item
+        .deduction_amount
+        .is_some_and(|deduction| deduction <= 0)
+    {
+        return Err(FinanceError::invalid(
+            "adjustments.deduction_amount",
+            "must_be_positive",
+        ));
+    }
     Ok(())
 }
 
-fn item_amount(item: &Adjustment, gross: i64) -> i64 {
-    match item.mode {
-        AdjustmentMode::Fixed => item.amount.unwrap_or(0),
-        AdjustmentMode::Percent => {
-            let base = item.base_amount.unwrap_or(gross);
-            let rate = item.rate_bp.unwrap_or(0);
-            let value = round_half_up(i128::from(base) * i128::from(rate), BP_SCALE);
-            // A taxa é menor que 100%, então o valor nunca passa da base, que cabe em `i64`.
-            i64::try_from(value).unwrap_or(i64::MAX)
+fn base_items_error(code: &'static str) -> FinanceError {
+    FinanceError::invalid("adjustments.base_items", code)
+}
+
+/// Ordem de cálculo em que cada item vem depois dos itens da sua base ligada; confere
+/// posições, autorreferência, repetição, ciclo e profundidade (RN-01, RN-02, CB-01, CB-02).
+fn dependency_order(items: &[Adjustment]) -> Result<Vec<usize>, FinanceError> {
+    for (index, item) in items.iter().enumerate() {
+        for (at, &position) in item.base_items.iter().enumerate() {
+            if position >= items.len() {
+                return Err(base_items_error("out_of_range"));
+            }
+            if position == index {
+                return Err(base_items_error("self_reference"));
+            }
+            if item.base_items[..at].contains(&position) {
+                return Err(base_items_error("fields_mismatch"));
+            }
         }
+    }
+    let mut state = vec![0_u8; items.len()];
+    let mut depth = vec![0_usize; items.len()];
+    let mut order = Vec::with_capacity(items.len());
+    for index in 0..items.len() {
+        visit(index, items, &mut state, &mut depth, &mut order)?;
+    }
+    Ok(order)
+}
+
+/// Busca em profundidade: `state` 0 não visitado, 1 em visita, 2 pronto. A lista tem no
+/// máximo `MAX_ADJUSTMENTS` itens, então a recursão direta é limitada.
+fn visit(
+    index: usize,
+    items: &[Adjustment],
+    state: &mut [u8],
+    depth: &mut [usize],
+    order: &mut Vec<usize>,
+) -> Result<(), FinanceError> {
+    match state[index] {
+        2 => return Ok(()),
+        1 => return Err(base_items_error("cycle")),
+        _ => {}
+    }
+    state[index] = 1;
+    let mut deepest = 0;
+    for &position in &items[index].base_items {
+        visit(position, items, state, depth, order)?;
+        deepest = deepest.max(depth[position] + 1);
+    }
+    if deepest > MAX_LINK_DEPTH {
+        return Err(base_items_error("too_deep"));
+    }
+    depth[index] = deepest;
+    state[index] = 2;
+    order.push(index);
+    Ok(())
+}
+
+/// Por que um cálculo parou, para cada ponta dar o erro certo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Shortfall {
+    BaseNotPositive,
+    DeductionExceeds,
+    TooLarge,
+}
+
+fn forward_error(shortfall: Shortfall) -> FinanceError {
+    match shortfall {
+        Shortfall::BaseNotPositive => base_items_error("not_positive"),
+        Shortfall::DeductionExceeds => {
+            FinanceError::invalid("adjustments.deduction_amount", "exceeds_amount")
+        }
+        Shortfall::TooLarge => too_large(),
     }
 }
 
-fn breakdown(gross: i64, items: &[Adjustment]) -> Result<Breakdown, FinanceError> {
-    let items: Vec<ComputedAdjustment> = items
+/// No reverso, base ou item negativo quer dizer que não há bruto possível para o líquido
+/// pedido, e não um erro de digitação (CB-08).
+fn reverse_error(shortfall: Shortfall) -> FinanceError {
+    match shortfall {
+        Shortfall::BaseNotPositive | Shortfall::DeductionExceeds => no_gross_for_net(),
+        Shortfall::TooLarge => too_large(),
+    }
+}
+
+fn breakdown(gross: i64, items: &[Adjustment], order: &[usize]) -> Result<Breakdown, Shortfall> {
+    let mut values = vec![0_i64; items.len()];
+    for &index in order {
+        let item = &items[index];
+        values[index] = match item.mode {
+            AdjustmentMode::Fixed => item.amount.unwrap_or(0),
+            AdjustmentMode::Percent => {
+                let base = if item.base_items.is_empty() {
+                    i128::from(item.base_amount.unwrap_or(gross))
+                } else {
+                    let base = item.base_items.iter().fold(i128::from(gross), |sum, &at| {
+                        sum + items[at].direction.sign() * i128::from(values[at])
+                    });
+                    if base <= 0 {
+                        return Err(Shortfall::BaseNotPositive);
+                    }
+                    base
+                };
+                let rate = i128::from(item.rate_bp.unwrap_or(0));
+                let value = round_half_up(base * rate, BP_SCALE)
+                    - i128::from(item.deduction_amount.unwrap_or(0));
+                if value < 0 {
+                    return Err(Shortfall::DeductionExceeds);
+                }
+                i64::try_from(value).map_err(|_| Shortfall::TooLarge)?
+            }
+        };
+    }
+    let computed: Vec<ComputedAdjustment> = items
         .iter()
-        .map(|item| ComputedAdjustment {
+        .zip(&values)
+        .map(|(item, &computed_amount)| ComputedAdjustment {
             adjustment: item.clone(),
-            computed_amount: item_amount(item, gross),
+            computed_amount,
         })
         .collect();
-    let net = items.iter().fold(i128::from(gross), |total, item| {
+    let net = computed.iter().fold(i128::from(gross), |total, item| {
         total + item.adjustment.direction.sign() * i128::from(item.computed_amount)
     });
-    let net_amount = i64::try_from(net).map_err(|_| too_large())?;
+    let net_amount = i64::try_from(net).map_err(|_| Shortfall::TooLarge)?;
     Ok(Breakdown {
         gross_amount: gross,
         net_amount,
-        items,
+        items: computed,
     })
 }
 
@@ -186,7 +321,8 @@ pub fn compute_net(gross: i64, items: &[Adjustment]) -> Result<Breakdown, Financ
         return Err(FinanceError::invalid("gross_amount", "must_be_positive"));
     }
     validate_adjustments(items)?;
-    let result = breakdown(gross, items)?;
+    let order = dependency_order(items)?;
+    let result = breakdown(gross, items, &order).map_err(forward_error)?;
     if result.net_amount <= 0 {
         return Err(FinanceError::invalid("adjustments", "net_not_positive"));
     }
@@ -194,8 +330,9 @@ pub fn compute_net(gross: i64, items: &[Adjustment]) -> Result<Breakdown, Financ
 }
 
 /// Bruto equivalente ao líquido liquidado, com a base digitada escalada na proporção do
-/// bruto e o centavo residual no último item percentual (RF-09, RN-06, RN-07, CB-01, CB-02,
-/// CB-05).
+/// bruto e o centavo residual num percentual livre. A base ligada é recalculada pelos itens
+/// liquidados e a parcela a deduzir se mantém (RF-06, RF-09, RN-06, RN-07, RN-09, CB-01,
+/// CB-02, CB-05, CB-08, CB-09).
 ///
 /// A fórmula fechada, em vez de uma busca iterativa, garante o mesmo resultado na tela e
 /// no servidor: as duas pontas fazem exatamente as mesmas contas inteiras.
@@ -217,47 +354,146 @@ pub fn gross_for_net(
         ));
     }
     validate_adjustments(items)?;
-    let gross = equivalent_gross(net, items, expected_gross)?;
+    let order = dependency_order(items)?;
+    let gross = equivalent_gross(net, items, &order, expected_gross)?;
     let scaled = scale_bases(items, gross, expected_gross)?;
-    let mut result = breakdown(gross, &scaled)?;
+    let mut result = breakdown(gross, &scaled, &order).map_err(reverse_error)?;
     absorb_residual(&mut result, net)?;
     Ok(result)
+}
+
+/// Valor `(slope × bruto + offset) ÷ den` antes do arredondamento, com `den > 0`. Cada item
+/// é afim no bruto, então o reverso tem fórmula fechada exata, sem busca iterativa.
+#[derive(Debug, Clone, Copy)]
+struct Affine {
+    slope: i128,
+    offset: i128,
+    den: i128,
+}
+
+fn gcd(a: i128, b: i128) -> i128 {
+    let (mut a, mut b) = (a.unsigned_abs(), b.unsigned_abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    // O resultado nunca passa dos operandos, que cabem em `i128`; o 1 é só para não dividir por 0.
+    i128::try_from(a).unwrap_or(1).max(1)
+}
+
+impl Affine {
+    fn gross() -> Self {
+        Self {
+            slope: 1,
+            offset: 0,
+            den: 1,
+        }
+    }
+
+    fn constant(value: i128) -> Self {
+        Self {
+            slope: 0,
+            offset: value,
+            den: 1,
+        }
+    }
+
+    fn typed_base(base: i64, expected_gross: i64) -> Self {
+        Self {
+            slope: i128::from(base),
+            offset: 0,
+            den: i128::from(expected_gross),
+        }
+    }
+
+    fn add_signed(self, other: Self, sign: i128) -> Result<Self, FinanceError> {
+        let common = (self.den / gcd(self.den, other.den))
+            .checked_mul(other.den)
+            .ok_or_else(too_large)?;
+        let (left, right) = (common / self.den, common / other.den);
+        let combine = |a: i128, b: i128| -> Result<i128, FinanceError> {
+            a.checked_mul(left)
+                .zip(b.checked_mul(right).and_then(|term| term.checked_mul(sign)))
+                .and_then(|(x, y)| x.checked_add(y))
+                .ok_or_else(too_large)
+        };
+        Ok(Self {
+            slope: combine(self.slope, other.slope)?,
+            offset: combine(self.offset, other.offset)?,
+            den: common,
+        }
+        .reduced())
+    }
+
+    fn percent(self, rate_bp: i32, deduction: i64) -> Result<Self, FinanceError> {
+        let rate = i128::from(rate_bp);
+        let fixed_part = i128::from(deduction)
+            .checked_mul(BP_SCALE)
+            .and_then(|value| value.checked_mul(self.den))
+            .ok_or_else(too_large)?;
+        Ok(Self {
+            slope: self.slope.checked_mul(rate).ok_or_else(too_large)?,
+            offset: self
+                .offset
+                .checked_mul(rate)
+                .and_then(|value| value.checked_sub(fixed_part))
+                .ok_or_else(too_large)?,
+            den: self.den.checked_mul(BP_SCALE).ok_or_else(too_large)?,
+        }
+        .reduced())
+    }
+
+    fn reduced(self) -> Self {
+        let divisor = gcd(gcd(self.slope, self.offset), self.den);
+        Self {
+            slope: self.slope / divisor,
+            offset: self.offset / divisor,
+            den: self.den / divisor,
+        }
+    }
 }
 
 fn equivalent_gross(
     net: i64,
     items: &[Adjustment],
+    order: &[usize],
     expected_gross: i64,
 ) -> Result<i64, FinanceError> {
-    let expected = i128::from(expected_gross);
-    let mut fixed: i128 = 0;
-    let mut den = expected.checked_mul(BP_SCALE).ok_or_else(too_large)?;
-    for item in items {
-        let sign = item.direction.sign();
-        match item.mode {
-            AdjustmentMode::Fixed => {
-                let amount = i128::from(item.amount.unwrap_or(0));
-                fixed = fixed.checked_add(-sign * amount).ok_or_else(too_large)?;
-            }
+    let mut values: Vec<Affine> = vec![Affine::constant(0); items.len()];
+    for &index in order {
+        let item = &items[index];
+        values[index] = match item.mode {
+            AdjustmentMode::Fixed => Affine::constant(i128::from(item.amount.unwrap_or(0))),
             AdjustmentMode::Percent => {
-                let base = item.base_amount.map_or(expected, i128::from);
-                let term = (sign * i128::from(item.rate_bp.unwrap_or(0)))
-                    .checked_mul(base)
-                    .ok_or_else(too_large)?;
-                den = den.checked_add(term).ok_or_else(too_large)?;
+                let mut base = match item.base_amount {
+                    Some(typed) if item.base_items.is_empty() => {
+                        Affine::typed_base(typed, expected_gross)
+                    }
+                    _ => Affine::gross(),
+                };
+                for &at in &item.base_items {
+                    base = base.add_signed(values[at], items[at].direction.sign())?;
+                }
+                base.percent(
+                    item.rate_bp.unwrap_or(0),
+                    item.deduction_amount.unwrap_or(0),
+                )?
             }
-        }
+        };
+    }
+    let mut total = Affine::gross();
+    for (item, value) in items.iter().zip(&values) {
+        total = total.add_signed(*value, item.direction.sign())?;
     }
     let num = i128::from(net)
-        .checked_add(fixed)
-        .and_then(|value| value.checked_mul(expected))
-        .and_then(|value| value.checked_mul(BP_SCALE))
+        .checked_mul(total.den)
+        .and_then(|value| value.checked_sub(total.offset))
         .ok_or_else(too_large)?;
-    if den <= 0 || num < 0 {
+    if total.slope <= 0 || num < 0 {
         return Err(no_gross_for_net());
     }
     let doubled = num.checked_mul(2).ok_or_else(too_large)?;
-    let gross = doubled.checked_add(den).ok_or_else(too_large)? / (2 * den);
+    let slope2 = total.slope.checked_mul(2).ok_or_else(too_large)?;
+    let gross = doubled.checked_add(total.slope).ok_or_else(too_large)? / slope2;
     i64::try_from(gross).map_err(|_| too_large())
 }
 
@@ -290,14 +526,24 @@ fn scale_bases(
 }
 
 /// O arredondamento por item pode deixar o líquido um centavo longe do pedido; o último
-/// percentual da lista absorve a diferença para a identidade fechar (RN-04, RN-07).
+/// percentual da lista do qual nenhum item depende absorve a diferença para a identidade
+/// fechar. O centavo nunca vai para uma base de outro item, para não mudar a base
+/// dependente (RN-04, RN-07, RN-09).
 fn absorb_residual(result: &mut Breakdown, net: i64) -> Result<(), FinanceError> {
     let residual = net.checked_sub(result.net_amount).ok_or_else(too_large)?;
     if residual != 0 {
+        let referenced: Vec<usize> = result
+            .items
+            .iter()
+            .flat_map(|item| item.adjustment.base_items.iter().copied())
+            .collect();
         let index = result
             .items
             .iter()
-            .rposition(|item| item.adjustment.mode == AdjustmentMode::Percent)
+            .enumerate()
+            .rposition(|(at, item)| {
+                item.adjustment.mode == AdjustmentMode::Percent && !referenced.contains(&at)
+            })
             .ok_or_else(no_gross_for_net)?;
         let item = &mut result.items[index];
         let adjusted = match item.adjustment.direction {
@@ -332,6 +578,8 @@ mod tests {
             amount: None,
             rate_bp: Some(rate_bp),
             base_amount,
+            base_items: Vec::new(),
+            deduction_amount: None,
         }
     }
 
@@ -343,6 +591,8 @@ mod tests {
             amount: Some(amount),
             rate_bp: None,
             base_amount: None,
+            base_items: Vec::new(),
+            deduction_amount: None,
         }
     }
 
@@ -356,6 +606,35 @@ mod tests {
 
     fn sindical() -> Adjustment {
         fixed("Sindical", Deduction, 4_000)
+    }
+
+    fn linked(
+        name: &str,
+        rate_bp: i32,
+        base_items: &[usize],
+        deduction_amount: Option<i64>,
+    ) -> Adjustment {
+        Adjustment {
+            base_items: base_items.to_vec(),
+            deduction_amount,
+            ..percent(name, Deduction, rate_bp, None)
+        }
+    }
+
+    fn with_deduction(item: Adjustment, deduction_amount: i64) -> Adjustment {
+        Adjustment {
+            deduction_amount: Some(deduction_amount),
+            ..item
+        }
+    }
+
+    fn payroll() -> Vec<Adjustment> {
+        vec![
+            fixed("INSS", Deduction, 98_807),
+            linked("IRPF", 2750, &[0], Some(90_873)),
+            fixed("Sindical", Deduction, 3_500),
+            fixed("Consignados", Deduction, 374_670),
+        ]
     }
 
     fn amounts(breakdown: &Breakdown) -> Vec<i64> {
@@ -639,5 +918,293 @@ mod tests {
         assert_eq!(AdjustmentMode::Percent.as_str(), "percent");
         assert_eq!(AdjustmentDirection::parse("other"), None);
         assert_eq!(AdjustmentMode::parse("other"), None);
+    }
+
+    #[test]
+    fn s5_ct01_payroll_with_linked_base_and_deduction() {
+        let result = compute_net(1_450_000, &payroll()).unwrap();
+
+        assert_eq!(amounts(&result), vec![98_807, 280_705, 3_500, 374_670]);
+        assert_eq!(result.net_amount, 692_318);
+    }
+
+    #[test]
+    fn s5_rn08_order_does_not_change_net() {
+        let items = [
+            fixed("Consignados", Deduction, 374_670),
+            fixed("Sindical", Deduction, 3_500),
+            linked("IRPF", 2750, &[3], Some(90_873)),
+            fixed("INSS", Deduction, 98_807),
+        ];
+        let result = compute_net(1_450_000, &items).unwrap();
+
+        assert_eq!(amounts(&result), vec![374_670, 3_500, 280_705, 98_807]);
+        assert_eq!(result.net_amount, 692_318);
+    }
+
+    #[test]
+    fn s5_ct02_reverse_payroll_returns_gross() {
+        let result = gross_for_net(692_318, &payroll(), 1_450_000).unwrap();
+
+        assert_eq!(result.gross_amount, 1_450_000);
+        assert_eq!(amounts(&result), vec![98_807, 280_705, 3_500, 374_670]);
+        assert_eq!(result.net_amount, 692_318);
+    }
+
+    #[test]
+    fn s5_fa01_reverse_with_other_net_keeps_deduction() {
+        let result = gross_for_net(700_000, &payroll(), 1_450_000).unwrap();
+
+        assert_eq!(result.gross_amount, 1_460_596);
+        assert_eq!(amounts(&result), vec![98_807, 283_619, 3_500, 374_670]);
+        assert_eq!(result.net_amount, 700_000);
+        let irpf = &result.items[1].adjustment;
+        assert_eq!(irpf.base_items, vec![0]);
+        assert_eq!(irpf.base_amount, None);
+        assert_eq!(irpf.deduction_amount, Some(90_873));
+    }
+
+    #[test]
+    fn s5_ct03_base_linked_to_percent_item() {
+        let items = [
+            percent("INSS", Deduction, 681, None),
+            linked("IRPF", 2750, &[0], Some(90_873)),
+        ];
+        let result = compute_net(1_450_000, &items).unwrap();
+        assert_eq!(amounts(&result), vec![98_745, 280_722]);
+        assert_eq!(result.net_amount, 1_070_533);
+
+        let same = gross_for_net(1_070_533, &items, 1_450_000).unwrap();
+        assert_eq!(same.gross_amount, 1_450_000);
+        assert_eq!(amounts(&same), vec![98_745, 280_722]);
+
+        let other = gross_for_net(1_080_000, &items, 1_450_000).unwrap();
+        assert_eq!(other.gross_amount, 1_464_012);
+        assert_eq!(amounts(&other), vec![99_699, 284_313]);
+    }
+
+    #[test]
+    fn s5_ct04_base_linked_to_two_items() {
+        let items = [
+            fixed("INSS", Deduction, 98_807),
+            fixed("Pensão", Deduction, 100_000),
+            linked("IRPF", 2750, &[0, 1], Some(90_873)),
+        ];
+        let result = compute_net(1_450_000, &items).unwrap();
+
+        assert_eq!(amounts(&result), vec![98_807, 100_000, 253_205]);
+        assert_eq!(result.net_amount, 997_988);
+    }
+
+    #[test]
+    fn s5_cb06_chain_follows_dependency_order() {
+        let chain = [
+            linked("C", 1000, &[1], None),
+            linked("B", 2750, &[2], Some(90_873)),
+            percent("A", Deduction, 681, None),
+        ];
+        let result = compute_net(1_450_000, &chain).unwrap();
+        assert_eq!(amounts(&result), vec![116_928, 280_722, 98_745]);
+        assert_eq!(result.net_amount, 953_605);
+
+        let reverse = gross_for_net(1_000_000, &chain, 1_450_000).unwrap();
+        assert_eq!(reverse.gross_amount, 1_527_163);
+        assert_eq!(amounts(&reverse), vec![122_666, 300_497, 104_000]);
+        assert_eq!(reverse.net_amount, 1_000_000);
+    }
+
+    #[test]
+    fn s5_rn09_residual_goes_to_free_percent_not_to_a_base() {
+        let items = [
+            linked("IRPF", 2750, &[1], Some(90_873)),
+            percent("INSS", Deduction, 681, None),
+        ];
+        let result = gross_for_net(1_070_517, &items, 1_450_000).unwrap();
+        assert_eq!(result.gross_amount, 1_449_977);
+        assert_eq!(amounts(&result), vec![280_717, 98_743]);
+        assert_eq!(result.net_amount, 1_070_517);
+
+        let items = [
+            percent("INSS", Deduction, 681, None),
+            linked("IRPF", 2750, &[0], Some(90_873)),
+        ];
+        let result = gross_for_net(1_070_517, &items, 1_450_000).unwrap();
+        assert_eq!(amounts(&result), vec![98_743, 280_717]);
+    }
+
+    #[test]
+    fn s5_ct05_self_reference_and_cycle_are_refused() {
+        let base_items = "adjustments.base_items";
+        assert_eq!(
+            issue(validate_adjustments(&[linked("A", 1000, &[0], None)])),
+            (base_items, "self_reference")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[
+                linked("A", 1000, &[1], None),
+                linked("B", 1000, &[0], None)
+            ])),
+            (base_items, "cycle")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[
+                linked("A", 1000, &[1], None),
+                linked("B", 1000, &[2], None),
+                linked("C", 1000, &[0], None)
+            ])),
+            (base_items, "cycle")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[
+                linked("A", 1000, &[5], None),
+                fixed("X", Deduction, 100)
+            ])),
+            (base_items, "out_of_range")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[
+                fixed("X", Deduction, 100),
+                linked("A", 1000, &[0, 0], None)
+            ])),
+            (base_items, "fields_mismatch")
+        );
+        assert_eq!(
+            issue(compute_net(10_000, &[linked("A", 1000, &[0], None)])),
+            (base_items, "self_reference")
+        );
+    }
+
+    #[test]
+    fn s5_link_and_deduction_fields_are_validated() {
+        let base_items = "adjustments.base_items";
+        let deduction = "adjustments.deduction_amount";
+        let other = fixed("Y", Deduction, 100);
+        assert_eq!(
+            issue(validate_adjustments(&[
+                Adjustment {
+                    base_items: vec![1],
+                    ..fixed("X", Deduction, 100)
+                },
+                other.clone()
+            ])),
+            (base_items, "fields_mismatch")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[
+                other,
+                Adjustment {
+                    base_amount: Some(100_000),
+                    ..linked("IRPF", 2750, &[0], None)
+                }
+            ])),
+            (base_items, "fields_mismatch")
+        );
+        assert_eq!(
+            issue(validate_adjustments(&[Adjustment {
+                deduction_amount: Some(100),
+                ..fixed("X", Deduction, 100)
+            }])),
+            (deduction, "fields_mismatch")
+        );
+        for value in [0, -1] {
+            assert_eq!(
+                issue(validate_adjustments(&[with_deduction(
+                    percent("IRPF", Deduction, 2750, None),
+                    value
+                )])),
+                (deduction, "must_be_positive")
+            );
+        }
+        let empty = compute_net(10_000, &[linked("IRPF", 2750, &[], None)]).unwrap();
+        assert_eq!(amounts(&empty), vec![2_750]);
+    }
+
+    #[test]
+    fn s5_cb03_linked_base_not_positive_is_refused() {
+        for fixed_amount in [100_000, 150_000] {
+            assert_eq!(
+                issue(compute_net(
+                    100_000,
+                    &[
+                        fixed("Adiantamento", Deduction, fixed_amount),
+                        linked("IRPF", 2750, &[0], None)
+                    ]
+                )),
+                ("adjustments.base_items", "not_positive")
+            );
+        }
+    }
+
+    #[test]
+    fn s5_ct06_deduction_above_percent_is_refused() {
+        assert_eq!(
+            issue(compute_net(
+                100_000,
+                &[with_deduction(
+                    percent("IRPF", Deduction, 2750, None),
+                    90_873
+                )]
+            )),
+            ("adjustments.deduction_amount", "exceeds_amount")
+        );
+        let ok = compute_net(
+            100_000,
+            &[with_deduction(
+                percent("IRPF", Deduction, 2750, None),
+                27_500,
+            )],
+        )
+        .unwrap();
+        assert_eq!(amounts(&ok), vec![0]);
+        assert_eq!(ok.net_amount, 100_000);
+    }
+
+    #[test]
+    fn s5_cb08_reverse_that_makes_item_negative_is_refused() {
+        let items = [with_deduction(
+            percent("IRPF", Deduction, 2750, None),
+            90_873,
+        )];
+        for net in [100_000, 50_000] {
+            assert_eq!(
+                issue(gross_for_net(net, &items, 1_000_000)),
+                ("adjustments", "no_gross_for_net")
+            );
+        }
+    }
+
+    #[test]
+    fn s5_cb09_fixed_only_reverse_has_no_residual() {
+        let items = [
+            fixed("INSS", Deduction, 98_807),
+            fixed("Sindical", Deduction, 3_500),
+        ];
+        let result = gross_for_net(100_000, &items, 1).unwrap();
+
+        assert_eq!(result.gross_amount, 202_307);
+        assert_eq!(amounts(&result), vec![98_807, 3_500]);
+        assert_eq!(result.net_amount, 100_000);
+    }
+
+    #[test]
+    fn s5_chain_deeper_than_three_links_is_refused() {
+        let build = |len: usize| -> Vec<Adjustment> {
+            (0..len)
+                .map(|i| {
+                    if i == 0 {
+                        percent("P0", Deduction, 681, None)
+                    } else {
+                        linked(&format!("P{i}"), 681, &[i - 1], None)
+                    }
+                })
+                .collect()
+        };
+        let shallow = build(4);
+        assert!(validate_adjustments(&shallow).is_ok());
+        assert!(gross_for_net(1_000_000_000_000, &shallow, 1_000_000_000_000).is_ok());
+        assert_eq!(
+            issue(validate_adjustments(&build(5))),
+            ("adjustments.base_items", "too_deep")
+        );
     }
 }

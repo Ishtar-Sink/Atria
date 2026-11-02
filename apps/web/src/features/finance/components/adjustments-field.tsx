@@ -1,8 +1,15 @@
 import { Button, Checkbox, SegmentedField, TextField } from '@atria/ui';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Controller, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { useT } from '../../../shared/i18n/i18n';
-import { emptyAdjustment, MAX_ADJUSTMENTS, type AdjustmentFormItem } from '../lib/adjustment-form';
+import { usePreferences } from '../../../shared/preferences/preferences-context';
+import {
+  dependentsOf,
+  emptyAdjustment,
+  MAX_ADJUSTMENTS,
+  removeAdjustment,
+  type AdjustmentFormItem,
+} from '../lib/adjustment-form';
 import styles from './finance.module.css';
 import { MoneyField } from './money-field';
 
@@ -14,6 +21,8 @@ export interface AdjustmentsFieldProps<T extends AdjustmentsFormShape> {
   control: Control<T>;
   /** Texto abaixo do campo da base digitada. */
   base_help?: string;
+  /** Texto abaixo dos itens da base ligada, como o aviso da liquidação. */
+  linked_help?: string;
   /** Conteúdo no fim do grupo, como o líquido ao vivo do formulário. */
   children?: ReactNode;
 }
@@ -22,13 +31,18 @@ export interface AdjustmentsFieldProps<T extends AdjustmentsFormShape> {
 export function AdjustmentsField<T extends AdjustmentsFormShape>({
   control,
   base_help,
+  linked_help,
   children,
 }: AdjustmentsFieldProps<T>) {
   const t = useT();
+  const { locale } = usePreferences();
   const shaped = control as unknown as Control<AdjustmentsFormShape>;
-  const { fields, append, remove } = useFieldArray({ control: shaped, name: 'adjustments' });
+  const { fields, append, replace } = useFieldArray({ control: shaped, name: 'adjustments' });
   const values = useWatch({ control: shaped, name: 'adjustments' });
+  const [blocked, setBlocked] = useState<number | null>(null);
   const full = fields.length >= MAX_ADJUSTMENTS;
+  const labelOf = (index: number) =>
+    values[index]?.name.trim() || t('finance.adjustments.item', { number: index + 1 });
 
   return (
     <fieldset className={styles.adjustments}>
@@ -141,6 +155,27 @@ export function AdjustmentsField<T extends AdjustmentsFormShape>({
                 />
                 {current.base_different ? (
                   <div data-span="full">
+                    <Controller
+                      control={shaped}
+                      name={`${prefix}.base_source`}
+                      render={({ field: input }) => (
+                        <SegmentedField
+                          label={t('finance.adjustments.base_source')}
+                          name={input.name}
+                          value={input.value}
+                          onChange={input.onChange}
+                          onBlur={input.onBlur}
+                          options={[
+                            { value: 'amount', label: t('finance.adjustments.base_source_amount') },
+                            { value: 'items', label: t('finance.adjustments.base_source_items') },
+                          ]}
+                        />
+                      )}
+                    />
+                  </div>
+                ) : null}
+                {current.base_different && current.base_source === 'amount' ? (
+                  <div data-span="full">
                     <MoneyField
                       control={shaped}
                       name={`${prefix}.base_amount`}
@@ -149,6 +184,66 @@ export function AdjustmentsField<T extends AdjustmentsFormShape>({
                     {base_help ? <p className={styles.cardHelp}>{base_help}</p> : null}
                   </div>
                 ) : null}
+                {current.base_different && current.base_source === 'items' ? (
+                  <Controller
+                    control={shaped}
+                    name={`${prefix}.base_items`}
+                    render={({ field: input, fieldState }) => {
+                      const errorId = `${prefix}.base_items-error`;
+                      const chosen: number[] = input.value;
+                      const others = fields
+                        .map((_, position) => position)
+                        .filter((position) => position !== index);
+                      return (
+                        <fieldset className={styles.adjustmentLinks} data-span="full">
+                          <legend>{t('finance.adjustments.base_items')}</legend>
+                          <p className={styles.cardHelp}>
+                            {t('finance.adjustments.base_items_help')}
+                          </p>
+                          {linked_help ? <p className={styles.cardHelp}>{linked_help}</p> : null}
+                          {others.length === 0 ? (
+                            <p className={styles.cardHelp}>
+                              {t('finance.adjustments.base_items_empty')}
+                            </p>
+                          ) : null}
+                          {others.map((position) => (
+                            <Checkbox
+                              key={position}
+                              label={labelOf(position)}
+                              name={`${input.name}.${String(position)}`}
+                              value={String(position)}
+                              checked={chosen.includes(position)}
+                              aria-invalid={fieldState.error ? true : undefined}
+                              aria-describedby={fieldState.error ? errorId : undefined}
+                              onChange={(event) => {
+                                setBlocked(null);
+                                input.onChange(
+                                  event.target.checked
+                                    ? [...chosen, position]
+                                    : chosen.filter((entry) => entry !== position),
+                                );
+                              }}
+                              onBlur={input.onBlur}
+                            />
+                          ))}
+                          {fieldState.error?.message ? (
+                            <p id={errorId} role="alert" className={styles.formError}>
+                              {t(fieldState.error.message)}
+                            </p>
+                          ) : null}
+                        </fieldset>
+                      );
+                    }}
+                  />
+                ) : null}
+                <div data-span="full">
+                  <MoneyField
+                    control={shaped}
+                    name={`${prefix}.deduction_amount`}
+                    label={t('finance.adjustments.deduction_amount')}
+                  />
+                  <p className={styles.cardHelp}>{t('finance.adjustments.deduction_help')}</p>
+                </div>
               </>
             )}
             <div className={styles.adjustmentRemove} data-span="full">
@@ -159,11 +254,28 @@ export function AdjustmentsField<T extends AdjustmentsFormShape>({
                   name: current.name.trim() || legend,
                 })}
                 onClick={() => {
-                  remove(index);
+                  // Um item usado como base não sai sem desfazer o vínculo (RN-10, CB-07).
+                  const next = removeAdjustment(values, index);
+                  if (next === null) {
+                    setBlocked(index);
+                    return;
+                  }
+                  setBlocked(null);
+                  replace(next);
                 }}
               >
                 {t('finance.adjustments.remove')}
               </Button>
+              {blocked === index ? (
+                <p role="alert" className={styles.formError}>
+                  {t('finance.adjustments.remove_linked', {
+                    name: labelOf(index),
+                    items: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
+                      dependentsOf(values, index).map(labelOf),
+                    ),
+                  })}
+                </p>
+              ) : null}
             </div>
           </fieldset>
         );

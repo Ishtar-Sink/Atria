@@ -2,6 +2,9 @@
 //! Bruto, descontos e acréscimos (SPEC-004: RF-01, RF-08, RF-09, RF-15, RNF-03, CT-03,
 //! CT-05, CT-08, CT-09, CT-14, CB-01, CB-02, CB-06 e CB-08): o líquido continua sendo o
 //! valor que afeta o saldo, e a liquidação pelo líquido recalcula o bruto e os percentuais.
+//! Base ligada e parcela a deduzir (SPEC-005: RF-09, RF-10, RNF-03, CT-02 e CT-13): os campos
+//! novos são gravados e devolvidos só no percentual, e o holerite fecha no cadastro, na
+//! liquidação e no painel.
 
 use axum::Router;
 use axum::body::Body;
@@ -1174,4 +1177,304 @@ async fn adj_ct14_migration_keeps_balances_summary_and_settled_history() {
     assert_eq!(status, StatusCode::OK, "{undone}");
     let (_, account) = call(&app, &alice, Method::GET, &format!("/accounts/{}", uid(1))).await;
     assert_eq!(account["balance_amount"], -10_000);
+}
+
+fn linked(name: &str, rate_bp: i64, base_items: Value, deduction_amount: Option<i64>) -> Value {
+    let mut item = percent(name, "deduction", rate_bp, None);
+    item["base_items"] = base_items;
+    if let Some(deduction) = deduction_amount {
+        item["deduction_amount"] = json!(deduction);
+    }
+    item
+}
+
+/// Holerite de outubro de 2026: o IRPF incide sobre o bruto menos o INSS, com a parcela.
+fn payroll_2026_10() -> Value {
+    json!([
+        fixed("INSS", "deduction", 98_807),
+        linked("IRPF", 2750, json!([0]), Some(90_873)),
+        fixed("Sindical", "deduction", 3_500),
+        fixed("Consignados", "deduction", 374_670),
+    ])
+}
+
+#[tokio::test]
+async fn s5_ct01_payroll_with_linked_base_is_stored_and_returned() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+
+    let item = create_gross(
+        &t,
+        &account,
+        "income",
+        1_450_000,
+        payroll_2026_10(),
+        "2026-11-05",
+    )
+    .await;
+
+    assert_eq!(item["expected_amount"], 692_318, "{item}");
+    assert_eq!(
+        computed(&item["adjustments"]),
+        [98_807, 280_705, 3_500, 374_670]
+    );
+    let irpf = &item["adjustments"][1];
+    assert_eq!(irpf["base_items"], json!([0]));
+    assert_eq!(irpf["deduction_amount"], 90_873);
+    assert!(irpf["base_amount"].is_null(), "{irpf}");
+    assert!(item["adjustments"][0]["base_items"].is_null());
+    assert!(item["adjustments"][0]["deduction_amount"].is_null());
+    let id = id_of(&item);
+    let (status, detail) = t.get(&t.alice, &format!("/transactions/{id}")).await;
+    assert_eq!(status, StatusCode::OK, "{detail}");
+    assert_eq!(detail["adjustments"], item["adjustments"]);
+    let listed = t
+        .items(&t.alice, "/transactions?from=2026-11-01&to=2026-11-30")
+        .await;
+    assert_eq!(listed[0]["adjustments"], item["adjustments"]);
+}
+
+#[tokio::test]
+async fn s5_ct02_settlement_by_net_returns_payroll_gross() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let item = create_gross(
+        &t,
+        &account,
+        "income",
+        1_450_000,
+        payroll_2026_10(),
+        "2026-11-05",
+    )
+    .await;
+
+    let (status, body) = settle_items(&t, &id_of(&item), 692_318, None).await;
+    let (preview_status, preview) = t
+        .post(
+            &t.alice,
+            "/transactions/settlement-preview",
+            json!({
+                "settled_amount": 700_000,
+                "expected_gross_amount": 1_450_000,
+                "adjustments": payroll_2026_10(),
+            }),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["settled_gross_amount"], 1_450_000);
+    assert_eq!(
+        computed(&body["settled_adjustments"]),
+        [98_807, 280_705, 3_500, 374_670]
+    );
+    assert_eq!(body["settled_adjustments"][1]["base_items"], json!([0]));
+    assert_eq!(body["settled_adjustments"][1]["deduction_amount"], 90_873);
+    assert_eq!(body["difference_amount"], 0);
+    assert_eq!(t.balance(&t.alice, &account).await, 692_318);
+    assert_eq!(preview_status, StatusCode::OK, "{preview}");
+    assert_eq!(preview["gross_amount"], 1_460_596);
+    assert_eq!(
+        computed(&preview["adjustments"]),
+        [98_807, 283_619, 3_500, 374_670]
+    );
+    assert_eq!(preview["adjustments"][1]["deduction_amount"], 90_873);
+}
+
+#[tokio::test]
+async fn s5_link_and_deduction_errors_use_field_codes() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let mut both_bases = percent("IRPF", "deduction", 2750, Some(100_000));
+    both_bases["base_items"] = json!([0]);
+    let mut fixed_with_deduction = fixed("Taxa", "deduction", 1_000);
+    fixed_with_deduction["deduction_amount"] = json!(100);
+    let mut irpf = percent("IRPF", "deduction", 2750, None);
+    irpf["deduction_amount"] = json!(90_873);
+    let cases = [
+        (
+            1_450_000,
+            json!([linked("IRPF", 2750, json!([0]), None)]),
+            "adjustments.base_items",
+            "self_reference",
+        ),
+        (
+            1_450_000,
+            json!([
+                linked("A", 1000, json!([1]), None),
+                linked("B", 1000, json!([0]), None),
+            ]),
+            "adjustments.base_items",
+            "cycle",
+        ),
+        (
+            1_450_000,
+            json!([linked("A", 1000, json!([5]), None)]),
+            "adjustments.base_items",
+            "out_of_range",
+        ),
+        (
+            1_450_000,
+            json!([fixed("INSS", "deduction", 98_807), both_bases]),
+            "adjustments.base_items",
+            "fields_mismatch",
+        ),
+        (
+            1_450_000,
+            json!([fixed_with_deduction]),
+            "adjustments.deduction_amount",
+            "fields_mismatch",
+        ),
+        (
+            100_000,
+            json!([irpf.clone()]),
+            "adjustments.deduction_amount",
+            "exceeds_amount",
+        ),
+        (
+            1_450_000,
+            json!([linked("A", 1000, json!([-1]), None)]),
+            "body",
+            "invalid",
+        ),
+    ];
+
+    for (gross, adjustments, field, code) in cases {
+        let body = json!({
+            "kind": "income",
+            "account_id": account,
+            "gross_amount": gross,
+            "adjustments": adjustments,
+            "expected_date": "2026-11-05",
+        });
+        let (status, body) = t.post(&t.alice, "/transactions", body).await;
+        assert_eq!(
+            status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{field}/{code}: {body}"
+        );
+        assert!(error_is(&body, field, code), "{field}/{code}: {body}");
+    }
+    let (status, body) = t
+        .post(
+            &t.alice,
+            "/transactions/settlement-preview",
+            json!({
+                "settled_amount": 100_000,
+                "expected_gross_amount": 1_000_000,
+                "adjustments": [irpf],
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(error_is(&body, "adjustments", "no_gross_for_net"), "{body}");
+    assert_eq!(transaction_count(&t).await, 0);
+}
+
+async fn stored_adjustments(t: &FinanceTest, filter: &str) -> Value {
+    let mut tx = begin_for_user(t.pool(), ALICE).await.unwrap();
+    let Json(stored) = sqlx::query_scalar::<_, Json<Value>>(&format!(
+        "SELECT adjustments FROM transactions{filter}"
+    ))
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    stored
+}
+
+fn keys(item: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = item.as_object().expect("item").keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+#[tokio::test]
+async fn s5_rnf03_items_without_new_fields_keep_stored_json() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let item = create_gross(
+        &t,
+        &account,
+        "income",
+        800_000,
+        payroll_items(),
+        "2026-11-05",
+    )
+    .await;
+
+    let stored = stored_adjustments(&t, "").await;
+    let (_, detail) = t
+        .get(&t.alice, &format!("/transactions/{}", id_of(&item)))
+        .await;
+
+    let spec004 = [
+        "amount",
+        "base_amount",
+        "computed_amount",
+        "direction",
+        "mode",
+        "name",
+        "rate_bp",
+    ];
+    for row in stored.as_array().expect("itens gravados") {
+        assert_eq!(keys(row), spec004, "{row}");
+    }
+    assert_eq!(detail["expected_amount"], 708_000);
+    for item in detail["adjustments"].as_array().expect("itens") {
+        assert!(item["base_items"].is_null(), "{item}");
+        assert!(item["deduction_amount"].is_null(), "{item}");
+    }
+
+    create_gross(
+        &t,
+        &account,
+        "income",
+        1_450_000,
+        payroll_2026_10(),
+        "2026-11-05",
+    )
+    .await;
+    let stored = stored_adjustments(&t, " WHERE gross_amount = 1450000").await;
+    assert_eq!(stored[1]["base_items"], json!([0]), "{stored}");
+    assert_eq!(stored[1]["deduction_amount"], 90_873, "{stored}");
+    for position in [0, 2, 3] {
+        let row = stored[position].as_object().expect("item");
+        assert!(!row.contains_key("base_items"), "{stored}");
+        assert!(!row.contains_key("deduction_amount"), "{stored}");
+    }
+}
+
+#[tokio::test]
+async fn s5_ct13_summary_sums_irpf_with_deduction() {
+    let t = FinanceTest::new().await;
+    let account = t.default_account(&t.alice).await;
+    let item = create_gross(
+        &t,
+        &account,
+        "income",
+        1_450_000,
+        payroll_2026_10(),
+        "2026-11-05",
+    )
+    .await;
+    let (status, body) = settle_items(&t, &id_of(&item), 692_318, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let (status, summary) = t
+        .get(
+            &t.alice,
+            "/financial-summaries?from=2026-11-01&to=2026-11-30",
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{summary}");
+    assert_eq!(
+        summary["adjustments_by_name"],
+        json!([
+            { "name": "Consignados", "direction": "deduction", "expected": 374_670, "settled": 374_670 },
+            { "name": "IRPF", "direction": "deduction", "expected": 280_705, "settled": 280_705 },
+            { "name": "INSS", "direction": "deduction", "expected": 98_807, "settled": 98_807 },
+            { "name": "Sindical", "direction": "deduction", "expected": 3_500, "settled": 3_500 },
+        ])
+    );
 }

@@ -40,7 +40,7 @@ import {
 import { listItemKey } from '../hooks/use-transactions';
 import { todayInTimeZone } from '../lib/finance-period';
 
-export type RecurrenceDetailTab = 'overview' | 'settlements';
+export type RecurrenceDetailTab = 'overview' | 'adjustments' | 'settlements';
 
 function Copies({ recurrence }: { recurrence: RecurringTransaction }) {
   const t = useT();
@@ -200,6 +200,19 @@ export function RecurrenceDetailScreen({
     return t('finance.recurrence_detail.settled_ended', { difference });
   }
 
+  // A aba dos descontos só existe com itens (RN-11).
+  const has_adjustments = recurrence.adjustments.length > 0;
+  const adjustments_panel = (
+    <DataCard title={t('finance.adjustments.title')}>
+      <AdjustmentsBreakdown
+        currency={recurrence.currency}
+        gross_amount={recurrence.gross_amount}
+        items={breakdownItems(recurrence.adjustments)}
+        net_amount={recurrence.expected_amount}
+        net_label={t('finance.adjustments.net_expected')}
+      />
+    </DataCard>
+  );
   const overview = (
     <DetailGrid
       main={
@@ -247,17 +260,6 @@ export function RecurrenceDetailScreen({
               ]}
             />
           </DataCard>
-          {recurrence.adjustments.length > 0 ? (
-            <DataCard title={t('finance.adjustments.title')}>
-              <AdjustmentsBreakdown
-                currency={recurrence.currency}
-                gross_amount={recurrence.gross_amount}
-                items={breakdownItems(recurrence.adjustments)}
-                net_amount={recurrence.expected_amount}
-                net_label={t('finance.adjustments.net_expected')}
-              />
-            </DataCard>
-          ) : null}
           {notice?.kind === 'settled' ? (
             <p role="status" className={`${styles.notice ?? ''} ${styles.noticeSuccess ?? ''}`}>
               {settledText(notice.copy)}
@@ -355,12 +357,21 @@ export function RecurrenceDetailScreen({
       />
       <Tabs
         label={t('finance.recurrence_detail.tabs_label')}
-        value={tab}
+        value={tab === 'adjustments' && !has_adjustments ? 'overview' : tab}
         onChange={(next) => {
-          on_tab_change(next === 'settlements' ? 'settlements' : 'overview');
+          on_tab_change(next === 'settlements' || next === 'adjustments' ? next : 'overview');
         }}
         tabs={[
           { id: 'overview', label: t('finance.recurrence_detail.overview'), panel: overview },
+          ...(has_adjustments
+            ? [
+                {
+                  id: 'adjustments',
+                  label: t('finance.adjustments.title'),
+                  panel: adjustments_panel,
+                },
+              ]
+            : []),
           {
             id: 'settlements',
             label: t('finance.recurrence_detail.settlements'),

@@ -9281,7 +9281,7 @@
       },
       "AdjustmentDto": {
         "type": "object",
-        "description": "Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06).",
+        "description": "Item de ajuste: desconto ou acréscimo nominal, fixo ou percentual (RF-01 a RF-06), com a base\nligada e a parcela (SPEC-005).",
         "required": [
           "name",
           "direction",
@@ -9304,6 +9304,17 @@
             "format": "int64",
             "description": "Só no percentual, opcional: base digitada em centavos; ausente, a base é o bruto."
           },
+          "base_items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Só no percentual, opcional: posições, a partir de 0, dos itens da mesma lista que formam a\nbase ligada (o bruto menos os descontos e mais os acréscimos ligados); não vem com\n`base_amount`."
+          },
           "computed_amount": {
             "type": [
               "integer",
@@ -9311,6 +9322,14 @@
             ],
             "format": "int64",
             "description": "Valor calculado em centavos; preenchido na resposta e ignorado no pedido."
+          },
+          "deduction_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Só no percentual, opcional: parcela a deduzir em centavos, maior que zero, já descontada\nde `computed_amount`; não muda na liquidação."
           },
           "direction": {
             "$ref": "#/components/schemas/AdjustmentDirectionDto",

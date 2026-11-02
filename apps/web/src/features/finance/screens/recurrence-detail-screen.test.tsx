@@ -272,8 +272,10 @@ describe('recurrence adjustments', () => {
       rent({ gross_amount: 800000, expected_amount: 605200, adjustments: SALARY_ADJUSTMENTS }),
     ];
     financeServer(state);
+    const user = userEvent.setup();
     renderFinance('/finance/recurring-transactions/r1');
     await pageHeading('Aluguel');
+    await user.click(screen.getByRole('tab', { name: 'Descontos e acréscimos' }));
     const region = await screen.findByRole('region', { name: 'Descontos e acréscimos' });
     expect(breakdownRows(region.querySelector('dl') as Element)).toEqual([
       'Valor bruto R$ 8.000,00',
@@ -281,5 +283,43 @@ describe('recurrence adjustments', () => {
       'IRPF 15,00% de R$ 7.120,00 −R$ 1.068,00',
       'Líquido previsto R$ 6.052,00',
     ]);
+  });
+
+  it('rf12 shows the adjustments tab of the recurrence next to the overview', async () => {
+    const state = seed();
+    state.recurring = [
+      rent({ gross_amount: 800000, expected_amount: 605200, adjustments: SALARY_ADJUSTMENTS }),
+    ];
+    financeServer(state);
+    const first = renderFinance('/finance/recurring-transactions/r1');
+    await pageHeading('Aluguel');
+    const tabs = screen.getByRole('tablist', { name: 'Seções da recorrência' });
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Visão geral', 'Descontos e acréscimos', 'Liquidações']);
+    first.unmount();
+    renderFinance('/finance/recurring-transactions/r1?tab=adjustments');
+    await pageHeading('Aluguel');
+    expect(screen.getByRole('tab', { name: 'Descontos e acréscimos' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('region', { name: 'Descontos e acréscimos' })).toBeInTheDocument();
+  });
+
+  it('rn11 hides the adjustments tab of a recurrence without items', async () => {
+    financeServer(seed());
+    const first = renderFinance('/finance/recurring-transactions/r1');
+    await pageHeading('Aluguel');
+    expect(screen.queryByRole('tab', { name: 'Descontos e acréscimos' })).toBeNull();
+    first.unmount();
+    renderFinance('/finance/recurring-transactions/r1?tab=adjustments');
+    await pageHeading('Aluguel');
+    expect(screen.getByRole('tab', { name: 'Visão geral' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 });

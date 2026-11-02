@@ -390,6 +390,8 @@ mod tests {
             amount: None,
             rate_bp: Some(rate_bp),
             base_amount,
+            base_items: Vec::new(),
+            deduction_amount: None,
         }
     }
 
@@ -401,6 +403,8 @@ mod tests {
             amount: Some(amount),
             rate_bp: None,
             base_amount: None,
+            base_items: Vec::new(),
+            deduction_amount: None,
         }
     }
 

@@ -88,6 +88,16 @@ interface AdjustmentStep {
   amount?: string;
   base?: string;
   addition?: boolean;
+  /** Nomes dos itens da base ligada (SPEC-005). */
+  linked?: string[];
+  deduction?: string;
+}
+
+/** Abre uma aba do formulário ou do detalhe e espera ela ficar selecionada. */
+async function openTab(page: Page, name: string) {
+  const tab = page.getByRole('tab', { name, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 
 /** Adiciona um item pelo editor: percentual (`rate`, com `base` opcional) ou valor fixo (`amount`). */
@@ -112,6 +122,19 @@ async function addAdjustment(page: Page, position: number, step: AdjustmentStep)
   if (step.base !== undefined) {
     await item.getByText('Base diferente do bruto', { exact: true }).click();
     await item.getByRole('textbox', { name: /^Base de cálculo/ }).fill(step.base);
+  }
+  if (step.linked) {
+    await item.getByText('Base diferente do bruto', { exact: true }).click();
+    await item.getByRole('radio', { name: 'Itens da lista' }).check();
+    for (const name of step.linked) {
+      await item
+        .getByRole('group', { name: 'Itens da base' })
+        .getByRole('checkbox', { name })
+        .check();
+    }
+  }
+  if (step.deduction !== undefined) {
+    await item.getByRole('textbox', { name: /^Parcela a deduzir/ }).fill(step.deduction);
   }
 }
 
@@ -409,16 +432,19 @@ test('ct05 settles an income with deductions by the net and the balance gets the
   await page.getByRole('textbox', { name: 'Descrição' }).fill('Salário');
   await choose(page, 'Conta', account);
   await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('8.000,00');
+  await openTab(page, 'Descontos e acréscimos');
   await addAdjustment(page, 1, { name: 'INSS', rate: '11' });
   await addAdjustment(page, 2, { name: 'IRPF', rate: '15', base: '7.120,00' });
   await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s6\.052,00/);
   await checkPage(page);
   await page.getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Salário' })).toBeVisible();
+  await openTab(page, 'Descontos e acréscimos');
   const adjustments = page.getByRole('region', { name: 'Descontos e acréscimos' });
   await expect(adjustments).toContainText('8.000,00');
   await expect(adjustments).toContainText('6.052,00');
 
+  await openTab(page, 'Visão geral');
   await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill('6.500,00');
   const settlement = page.getByRole('region', { name: 'Liquidação', exact: true });
   await expect(settlement.getByRole('region', { name: 'Prévia da liquidação' })).toContainText(
@@ -427,9 +453,11 @@ test('ct05 settles an income with deductions by the net and the balance gets the
   await expect(settlement).toContainText('7.647,06');
   await checkPage(page);
   await settleNow(page);
+  // A diferença fica no cartão de liquidação, na visão geral; o liquidado, na aba dos itens.
+  await expect(page.getByText('Recebeu R$ 448,00 a mais')).toBeVisible();
+  await openTab(page, 'Descontos e acréscimos');
   await expect(adjustments).toContainText('Liquidado');
   await expect(adjustments).toContainText('8.592,20');
-  await expect(page.getByText('Recebeu R$ 448,00 a mais')).toBeVisible();
   await checkPage(page);
 
   await expectBalance(page, account, '6.500,00');
@@ -450,6 +478,7 @@ test('fa02 an expense with discount and fee takes the net from the balance', asy
   await page.getByRole('textbox', { name: 'Descrição' }).fill('Conta de luz');
   await choose(page, 'Conta', account);
   await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('200,00');
+  await openTab(page, 'Descontos e acréscimos');
   await addAdjustment(page, 1, { name: 'Desconto à vista', rate: '10' });
   await addAdjustment(page, 2, { name: 'Taxa', amount: '5,00', addition: true });
   await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s185,00/);
@@ -458,5 +487,60 @@ test('fa02 an expense with discount and fee takes the net from the balance', asy
   await settleNow(page);
   await expect(page.getByText('Liquidada pelo valor previsto.')).toBeVisible();
   await expectBalance(page, account, '185,00');
+  await checkPage(page);
+});
+
+test('ct16 payslip with a linked base and a deduction closes at the net', async ({ page }) => {
+  // O cartão do painel soma tudo da pessoa: este teste entra com uma pessoa só dele.
+  await signIn(page, 'user');
+  const account = `Conta holerite ${SUFFIX()}`;
+  await createAccount(page, account);
+  await page.goto('/finance/transactions/new?kind=income');
+  await page.getByRole('textbox', { name: 'Descrição' }).fill('Holerite');
+  await choose(page, 'Conta', account);
+  await page.getByRole('textbox', { name: /^Valor previsto/ }).fill('14.500,00');
+  await openTab(page, 'Descontos e acréscimos');
+  await addAdjustment(page, 1, { name: 'INSS', amount: '988,07' });
+  await addAdjustment(page, 2, {
+    name: 'IRPF',
+    rate: '27,5',
+    linked: ['INSS'],
+    deduction: '908,73',
+  });
+  await addAdjustment(page, 3, { name: 'Sindical', amount: '35,00' });
+  await addAdjustment(page, 4, { name: 'Consignados', amount: '3.746,70' });
+  await expect(expectedNet(page)).toHaveText(/Líquido previsto: R\$\s6\.923,18/);
+  await checkPage(page);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Holerite' })).toBeVisible();
+  await openTab(page, 'Descontos e acréscimos');
+  const adjustments = page.getByRole('region', { name: 'Descontos e acréscimos' });
+  await expect(adjustments).toContainText('13.511,93');
+  await expect(adjustments).toContainText('908,73');
+  await expect(adjustments).toContainText('2.807,05');
+  await expect(adjustments).toContainText('6.923,18');
+  await checkPage(page);
+
+  await openTab(page, 'Visão geral');
+  await page.getByRole('textbox', { name: /^Valor efetivo/ }).fill('6.923,18');
+  const settlement = page.getByRole('region', { name: 'Liquidação', exact: true });
+  const preview = settlement.getByRole('region', { name: 'Prévia da liquidação' });
+  await expect(preview).toContainText('14.500,00');
+  await expect(preview).toContainText('2.807,05');
+  await checkPage(page);
+  await settleNow(page);
+  await expect(page.getByText('Liquidada pelo valor previsto.')).toBeVisible();
+  await openTab(page, 'Descontos e acréscimos');
+  await expect(adjustments).toContainText('Liquidado');
+  await expect(adjustments).toContainText('14.500,00');
+  await checkPage(page);
+
+  await expectBalance(page, account, '6.923,18');
+  await page.goto('/finance');
+  await expect(page.getByRole('region', { name: /^Fechamento/ })).toContainText('6.923,18');
+  const card = page.getByRole('region', { name: 'Descontos do período' });
+  await expect(card).toContainText('IRPF');
+  await expect(card).toContainText('2.807,05');
+  await expect(card).toContainText('988,07');
   await checkPage(page);
 });

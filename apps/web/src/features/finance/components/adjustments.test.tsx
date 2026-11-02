@@ -1,12 +1,13 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch, type Control } from 'react-hook-form';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import { renderWithProviders } from '../../../shared/test/render';
-import { emptyAdjustment, type AdjustmentFormItem } from '../lib/adjustment-form';
-import { breakdownRows, mockApi, SALARY_ADJUSTMENTS } from '../test-utils';
-import { AdjustmentsBreakdown, type BreakdownItem } from './adjustments-breakdown';
+import { emptyAdjustment, toAdjustments, type AdjustmentFormItem } from '../lib/adjustment-form';
+import { computeNet } from '../lib/adjustments';
+import { breakdownRows, mockApi, PAYSLIP_ADJUSTMENTS, SALARY_ADJUSTMENTS } from '../test-utils';
+import { AdjustmentsBreakdown, breakdownItems, type BreakdownItem } from './adjustments-breakdown';
 import { AdjustmentsField } from './adjustments-field';
 
 afterEach(() => {
@@ -24,6 +25,34 @@ function Harness({ items }: { items: AdjustmentFormItem[] }) {
   return <AdjustmentsField control={control} />;
 }
 
+type Shape = { adjustments: AdjustmentFormItem[] };
+
+function LiveBreakdown({ control, gross }: { control: Control<Shape>; gross: number }) {
+  const items = useWatch({ control, name: 'adjustments' });
+  const adjustments = toAdjustments(items);
+  const result = adjustments ? computeNet(gross, adjustments) : null;
+  if (!result?.ok) return null;
+  return (
+    <AdjustmentsBreakdown
+      currency="BRL"
+      gross_amount={result.breakdown.gross_amount}
+      items={result.breakdown.adjustments}
+      net_amount={result.breakdown.net_amount}
+      net_label="Líquido previsto"
+    />
+  );
+}
+
+function LiveHarness({ items, gross }: { items: AdjustmentFormItem[]; gross: number }) {
+  const { control } = useForm<Shape>({ defaultValues: { adjustments: items } });
+  return (
+    <>
+      <AdjustmentsField control={control} />
+      <LiveBreakdown control={control} gross={gross} />
+    </>
+  );
+}
+
 const inss = (overrides: Partial<AdjustmentFormItem> = {}): AdjustmentFormItem => ({
   ...emptyAdjustment(),
   name: 'INSS',
@@ -36,6 +65,26 @@ const sindical = (): AdjustmentFormItem => ({
   name: 'Sindical',
   mode: 'fixed',
   amount: 4000,
+});
+
+const fixedItem = (name: string, amount: number): AdjustmentFormItem => ({
+  ...emptyAdjustment(),
+  name,
+  mode: 'fixed',
+  amount,
+});
+
+const linkedIrpf = (
+  base_items: number[],
+  overrides: Partial<AdjustmentFormItem> = {},
+): AdjustmentFormItem => ({
+  ...emptyAdjustment(),
+  name: 'IRPF',
+  rate_text: '27,5',
+  base_different: true,
+  base_source: 'items',
+  base_items,
+  ...overrides,
 });
 
 const SAMPLE: BreakdownItem[] = [
@@ -146,6 +195,166 @@ describe('adjustments components', () => {
     expect(screen.getByRole('group', { name: 'Item 2' })).toBeInTheDocument();
     for (const field of screen.getAllByRole('textbox')) {
       expect(field).toHaveAccessibleName();
+    }
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('ct09 links the base to chosen items with the keyboard and shows the base live', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(
+      <LiveHarness
+        gross={1450000}
+        items={[
+          fixedItem('INSS', 98807),
+          { ...emptyAdjustment(), name: 'IRPF', rate_text: '27,5' },
+        ]}
+      />,
+    );
+    const group = await screen.findByRole('group', { name: 'Item 2' });
+    await user.click(within(group).getByLabelText('Base diferente do bruto'));
+    const typed = within(group).getByRole('radio', { name: 'Valor digitado' });
+    expect(typed).toBeChecked();
+    typed.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(within(group).getByRole('radio', { name: 'Itens da lista' })).toBeChecked();
+    const links = within(group).getByRole('group', { name: 'Itens da base' });
+    expect(within(links).queryByRole('checkbox', { name: 'IRPF' })).toBeNull();
+    within(links).getByRole('checkbox', { name: 'INSS' }).focus();
+    await user.keyboard(' ');
+    expect(within(links).getByRole('checkbox', { name: 'INSS' })).toBeChecked();
+    await user.type(within(group).getByLabelText('Parcela a deduzir (R$)'), '908,73');
+    const list = container.querySelector('dl') as HTMLElement;
+    expect(breakdownRows(list)).toContain(
+      'IRPF 27,50% de R$ 13.511,93 menos R$ 908,73 −R$ 2.807,05',
+    );
+  });
+
+  it('rf03 offers the three bases of a percent item', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    renderWithProviders(<Harness items={[inss()]} />);
+    const group = await screen.findByRole('group', { name: 'Item 1' });
+    expect(within(group).queryByLabelText('Base de cálculo (R$)')).toBeNull();
+    expect(within(group).queryByRole('group', { name: 'Itens da base' })).toBeNull();
+    await user.click(within(group).getByLabelText('Base diferente do bruto'));
+    expect(within(group).getByRole('radio', { name: 'Valor digitado' })).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: 'Itens da lista' })).toBeInTheDocument();
+    expect(within(group).getByLabelText('Base de cálculo (R$)')).toBeInTheDocument();
+    await user.click(within(group).getByRole('radio', { name: 'Itens da lista' }));
+    expect(within(group).queryByLabelText('Base de cálculo (R$)')).toBeNull();
+    expect(within(group).getByRole('group', { name: 'Itens da base' })).toBeInTheDocument();
+    expect(within(group).getByText('Adicione outro item para ligar a base.')).toBeInTheDocument();
+  });
+
+  it('rf04 shows the deduction only on a percent item', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    renderWithProviders(<Harness items={[inss()]} />);
+    const group = await screen.findByRole('group', { name: 'Item 1' });
+    expect(within(group).getByLabelText('Parcela a deduzir (R$)')).toBeInTheDocument();
+    expect(
+      within(group).getByText(
+        'Opcional. É subtraída do percentual, como a parcela a deduzir do IRPF, e muda com a faixa.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(group).getByText('Valor fixo'));
+    expect(within(group).queryByLabelText('Parcela a deduzir (R$)')).toBeNull();
+  });
+
+  it('ct14 refuses to remove an item used as a base and explains why', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    renderWithProviders(<Harness items={[fixedItem('INSS', 98807), linkedIrpf([0])]} />);
+    await user.click(await screen.findByRole('button', { name: 'Remover INSS' }));
+    expect(screen.getByRole('group', { name: 'Item 1' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Item 2' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'INSS é base de IRPF. Desmarque o vínculo antes de remover.',
+    );
+    const links = within(screen.getByRole('group', { name: 'Item 2' })).getByRole('group', {
+      name: 'Itens da base',
+    });
+    await user.click(within(links).getByRole('checkbox', { name: 'INSS' }));
+    await user.click(screen.getByRole('button', { name: 'Remover INSS' }));
+    expect(screen.getAllByRole('group', { name: /^Item \d+$/ })).toHaveLength(1);
+  });
+
+  it('ct14 keeps the links right after removing an earlier item', async () => {
+    quietApi();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Harness items={[fixedItem('Pensão', 100000), fixedItem('INSS', 98807), linkedIrpf([1])]} />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Remover Pensão' }));
+    const group = screen.getByRole('group', { name: 'Item 2' });
+    const links = within(group).getByRole('group', { name: 'Itens da base' });
+    expect(within(links).getByRole('checkbox', { name: 'INSS' })).toBeChecked();
+  });
+
+  it('ct10 shows the linked base and the deduction in the breakdown', async () => {
+    quietApi();
+    const { container } = renderWithProviders(
+      <>
+        <AdjustmentsBreakdown
+          currency="BRL"
+          gross_amount={1450000}
+          items={breakdownItems(PAYSLIP_ADJUSTMENTS)}
+          net_amount={692318}
+          net_label="Líquido previsto"
+        />
+        <AdjustmentsBreakdown
+          currency="BRL"
+          gross_amount={800000}
+          items={[
+            {
+              name: 'X',
+              direction: 'deduction',
+              mode: 'percent',
+              rate_bp: 1100,
+              deduction_amount: 1000,
+              computed_amount: 87000,
+            },
+          ]}
+          net_amount={713000}
+          net_label="Líquido previsto"
+        />
+      </>,
+    );
+    await screen.findAllByText('Valor bruto');
+    const [payslipList, grossList] = Array.from(container.querySelectorAll('dl'));
+    expect(breakdownRows(payslipList as HTMLElement)).toEqual([
+      'Valor bruto R$ 14.500,00',
+      'INSS valor fixo −R$ 988,07',
+      'IRPF 27,50% de R$ 13.511,93 menos R$ 908,73 −R$ 2.807,05',
+      'Sindical valor fixo −R$ 35,00',
+      'Consignados valor fixo −R$ 3.746,70',
+      'Líquido previsto R$ 6.923,18',
+    ]);
+    expect(breakdownRows(grossList as HTMLElement)).toContain(
+      'X 11,00% do bruto menos R$ 10,00 −R$ 870,00',
+    );
+  });
+
+  it('rnf04 labels the linked base and deduction fields with no axe violations', async () => {
+    quietApi();
+    const { container } = renderWithProviders(
+      <>
+        <Harness items={[fixedItem('INSS', 98807), linkedIrpf([0], { deduction_amount: 90873 })]} />
+        <AdjustmentsBreakdown
+          currency="BRL"
+          gross_amount={1450000}
+          items={breakdownItems(PAYSLIP_ADJUSTMENTS)}
+          net_amount={692318}
+          net_label="Líquido previsto"
+        />
+      </>,
+    );
+    expect(await screen.findByRole('group', { name: 'Item 2' })).toBeInTheDocument();
+    for (const role of ['textbox', 'radio', 'checkbox'] as const) {
+      for (const field of screen.getAllByRole(role)) {
+        expect(field).toHaveAccessibleName();
+      }
     }
     expect(await axe(container)).toHaveNoViolations();
   });

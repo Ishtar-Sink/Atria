@@ -219,6 +219,8 @@ mod tests {
             amount: None,
             rate_bp: Some(1100),
             base_amount: None,
+            base_items: Vec::new(),
+            deduction_amount: None,
         };
         let planned = planned_from_gross(200_000, &[inss]).unwrap();
         let mut model = rent();
@@ -256,6 +258,8 @@ mod tests {
             amount: Some(4_000),
             rate_bp: None,
             base_amount: None,
+            base_items: Vec::new(),
+            deduction_amount: None,
         };
         let planned = planned_from_gross(50_000, &[sindical]).unwrap();
         let mut stored = transaction(TransactionKind::Income, planned.expected_amount);
