@@ -1,0 +1,25 @@
+id: TASK-09
+spec: SPEC-004
+title: "Cartão Descontos do período"
+description: "Cartão do painel com descontos e acréscimos por nome."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-06, TASK-07]
+wave: 6
+covers: [RF-14, CT-12]
+type: historia
+labels: [SPEC-004, padrao]
+status: approved
+content_hash: ada126ba5881df39703b9cc3f66e895a611761846bb01584e45e41721cdf3fdc
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: ada126ba5881df39703b9cc3f66e895a611761846bb01584e45e41721cdf3fdc
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 7d376f3f1fc4cff08493f66d8d3247595dd096728bca72ceba733db9d7438df6
+verification_hash: 9854bdbae2e86c9f0511896e780495b2c0f7764c8e48062091129790b591a964
+criteria_hash: 390a6bccaa2901bea95ce36a1275f91f2dc167a8b96e3572895f0c9cafbaf096
+state_hash: abd595bb13e6ec2cfb341a03b334759e93373841291ee268446be2b223ec911e

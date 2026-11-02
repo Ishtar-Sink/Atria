@@ -1,0 +1,25 @@
+id: TASK-08
+spec: SPEC-004
+title: "Liquidação pelo líquido na tela"
+description: "Cartão de liquidação com o líquido, a prévia do servidor e a edição dos itens."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-07]
+wave: 6
+covers: [RF-09, RF-10, CT-05, CT-06]
+type: historia
+labels: [SPEC-004, padrao]
+status: approved
+content_hash: 2fe03f46b6eae798b2bf40a08d8be9ff4f74263b30b1ee0467b9dd664e1ed5fe
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: 2fe03f46b6eae798b2bf40a08d8be9ff4f74263b30b1ee0467b9dd664e1ed5fe
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: ed81c8bf1bb4d4e36747db1374e26213d95917558915db8ab6acb122de0bd3f0
+verification_hash: 48d28fc358c3b71a23b47f5b3276c9d84cf23ed75a83fb0539214848b59d35f0
+criteria_hash: 8aef063387cb5e2b452d19749e398c2719f2364f281c3918d77a6dd185237dc3
+state_hash: 733b2bcceb8495d267245410ed46de3b9d98f5590cc731eae95e647fd01b7ab8

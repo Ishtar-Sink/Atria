@@ -1,0 +1,28 @@
+id: TASK-05
+spec: SPEC-004
+title: "Ajustes nas recorrentes"
+description: "Itens na regra, nas ocorrências virtuais, na liquidação com edição e na cópia liquidada."
+profile: julgamento
+persona: desenvolvedor
+depends_on: [TASK-04]
+wave: 4
+covers: [RF-02, RF-08, RF-10, RF-11, CT-04, CT-05, CT-06]
+type: historia
+labels: [SPEC-004, julgamento]
+status: done
+content_hash: c9b81a9a67c8a9006070274f10e7b3b827084983e4c25a2aa0d7c28320cf9b86
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: 86982c20c919d5beb7fdde67ab8cfd50fd758a58854dd20f5b630b85255c43fb
+attempts: 0
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+execution_hash: 8dedef7a73009989888998d6fd942126b58e8df7cb5fb23a02f93d9e17a13b10
+verification_hash: 8701c3633af080f065248ef367d4a1566ac23462a3fe9a728ac3ac654c7eb21b
+criteria_hash: 5d93f4992df8cdb41d59ec4027bea9bd06b98c920d123dc1738e1c4be321e2f5
+state_hash: a53e5dbeac2bb0a5b7332e23618d477f4751dd2e28abf0c0994f94989ff61f57
+model: claude-opus-5-5
+executive_hash: 2f9d06cdc8ed1cf422bb24d785f76ef5c2f140da4ac56b3eb7e7ab3b522699c7
+technical_hash: 4c6103667a857958affe91cb6f275bf2f930fe3f714dba00f613896d65be3b40

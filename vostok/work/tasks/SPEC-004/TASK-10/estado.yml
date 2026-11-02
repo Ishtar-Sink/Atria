@@ -1,0 +1,25 @@
+id: TASK-10
+spec: SPEC-004
+title: "E2E e evidências"
+description: "Fluxo completo nos e2e com axe e evidências em 360 px e desktop."
+profile: mecanica
+persona: qa
+depends_on: [TASK-08, TASK-09]
+wave: 7
+covers: [RF-08, RF-09, CT-05]
+type: tarefa
+labels: [SPEC-004, mecanica]
+status: approved
+content_hash: d7ec2faa316cdccc3e5401c7ad0d9b42aa04f763abb91fb354c73b30cdb15dff
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: d7ec2faa316cdccc3e5401c7ad0d9b42aa04f763abb91fb354c73b30cdb15dff
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 69758e9ae75b060a454069f022c983451c82e1e59e37773e043eb67313285a9e
+verification_hash: d5c0d12ffefb5b218da23fd1f58cf7561c401d78defa3be5f5cc1c8968934155
+criteria_hash: f6d07dc474a27231afa688dcb9bf600630c9661750dc2193df005fabb5cad344
+state_hash: 7785e550a5fe5a5c509a2557ec624b1512af71fef4307e20faa8de18a012ef0e

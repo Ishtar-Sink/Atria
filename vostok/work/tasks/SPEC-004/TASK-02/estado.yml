@@ -1,0 +1,28 @@
+id: TASK-02
+spec: SPEC-004
+title: "Cálculo no domínio do servidor"
+description: "Módulo de ajustes com líquido, base digitada, bruto equivalente e centavo residual, com a tabela de casos."
+profile: julgamento
+persona: desenvolvedor
+depends_on: [TASK-01]
+wave: 2
+covers: [RF-03, RF-04, RF-05, RF-06, RF-07, CT-01, CT-02, CT-07, CT-13, CB-03, CB-04, CB-05, CB-09]
+type: tarefa
+labels: [SPEC-004, julgamento]
+status: done
+content_hash: e849ada6400878a760ced8b70ceedbcba88806e033ebb2095b91ae2fb15ff9a9
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: 2bd3f8cc3749877192cc693d69d98863c7b8a229819afdd7508a9438159a5f94
+attempts: 0
+tests_result: passed
+regression_result: passed
+evidence_result: passed
+execution_hash: 9a1180ce09505cc196ec0902fe297a418fefbd10fb819e3fa6d589f66220a6e2
+verification_hash: 1f71556b9ff92ecb6e1ab1374532e656fd35406c6c183fb34247130f9f6b6e0b
+criteria_hash: 9281a09b2301ba4400b6d9a5383b389dc65466598df38d1ca07690e9ebbe27c1
+state_hash: dd96d516ab9667a42341ffa454b9b1df367d5554c1448ae573913f0ab42a351c
+model: claude-opus-5-5
+executive_hash: 71791448af3b624b1f2c43435e9a041a77fd3a15f565453d0054f78fd1eda8b1
+technical_hash: 897063ed3130f3581f8cdd19fbdf47ebe198e15cbaf0999eb8a0e9318ffc091c

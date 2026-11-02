@@ -1,0 +1,25 @@
+id: TASK-07
+spec: SPEC-004
+title: "Editor de ajustes no formulário e no detalhe"
+description: "Editor com a base digitada, líquido ao vivo no formulário e detalhamento no detalhe da movimentação e da recorrente."
+profile: padrao
+persona: ui-ux-designer
+depends_on: [TASK-03, TASK-05]
+wave: 5
+covers: [RF-12, RF-13, CT-10, CT-11]
+type: historia
+labels: [SPEC-004, padrao]
+status: approved
+content_hash: 957481d19bd78a124a408e72edea71fe7eb049b8c13354dc4a5140d2ba196dd0
+adjustments: 0
+adjusted_at: null
+approved_at: 2026-11-02T09:30:38Z
+approved_hash: 957481d19bd78a124a408e72edea71fe7eb049b8c13354dc4a5140d2ba196dd0
+attempts: 0
+tests_result: null
+regression_result: null
+evidence_result: null
+execution_hash: 63c34abafa85cb52914856612b8f4d7048529118e45cb15d45d5d6010d20da9d
+verification_hash: aa3f0f8ae9629458640a508f5a9468cea6605d5953f53fa1f1a0d85a5f07a295
+criteria_hash: 0eb2019df2c75d10615ad83780dce929bdc1bc9221c2ef9dc2b6b54d07ab3670
+state_hash: 0dfa5d1b75678de90bb1ca8efcc9a9574a05d2592ae411f6b790aba3411b95f5

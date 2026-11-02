@@ -2,7 +2,7 @@
 type: decision
 title: "Decisões"
 description: "Decisões estruturantes do projeto e o motivo de cada uma. Consulte antes de decidir algo que afete arquitetura, stack, dados, contratos ou convenções, e quando houver ambiguidade."
-updated_at: 2026-10-31T10:48:52Z
+updated_at: 2026-11-02T09:46:18Z
 ---
 
 # Decisões
@@ -166,3 +166,15 @@ Entradas criadas por `vostok memory add` e consultadas por `vostok memory search
 - **Alternativas descartadas:** Escurecer só o hover no tema claro até 4,5:1, divergindo do protótipo.
 - **Consequências:** O hover do botão de sucesso fica abaixo de 4,5:1 no tema claro por fidelidade ao protótipo (DEC-007), como a DEC-010 no calendário.
 - **Substitui:** nenhuma
+
+## DEC-014: SPEC-004: contrato corrigido pelo estudo fica no estudo, não na spec
+
+- **Data:** 2026-11-02
+- **Status:** ativa
+- **Tags:** financeiro, contrato, descontos, spec
+- **Origem:** Decisão do usuário em 2026-11-02, ao concluir a TASK-01 da SPEC-004 (estudo dos descontos).
+- **Contexto:** O estudo `docs/estudos/financeiro-descontos.md` corrigiu dois pontos do contrato da SPEC-004: a prévia `POST /api/v1/transactions/settlement-preview` recebe também `expected_gross_amount` e responde com `net_amount`; o total por nome fica em `GET /api/v1/financial-summaries`, não em `/api/v1/finance/summary`. A spec já estava `planned`, e o adjust-spec só aceita `refined` ou `approved`.
+- **Decisão:** A spec não é ajustada. As tarefas TASK-02 a TASK-10 seguem o contrato do estudo, e a seção "O que muda no contrato da spec" do estudo é o registro da diferença, que o finalize-spec leva para os documentos finais.
+- **Alternativas descartadas:** Voltar a spec para ajuste (impossível com status `planned`); manter o contrato original da spec (a prévia não escalaria a base digitada, e a rota não existe).
+- **Consequências:** Quem ler a spec deve conferir o estudo para os dois pontos; a finalização da SPEC-004 cita a diferença.
+- **Substitui:** Nenhuma
