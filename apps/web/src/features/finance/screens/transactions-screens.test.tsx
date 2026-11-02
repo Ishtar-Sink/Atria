@@ -199,6 +199,28 @@ describe('incomes and expenses', () => {
     expect(screen.queryByRole('link', { name: 'Feira' })).toBeNull();
   });
 
+  it('ct08 shows incomes with plus in green and expenses with minus in the lists', async () => {
+    financeServer(seed());
+    const first = renderFinance('/finance/income');
+    await screen.findByRole('link', { name: 'Salário de novembro' });
+    const incomes = [...document.querySelectorAll<HTMLElement>('li [data-kind]')];
+    expect(incomes.length).toBeGreaterThan(0);
+    for (const amount of incomes) {
+      expect(amount.textContent.replace(/[\u00a0\u202f]/g, ' ')).toMatch(/^\+R\$/);
+      expect(amount.className).toContain('positive');
+    }
+    first.unmount();
+    renderFinance('/finance/expenses');
+    await screen.findByRole('link', { name: 'Feira' });
+    const expenses = [...document.querySelectorAll<HTMLElement>('li [data-kind]')];
+    expect(expenses.length).toBeGreaterThan(0);
+    for (const amount of expenses) {
+      expect(amount.textContent.replace(/[\u00a0\u202f]/g, ' ')).toMatch(/^\u2212R\$/);
+      expect(amount.className).not.toContain('positive');
+      expect(amount.className).not.toContain('negative');
+    }
+  });
+
   it('keeps the view switcher only as wide as its options', async () => {
     financeServer(seed());
     renderFinance('/finance/expenses');

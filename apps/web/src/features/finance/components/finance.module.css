@@ -511,6 +511,20 @@ a.barLabel {
   white-space: normal;
 }
 
+/* Valor com o sinal e a cor do tipo (RF-11, RF-12); saída e zero ficam na cor do texto, nunca em vermelho (RN-07). */
+.amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.positive {
+  color: var(--success);
+}
+
+.negative {
+  color: var(--warning);
+}
+
 @media (max-width: 960px) {
   .detailGrid {
     grid-template-columns: minmax(0, 1fr);

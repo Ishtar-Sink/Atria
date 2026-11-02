@@ -123,8 +123,8 @@ describe('finance panel', () => {
     expect(screen.getByRole('link', { name: 'Painel' })).toHaveAttribute('aria-current', 'page');
     const closing = await screen.findByRole('region', { name: 'Fechamento · este mês' });
     const text = plain(closing.textContent);
-    expect(text).toContain('EntradasR$ 5.000,00de R$ 6.000,00 previstos');
-    expect(text).toContain('SaídasR$ 2.000,00de R$ 2.800,00 previstos');
+    expect(text).toContain('Entradas+R$ 5.000,00de R$ 6.000,00 previstos');
+    expect(text).toContain('Saídas\u2212R$ 2.000,00de R$ 2.800,00 previstos');
     expect(text).toContain('Sobra previstaR$ 3.200,00entradas menos saídas');
     expect(text).toContain('Você gastou R$ 320,00 a menos que no período anterior.');
     const params = calls.find((call) => call.path === '/financial-summaries')?.url.searchParams;
@@ -148,9 +148,61 @@ describe('finance panel', () => {
     );
     renderFinance('/finance');
     const closing = await screen.findByRole('region', { name: /Fechamento/ });
-    const surplus = within(closing).getByText(/-R\$|−R\$|R\$\s?-/);
-    expect(surplus.className).toContain('negative');
+    // A saída também leva "−" (RF-11): a sobra é o valor de saldo do Fechamento.
+    const surplus = within(closing)
+      .getAllByText(/-R\$|−R\$|R\$\s?-/)
+      .find((el) => el.dataset.kind === 'balance');
+    expect(surplus?.className).toContain('negative');
     expect(document.querySelectorAll('.danger')).toHaveLength(0);
+  });
+
+  it('rf12 shows the balance and each account in green or amber', async () => {
+    const base = summary();
+    financeServer(
+      world({
+        summary: summary({
+          balance: {
+            ...base.balance,
+            accounts: [
+              { id: 'a1', name: 'Conta', balance_amount: 770000 },
+              { id: 'a2', name: 'Carteira', balance_amount: -20000 },
+            ],
+          },
+        }),
+      }),
+    );
+    renderFinance('/finance');
+    const balance = await screen.findByRole('region', { name: 'Saldo' });
+    const total = balance.querySelector<HTMLElement>('[data-kind="balance"]');
+    expect(plain(total?.textContent)).toBe('R$ 7.500,00');
+    expect(total?.className).toContain('positive');
+    const wallet = within(balance)
+      .getByRole('link', { name: 'Carteira' })
+      .closest('li')
+      ?.querySelector<HTMLElement>('[data-kind="balance"]');
+    expect(plain(wallet?.textContent)).toBe('\u2212R$ 200,00');
+    expect(wallet?.className).toContain('negative');
+  });
+
+  it('cb07 shows a zero surplus without color or sign', async () => {
+    financeServer(
+      world({
+        summary: summary({
+          totals: {
+            income: { realized: 100000, forecast: 100000 },
+            expense: { realized: 100000, forecast: 100000 },
+            surplus: { realized: 0, forecast: 0 },
+          },
+        }),
+      }),
+    );
+    renderFinance('/finance');
+    const closing = await screen.findByRole('region', { name: /Fechamento/ });
+    const surplus = [...closing.querySelectorAll<HTMLElement>('[data-kind="balance"]')].at(-1);
+    expect(plain(surplus?.textContent)).toBe('R$ 0,00');
+    expect(surplus?.className).not.toContain('positive');
+    expect(surplus?.className).not.toContain('negative');
+    expect(surplus?.textContent).not.toMatch(/[+\u2212]/);
   });
 
   it('hides the comparison for any period', async () => {

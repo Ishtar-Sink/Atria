@@ -8,7 +8,8 @@
 // TASK-11 acrescenta recorrencia: finance-recorrencia.webm (desfazer a cópia e excluir a recorrência).
 // TASK-12 acrescenta excluir-conta: finance-excluir-conta.webm (excluir conta com conta de destino).
 // TASK-15 acrescenta graficos (finance-graficos.png) e graficos-video (finance-graficos.webm).
-// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video]
+// TASK-17 acrescenta sinais (finance-sinais.png): valores com sinal e cor nas listas e no painel.
+// Uso: node apps/web/scripts/evidence-finance.mjs [telas|formulario|painel|sem-cartao|recorrencia|excluir-conta|graficos|graficos-video|sinais]
 // Imprime "ok" ou "FALHA" por verificação e o caminho do PNG; sai com código 1 se algo falhar.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -938,6 +939,41 @@ async function tabToChart(page, name, limit = 120) {
   return false;
 }
 
+// ---------- valores com sinal e cor (TASK-17) ----------
+
+const MINUS = '−';
+
+/** Texto e cor calculada dos valores com sinal (`[data-kind]`) dentro de `scope`. */
+const amountsIn = (page, scope) =>
+  page.locator(`${scope} [data-kind]`).evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      kind: node.dataset.kind,
+      text: (node.textContent ?? '').replace(/[  ]/g, ' ').trim(),
+      color: getComputedStyle(node).color,
+    })),
+  );
+
+/** Mundo do painel com a sobra prevista e uma conta negativas, e uma conta zerada. */
+function signedWorld() {
+  const state = seed();
+  state.summary = {
+    ...state.summary,
+    totals: {
+      ...state.summary.totals,
+      surplus: { realized: -20000, forecast: -32000 },
+    },
+    balance: {
+      ...state.summary.balance,
+      accounts: [
+        { id: 'a1', name: 'Conta principal', balance_amount: 700000 },
+        { id: 'a2', name: 'Carteira', balance_amount: -15000 },
+        { id: 'a3', name: 'Poupança', balance_amount: 0 },
+      ],
+    },
+  };
+  return state;
+}
+
 let recurringPosts = 0;
 
 const scenarios = [
@@ -1201,6 +1237,109 @@ const scenarios = [
           bars.filter((bar) => bar.fill === warning).length === 1 &&
           bars.every((bar) => bar.fill !== danger),
         `${bars.length} coluna(s), âmbar ${warning}`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+    },
+  },
+  {
+    name: 'Entradas com + em verde',
+    group: 'sinais',
+    path: '/finance/income',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Salário de novembro' }).waitFor();
+      await settle(page);
+      const green = await tokenColor(page, '--success');
+      const values = await amountsIn(page, 'main li');
+      check(
+        `${tag}: Entradas com + em verde`,
+        values.length > 0 && values.every((v) => v.text.startsWith('+R$') && v.color === green),
+        values.map((v) => v.text).join(' · '),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+    },
+  },
+  {
+    name: 'Saídas com − na cor do texto',
+    group: 'sinais',
+    path: '/finance/expenses',
+    combos: ALL,
+    run: async (page, tag) => {
+      await page.getByRole('link', { name: 'Feira' }).waitFor();
+      await settle(page);
+      const text = await tokenColor(page, '--text');
+      const values = await amountsIn(page, 'main li');
+      check(
+        `${tag}: Saídas com − na cor do texto`,
+        values.length > 0 &&
+          values.every((v) => v.text.startsWith(`${MINUS}R$`) && v.color === text),
+        values.map((v) => v.text).join(' · '),
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+    },
+  },
+  {
+    name: 'saldo negativo em âmbar',
+    group: 'sinais',
+    path: '/finance',
+    combos: ALL,
+    world: signedWorld,
+    run: async (page, tag) => {
+      const closing = page.getByRole('region', { name: /Fechamento/ });
+      await closing.waitFor();
+      await settle(page, 400);
+      const amber = await tokenColor(page, '--warning');
+      const surplus = (await amountsIn(page, '[data-zone="main"][data-row="1"]')).find(
+        (v) => v.kind === 'balance',
+      );
+      const balance = page.getByRole('region', { name: 'Saldo', exact: true });
+      const wallet = await balance
+        .locator('li')
+        .filter({ hasText: 'Carteira' })
+        .locator('[data-kind]')
+        .evaluate((node) => ({
+          text: (node.textContent ?? '').replace(/[  ]/g, ' ').trim(),
+          color: getComputedStyle(node).color,
+        }));
+      check(
+        `${tag}: saldo negativo em âmbar`,
+        surplus?.text.startsWith(`${MINUS}R$`) &&
+          surplus.color === amber &&
+          wallet.text.startsWith(`${MINUS}R$`) &&
+          wallet.color === amber,
+        `sobra ${surplus?.text} · carteira ${wallet.text}`,
+      );
+      const red = await noRed(page, 'main');
+      check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
+    },
+  },
+  {
+    name: 'saldo zero sem cor',
+    group: 'sinais',
+    path: '/finance',
+    combos: ALL,
+    world: signedWorld,
+    run: async (page, tag) => {
+      const balance = page.getByRole('region', { name: 'Saldo', exact: true });
+      await balance.waitFor();
+      await settle(page, 400);
+      await balance.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      const text = await tokenColor(page, '--text');
+      const zero = await balance
+        .locator('li')
+        .filter({ hasText: 'Poupança' })
+        .locator('[data-kind]')
+        .evaluate((node) => ({
+          text: (node.textContent ?? '').replace(/[  ]/g, ' ').trim(),
+          color: getComputedStyle(node).color,
+        }));
+      check(
+        `${tag}: saldo zero sem cor`,
+        zero.text === 'R$ 0,00' && zero.color === text,
+        `${zero.text} · ${zero.color}`,
       );
       const red = await noRed(page, 'main');
       check(`${tag}: sem vermelho`, red.ok, red.sample.join(' | '));
@@ -2458,6 +2597,20 @@ const EVIDENCES = {
       scale: { desktop: 0.5, mobile: 0.62 },
     });
   },
+  sinais: async (browser, base) => {
+    const shots = await runScenarios(
+      browser,
+      base,
+      scenarios.filter((sc) => sc.group === 'sinais'),
+    );
+    await sheet(browser, {
+      title:
+        'TASK-17 da SPEC-003 · valores com sinal e cor (RF-11, RF-12, CT-08, CB-07) · API simulada, relógio em 05/11/2026',
+      file: 'finance-sinais.png',
+      shots,
+      scale: { desktop: 0.5, mobile: 0.62 },
+    });
+  },
   'graficos-video': async (browser, base) => {
     await recordChartsVideo(browser, base);
   },
@@ -2478,7 +2631,7 @@ const names = wanted.length > 0 ? wanted : Object.keys(EVIDENCES);
 const unknown = names.filter((n) => !(n in EVIDENCES));
 if (unknown.length > 0) {
   console.error(
-    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos ou graficos-video.`,
+    `Evidência desconhecida: ${unknown.join(', ')}. Use telas, formulario, painel, sem-cartao, recorrencia, excluir-conta, graficos, graficos-video ou sinais.`,
   );
   process.exit(2);
 }

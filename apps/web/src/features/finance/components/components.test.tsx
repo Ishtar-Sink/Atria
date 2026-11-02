@@ -11,6 +11,7 @@ import { renderWithProviders } from '../../../shared/test/render';
 import { item, mockApi } from '../test-utils';
 import { DifferenceBadge } from './difference-badge';
 import { FinanceShell, type FinanceTab } from './finance-shell';
+import { MoneyAmount } from './money-amount';
 import { MoneyField } from './money-field';
 import { MonthlyChart } from './monthly-chart';
 import { ExpectedVsSettledBars, HorizontalBars } from './panel-charts';
@@ -44,10 +45,13 @@ function quietApi() {
 const plain = (text: string | null | undefined) => (text ?? '').replace(/[  ]/g, ' ');
 
 describe('finance components', () => {
-  it('formats values without plus or minus sign', async () => {
+  it('rf11 shows incomes in green with plus and expenses with minus', async () => {
     quietApi();
     renderWithProviders(
       <ul>
+        <TransactionRow
+          item={item({ id: 't2', kind: 'income', expected_amount: 500000, description: 'Salário' })}
+        />
         <TransactionRow
           item={item({
             id: 't1',
@@ -55,23 +59,85 @@ describe('finance components', () => {
             expected_amount: 150000,
             description: 'Aluguel',
           })}
-          account_name="Conta"
-          category_name="Casa"
-        />
-        <TransactionRow
-          item={item({ id: 't2', kind: 'income', expected_amount: 500000, description: 'Salário' })}
         />
       </ul>,
     );
-    const rows = [
-      (await screen.findByRole('link', { name: 'Aluguel' })).closest('li'),
-      screen.getByRole('link', { name: 'Salário' }).closest('li'),
-    ];
-    expect(plain(rows[0]?.textContent)).toContain('R$ 1.500,00');
-    expect(plain(rows[1]?.textContent)).toContain('R$ 5.000,00');
-    for (const row of rows) {
-      expect(row?.textContent).not.toMatch(/[+−]|-\s?R\$/);
+    const income = amountIn(await screen.findByRole('link', { name: 'Salário' }));
+    const expense = amountIn(screen.getByRole('link', { name: 'Aluguel' }));
+    expect(plain(income?.textContent)).toBe('+R$ 5.000,00');
+    expect(income?.className).toContain('positive');
+    expect(plain(expense?.textContent)).toBe('\u2212R$ 1.500,00');
+    expect(expense?.className).not.toContain('positive');
+    expect(expense?.className).not.toContain('negative');
+  });
+
+  it('rn06 takes the sign from the kind, never from the stored number', async () => {
+    quietApi();
+    renderWithProviders(
+      <div>
+        <MoneyAmount amount={150000} currency="BRL" kind="expense" />
+        <MoneyAmount amount={-150000} currency="BRL" kind="income" />
+      </div>,
+    );
+    const [expense, income] = await amounts();
+    expect(plain(expense?.textContent)).toBe('\u2212R$ 1.500,00');
+    expect(plain(income?.textContent)).toBe('+R$ 1.500,00');
+  });
+
+  it('rf12 shows a positive balance in green and a negative one in amber', async () => {
+    quietApi();
+    renderWithProviders(
+      <div>
+        <MoneyAmount amount={250000} currency="BRL" kind="balance" />
+        <MoneyAmount amount={-50000} currency="BRL" kind="balance" />
+      </div>,
+    );
+    const [positive, negative] = await amounts();
+    expect(plain(positive?.textContent)).toBe('R$ 2.500,00');
+    expect(positive?.className).toContain('positive');
+    expect(plain(negative?.textContent)).toBe('\u2212R$ 500,00');
+    expect(negative?.className).toContain('negative');
+  });
+
+  it('cb07 shows a zero balance in the text color without sign', async () => {
+    quietApi();
+    renderWithProviders(<MoneyAmount amount={0} currency="BRL" kind="balance" />);
+    const [zero] = await amounts();
+    expect(plain(zero?.textContent)).toBe('R$ 0,00');
+    expect(zero?.className).not.toContain('positive');
+    expect(zero?.className).not.toContain('negative');
+  });
+
+  it('rn07 never paints an amount in red', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<SignedAmounts />);
+    await amounts();
+    expect(container.querySelector('[class*="danger"]')).toBeNull();
+  });
+
+  it('rnf03 keeps the sign as text next to the color', async () => {
+    quietApi();
+    renderWithProviders(<SignedAmounts />);
+    const colored = (await amounts()).filter(
+      (el) => el.className.includes('positive') || el.className.includes('negative'),
+    );
+    expect(colored.length).toBeGreaterThan(0);
+    for (const el of colored) {
+      if (el.dataset.kind === 'balance' && el.className.includes('positive')) continue;
+      expect(plain(el.textContent)).toMatch(/^[+\u2212]/);
     }
+  });
+
+  it('rnf02 has no axe violations with signed amounts', async () => {
+    quietApi();
+    const { container } = renderWithProviders(<SignedAmounts />);
+    await amounts();
+    const previous = document.documentElement.dataset.theme;
+    for (const theme of ['light', 'dark']) {
+      document.documentElement.dataset.theme = theme;
+      expect(await axe(container)).toHaveNoViolations();
+    }
+    document.documentElement.dataset.theme = previous;
   });
 
   it('shows the value above the status, recurring and difference badges', async () => {
@@ -100,7 +166,7 @@ describe('finance components', () => {
     if (!row) throw new Error('sem linha');
     const meta = row.lastElementChild as HTMLElement;
     const value = meta.firstElementChild;
-    expect(plain(value?.textContent)).toBe('R$ 180,00');
+    expect(plain(value?.textContent)).toBe('\u2212R$ 180,00');
     const badges = within(meta).getByText('Liquidada').parentElement;
     expect(value?.compareDocumentPosition(badges as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(within(meta).getByText('Recorrente')).toBeInTheDocument();
@@ -537,4 +603,29 @@ function rectangles(container: HTMLElement): Element[] {
 
 function opacity(element: Element | undefined): number {
   return Number(element?.getAttribute('fill-opacity') ?? '1');
+}
+
+function SignedAmounts() {
+  return (
+    <div>
+      <MoneyAmount amount={500000} currency="BRL" kind="income" />
+      <MoneyAmount amount={150000} currency="BRL" kind="expense" />
+      <MoneyAmount amount={250000} currency="BRL" kind="balance" />
+      <MoneyAmount amount={-50000} currency="BRL" kind="balance" />
+      <MoneyAmount amount={0} currency="BRL" kind="balance" />
+    </div>
+  );
+}
+
+/** Os valores com sinal na ordem da tela; espera o primeiro aparecer. */
+async function amounts(): Promise<HTMLElement[]> {
+  return waitFor(() => {
+    const found = [...document.querySelectorAll<HTMLElement>('[data-kind]')];
+    expect(found.length).toBeGreaterThan(0);
+    return found;
+  });
+}
+
+function amountIn(link: HTMLElement): HTMLElement | null | undefined {
+  return link.closest('li')?.querySelector<HTMLElement>('[data-kind]');
 }

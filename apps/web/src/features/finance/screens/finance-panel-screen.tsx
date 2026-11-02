@@ -6,6 +6,7 @@ import { formatDate, formatMoney } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import { useListSearch } from '../../../shared/url-state/use-list-search';
+import { MoneyAmount, type MoneyKind } from '../components/money-amount';
 import type { BarItem } from '../components/panel-charts';
 import { DataCard } from '../components/record-card';
 import { useFinancialSummary, type FinancialSummary } from '../hooks/use-financial-summary';
@@ -82,10 +83,12 @@ function Closing({ summary, search }: BlockProps) {
             value: money(Math.abs(delta)),
           });
   }
-  const fig = (title: string, realized: number, forecast: number) => (
+  const fig = (title: string, realized: number, forecast: number, kind: MoneyKind) => (
     <div className={styles.fig}>
       <span className={styles.figLabel}>{title}</span>
-      <strong className={styles.figValue}>{money(realized)}</strong>
+      <strong className={styles.figValue}>
+        <MoneyAmount amount={realized} currency={summary.currency} kind={kind} />
+      </strong>
       <span className={styles.sub}>
         {t('finance.panel.of_forecast', { value: money(forecast) })}
       </span>
@@ -94,14 +97,12 @@ function Closing({ summary, search }: BlockProps) {
   return (
     <DataCard title={t('finance.panel.closing', { period: label })}>
       <div className={styles.figs}>
-        {fig(t('finance.panel.income'), income.realized, income.forecast)}
-        {fig(t('finance.panel.expense'), expense.realized, expense.forecast)}
+        {fig(t('finance.panel.income'), income.realized, income.forecast, 'income')}
+        {fig(t('finance.panel.expense'), expense.realized, expense.forecast, 'expense')}
         <div className={styles.fig}>
           <span className={styles.figLabel}>{t('finance.panel.surplus')}</span>
-          <strong
-            className={`${styles.figValue ?? ''} ${surplus.forecast < 0 ? (styles.negative ?? '') : ''}`}
-          >
-            {money(surplus.forecast)}
+          <strong className={styles.figValue}>
+            <MoneyAmount amount={surplus.forecast} currency={summary.currency} kind="balance" />
           </strong>
           <span className={styles.sub}>{t('finance.panel.surplus_help')}</span>
         </div>
@@ -216,7 +217,9 @@ function Balance({ summary }: { summary: FinancialSummary }) {
   const { balance } = summary;
   return (
     <DataCard title={t('finance.panel.balance')}>
-      <p className={styles.total}>{money(balance.current)}</p>
+      <p className={styles.total}>
+        <MoneyAmount amount={balance.current} currency={summary.currency} kind="balance" />
+      </p>
       {balance.forecast_at_period_end != null ? (
         <p className={styles.sub}>
           {t('finance.panel.balance_forecast', {
@@ -231,7 +234,11 @@ function Balance({ summary }: { summary: FinancialSummary }) {
             <Link to="/finance/accounts/$accountId" params={{ accountId: account.id }}>
               {account.name}
             </Link>
-            <span>{money(account.balance_amount)}</span>
+            <MoneyAmount
+              amount={account.balance_amount}
+              currency={summary.currency}
+              kind="balance"
+            />
           </li>
         ))}
       </ul>
@@ -265,9 +272,11 @@ function Upcoming({ summary }: { summary: FinancialSummary }) {
                         : `${t(`finance.kind.${entry.kind}`)} · ${date}`}
                     </span>
                   </span>
-                  <span className={entry.kind === 'income' ? styles.positive : undefined}>
-                    {formatMoney(entry.expected_amount, entry.currency, locale)}
-                  </span>
+                  <MoneyAmount
+                    amount={entry.expected_amount}
+                    currency={entry.currency}
+                    kind={entry.kind}
+                  />
                 </li>
               );
             })}

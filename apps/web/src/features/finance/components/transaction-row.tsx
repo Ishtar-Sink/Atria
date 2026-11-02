@@ -1,12 +1,13 @@
 import { Badge, type BadgeTone } from '@atria/ui';
 import { Link } from '@tanstack/react-router';
-import { formatDate, formatMoney } from '../../../shared/format/intl';
+import { formatDate } from '../../../shared/format/intl';
 import { useT } from '../../../shared/i18n/i18n';
 import { usePreferences } from '../../../shared/preferences/preferences-context';
 import type { ItemStatus, TransactionItem } from '../hooks/finance-cache';
 import { listItemHref } from '../hooks/use-transactions';
 import { DifferenceBadge } from './difference-badge';
 import styles from './finance.module.css';
+import { MoneyAmount } from './money-amount';
 
 /** Status nunca em vermelho: prevista e atrasada em âmbar ([project/frontend-14]). */
 export const STATUS_TONE: Record<ItemStatus, BadgeTone> = {
@@ -54,7 +55,12 @@ export function TransactionRow({ item, account_name, category_name }: Transactio
         <span className={styles.rowSub}>{subtitle}</span>
       </div>
       <div className={styles.rowMeta}>
-        <span className={styles.rowEnd}>{formatMoney(amount, item.currency, locale)}</span>
+        <MoneyAmount
+          amount={amount}
+          currency={item.currency}
+          kind={item.kind}
+          className={styles.rowEnd}
+        />
         <div className={styles.badges}>
           <Badge tone={STATUS_TONE[item.status]}>{t(`finance.status.${item.status}`)}</Badge>
           {item.recurrence_id ? (
