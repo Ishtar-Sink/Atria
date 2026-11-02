@@ -3,7 +3,7 @@
 Arquivo gerado pelo vostok a cada mudança de estado; não edite.
 
 - **Spec:** SPEC-003
-- **Status:** approved
+- **Status:** done
 - **Onda:** 11
 - **Dependências:** TASK-15, TASK-16
 
@@ -22,11 +22,11 @@ Arquivo gerado pelo vostok a cada mudança de estado; não edite.
 - **Tipo:** tarefa
 - **Descrição:** Entradas verdes com "+", saídas com "−" e saldos em verde ou âmbar no Financeiro.
 - **Critérios de aceite:**
-  - [ ] As entradas aparecem em verde com "+" e as saídas na cor do texto com "−", nas listas e no painel (RF-11, CT-08).
-  - [ ] O sinal e a cor seguem o tipo da movimentação, nunca o sinal do número guardado (RN-06).
-  - [ ] Saldos e sobra prevista aparecem em verde quando positivos, em âmbar com "−" quando negativos e, quando zero, na cor do texto sem sinal (RF-12, CB-07, CT-08).
-  - [ ] Nenhum valor usa vermelho, o sinal fica em texto ao lado da cor e o contraste é AA nos dois temas (RN-07, RNF-02, RNF-03).
-  - [ ] Testes do Financeiro, tipos, ESLint e Prettier passam sem warning.
+  - [x] As entradas aparecem em verde com "+" e as saídas na cor do texto com "−", nas listas e no painel (RF-11, CT-08).
+  - [x] O sinal e a cor seguem o tipo da movimentação, nunca o sinal do número guardado (RN-06).
+  - [x] Saldos e sobra prevista aparecem em verde quando positivos, em âmbar com "−" quando negativos e, quando zero, na cor do texto sem sinal (RF-12, CB-07, CT-08).
+  - [x] Nenhum valor usa vermelho, o sinal fica em texto ao lado da cor e o contraste é AA nos dois temas (RN-07, RNF-02, RNF-03).
+  - [x] Testes do Financeiro, tipos, ESLint e Prettier passam sem warning.
 - **Rótulos:** SPEC-003, padrao
 - **Estimativa:** padrao
 - **Bloqueada por:** TASK-15, TASK-16

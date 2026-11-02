@@ -1,10 +1,10 @@
 ---
 id: SPEC-003
 title: "Financeiro pronto para o lançamento"
-status: planned
+status: implemented
 author: "Victor Batalha"
 created_at: 2026-11-01T15:07:51Z
-updated_at: 2026-11-01T18:03:59Z
+updated_at: 2026-11-02T00:03:39Z
 tags: []
 type: improvement
 source: "draft/SPEC-003-financeiro-pronto-para-o-lancamento.md"
