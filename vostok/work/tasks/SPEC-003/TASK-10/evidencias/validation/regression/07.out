@@ -1,2 +1,0 @@
-$ grep -rlE 'statements-screen|statement-payment-screen|use-statements|/finance/statements|credit-cards' apps/web/src | sort
-exit: 0

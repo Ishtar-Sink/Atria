@@ -1,8 +1,0 @@
-$ cargo run -q -p atria-server -- openapi | cmp - packages/contracts/openapi.json && echo 'openapi.json igual ao servidor' && pnpm --filter @atria/contracts check && echo 'schema.ts igual ao gerado'
-# data: 2026-11-01T20:35:17Z
-# commit: 44003d1 (com mudanças não commitadas)
-# código de saída: 0
-
-openapi.json igual ao servidor
-$ openapi-typescript openapi.json | cmp - src/schema.ts
-schema.ts igual ao gerado

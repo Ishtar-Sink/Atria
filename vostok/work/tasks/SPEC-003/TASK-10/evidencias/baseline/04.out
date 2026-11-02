@@ -1,3 +1,0 @@
-$ pnpm --filter @atria/web exec prettier --check src/features/finance scripts/evidence-finance.mjs src/app/listing-standard.test.ts 2>&1 | tail -1
-exit: 0
-All matched files use Prettier code style!

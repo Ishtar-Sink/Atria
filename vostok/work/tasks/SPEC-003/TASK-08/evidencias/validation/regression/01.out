@@ -1,3 +1,0 @@
-$ pnpm --filter @atria/ui typecheck
-exit: 0
-$ tsc --noEmit

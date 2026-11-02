@@ -1,4 +1,0 @@
-$ pnpm --filter @atria/web exec prettier --check src/features/reader scripts/evidence-reader.mjs scripts/evidence-library.mjs
-exit: 0
-Checking formatting...
-All matched files use Prettier code style!

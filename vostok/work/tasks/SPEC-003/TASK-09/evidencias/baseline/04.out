@@ -1,4 +1,0 @@
-$ pnpm --filter @atria/web exec prettier --check src/app/layout src/shared/layout
-exit: 0
-Checking formatting...
-All matched files use Prettier code style!

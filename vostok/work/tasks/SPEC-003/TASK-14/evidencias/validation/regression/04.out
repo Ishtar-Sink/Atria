@@ -1,3 +1,0 @@
-$ node --check apps/web/scripts/evidence-reader.mjs && node --check apps/web/scripts/evidence-library.mjs && echo sintaxe-ok
-exit: 0
-sintaxe-ok

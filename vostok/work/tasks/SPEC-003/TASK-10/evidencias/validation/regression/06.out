@@ -1,3 +1,0 @@
-$ pnpm --filter @atria/web exec tsc --noEmit --pretty false 2>&1 | grep -E 'error TS' | grep -ciE "statement|credit|installment|closing_day|due_day|AccountKind|'kind'"
-exit: 1
-0

@@ -1,6 +1,0 @@
-18a19
->  ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > covers the content with the page color and fades it at the bottom
-20a22
->  ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > renders the below slot inside the sticky wrapper
-23d24
-<  ✓ src/shared/layout/sticky-page-header.test.tsx > StickyPageHeader > tints the background with the page color and fades it at the bottom

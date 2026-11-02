@@ -1,7 +1,0 @@
-2,5c2
-< exit: 0
-< apps/server/src/finance/application/mod.rs:5:pub mod credit_cards;
-< apps/server/src/finance/domain/mod.rs:6:pub mod credit_card;
-< apps/server/src/finance/tests/mod.rs:7:mod credit_cards;
----
-> exit: 1

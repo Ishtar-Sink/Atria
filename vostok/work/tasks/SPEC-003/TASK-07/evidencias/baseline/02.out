@@ -1,3 +1,0 @@
-$ pnpm --filter @atria/contracts check
-exit: 0
-$ openapi-typescript openapi.json | cmp - src/schema.ts

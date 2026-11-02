@@ -1,6 +1,0 @@
-$ pnpm --filter @atria/web exec playwright test --list src/shared/layout/sticky-page-header.e2e.ts --project=desktop 2>&1 | grep '›' | grep -v -E '(ct17|cb11) ' | sed -E 's/:[0-9]+:[0-9]+//' | sort
-exit: 0
-  [desktop] › shared/layout/sticky-page-header.e2e.ts › cabeçalho fixo › compacta o título depois de 48 px
-  [desktop] › shared/layout/sticky-page-header.e2e.ts › cabeçalho fixo › formulário: fundo tingido com desfoque na largura da área da página
-  [desktop] › shared/layout/sticky-page-header.e2e.ts › cabeçalho fixo › listagem larga: fundo de ponta a ponta além dos 1360 px
-  [desktop] › shared/layout/sticky-page-header.e2e.ts › cabeçalho fixo › sem transição com reduzir movimento
